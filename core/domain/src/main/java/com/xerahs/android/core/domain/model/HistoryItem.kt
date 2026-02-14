@@ -1,0 +1,21 @@
+package com.xerahs.android.core.domain.model
+
+data class HistoryItem(
+    val id: String,
+    val filePath: String,
+    val thumbnailPath: String? = null,
+    val url: String? = null,
+    val deleteUrl: String? = null,
+    val uploadDestination: UploadDestination,
+    val timestamp: Long,
+    val fileName: String,
+    val fileSize: Long = 0
+)
+
+enum class UploadDestination {
+    IMGUR,
+    S3,
+    FTP,
+    SFTP,
+    LOCAL
+}
