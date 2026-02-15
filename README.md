@@ -5,11 +5,15 @@ An Android image sharing app — browse images, annotate them, and upload to you
 ## Features
 
 - **Image Browser** — Pick images from your gallery using Android's Photo Picker
-- **Annotation Editor** — Draw, add text, arrows, rectangles, and blur sensitive areas
-- **Multi-Destination Upload** — Upload to Amazon S3, Imgur, FTP, or SFTP
+- **Annotation Editor** — Draw freehand, circles, arrows, rectangles, text with backgrounds, and blur sensitive areas
+- **Canvas Zoom/Pan** — Pinch-to-zoom and two-finger pan while annotating
+- **Multi-Image Upload** — Pick and upload multiple images at once with batch progress
+- **Multi-Destination Upload** — Upload to Amazon S3, Imgur, FTP, SFTP, or save locally
+- **Image Quality Controls** — JPEG compression slider and max dimension resize before upload
+- **Connection Testing** — Test S3, FTP, and SFTP connections from settings
 - **Custom File Naming** — Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
-- **Upload History** — Searchable history with thumbnails, date filters, and swipe-to-delete
-- **Theme Options** — System, Light, and Dark theme modes
+- **Upload History** — Searchable history with thumbnails, date filters, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
+- **Theme Options** — System, Light, and Dark modes with multiple color themes and OLED pure black mode
 - **Settings Backup** — Export/import all settings (including credentials) as JSON
 - **Share Intent** — Receive shared images from other apps
 - **Onboarding** — 3-page walkthrough on first launch
@@ -21,9 +25,10 @@ Multi-module clean architecture with Jetpack Compose.
 ```
 app/                  Main application, navigation, theme, onboarding
 core/
-  common/             Shared utilities, extensions, thumbnail generator
+  common/             Shared utilities, extensions, thumbnail generator, AWS V4 signer
   domain/             Models, repository interfaces
   data/               Room database, DataStore, encrypted credential storage
+  ui/                 Shared Compose components (cards, banners, section headers)
 feature/
   capture/            Image browser (Photo Picker)
   annotation/         Canvas-based image markup editor
@@ -71,6 +76,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 | **Imgur** | Anonymous or OAuth, token refresh |
 | **FTP** | FTPS support, passive mode, auto directory creation |
 | **SFTP** | SSH key authentication, passphrase support |
+| **Local** | Save to device storage |
 
 ## License
 
