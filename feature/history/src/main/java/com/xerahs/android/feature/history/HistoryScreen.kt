@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
@@ -35,6 +35,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -53,7 +55,6 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -268,49 +269,135 @@ fun HistoryScreen(
                 }
             }
 
-            // Merged filter row: destination chips + divider + date chips
-            LazyRow(
+            // Filter bar
+            val activeFilterCount = (if (uiState.filterDestination != null) 1 else 0) +
+                    (if (uiState.dateFilter != DateFilter.ALL) 1 else 0)
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Destination filters
-                item {
+                // Active filter chips (shown when filters are active)
+                if (uiState.filterDestination != null) {
                     FilterChip(
-                        selected = uiState.filterDestination == null,
+                        selected = true,
                         onClick = { viewModel.setFilter(null) },
-                        label = { Text("All") }
+                        label = { Text(uiState.filterDestination!!.displayName) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Clear",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     )
                 }
-                items(UploadDestination.entries.toList()) { dest ->
+                if (uiState.dateFilter != DateFilter.ALL) {
                     FilterChip(
-                        selected = uiState.filterDestination == dest,
-                        onClick = { viewModel.setFilter(dest) },
-                        label = { Text(dest.displayName) }
+                        selected = true,
+                        onClick = { viewModel.setDateFilter(DateFilter.ALL) },
+                        label = { Text(uiState.dateFilter.displayName) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Clear",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     )
                 }
 
-                // Vertical divider
-                item {
-                    VerticalDivider(
-                        modifier = Modifier.height(24.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
-                }
+                Spacer(modifier = Modifier.weight(1f))
 
-                // Date filters
-                items(DateFilter.entries.toList()) { filter ->
+                // Filter button with dropdown
+                Box {
+                    var showFilterMenu by remember { mutableStateOf(false) }
+
                     FilterChip(
-                        selected = uiState.dateFilter == filter,
-                        onClick = { viewModel.setDateFilter(filter) },
-                        label = { Text(filter.displayName) }
+                        selected = activeFilterCount > 0,
+                        onClick = { showFilterMenu = true },
+                        label = {
+                            Text(if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters")
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     )
+
+                    DropdownMenu(
+                        expanded = showFilterMenu,
+                        onDismissRequest = { showFilterMenu = false }
+                    ) {
+                        // Destination section header
+                        Text(
+                            text = "Destination",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("All Destinations") },
+                            onClick = {
+                                viewModel.setFilter(null)
+                                showFilterMenu = false
+                            },
+                            trailingIcon = {
+                                if (uiState.filterDestination == null) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        )
+                        UploadDestination.entries.forEach { dest ->
+                            DropdownMenuItem(
+                                text = { Text(dest.displayName) },
+                                onClick = {
+                                    viewModel.setFilter(dest)
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = {
+                                    if (uiState.filterDestination == dest) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Date section header
+                        Text(
+                            text = "Date Range",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        DateFilter.entries.forEach { filter ->
+                            DropdownMenuItem(
+                                text = { Text(filter.displayName) },
+                                onClick = {
+                                    viewModel.setDateFilter(filter)
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = {
+                                    if (uiState.dateFilter == filter) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             if (uiState.isLoading) {

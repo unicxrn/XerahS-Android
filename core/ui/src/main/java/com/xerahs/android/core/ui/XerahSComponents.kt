@@ -222,18 +222,21 @@ fun AnimatedListItem(
         MutableTransitionState(false).apply { targetState = true }
     }
 
+    // Cap delay to first 5 items so scrolled-in items appear instantly
+    val delay = (index.coerceAtMost(4)) * 50
+
     AnimatedVisibility(
         visibleState = visibleState,
         enter = fadeIn(
             animationSpec = tween(
-                durationMillis = 300,
-                delayMillis = index * 50
+                durationMillis = 200,
+                delayMillis = delay
             )
         ) + slideInVertically(
             initialOffsetY = { it / 4 },
             animationSpec = tween(
-                durationMillis = 300,
-                delayMillis = index * 50
+                durationMillis = 200,
+                delayMillis = delay
             )
         ),
         modifier = modifier
