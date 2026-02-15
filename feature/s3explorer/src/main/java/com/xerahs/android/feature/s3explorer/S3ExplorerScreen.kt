@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -113,6 +114,7 @@ import java.io.FileOutputStream
 @Composable
 fun S3ExplorerScreen(
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToStats: () -> Unit = {},
     viewModel: S3ExplorerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -121,6 +123,7 @@ fun S3ExplorerScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteKey by remember { mutableStateOf<String?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
     var contextMenuObj by remember { mutableStateOf<S3Object?>(null) }
 
     // Image preview dialog
@@ -336,9 +339,6 @@ fun S3ExplorerScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { viewModel.setShowCreateFolderDialog(true) }) {
-                            Icon(Icons.Default.CreateNewFolder, contentDescription = "Create folder")
-                        }
                         IconButton(onClick = { viewModel.toggleViewMode() }) {
                             Icon(
                                 if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
@@ -346,8 +346,39 @@ fun S3ExplorerScreen(
                                 contentDescription = "Toggle view"
                             )
                         }
-                        IconButton(onClick = { viewModel.refresh() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Bucket Stats") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onNavigateToStats()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New Folder") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.setShowCreateFolderDialog(true)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Refresh") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.refresh()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+                                )
+                            }
                         }
                     }
                 }

@@ -20,6 +20,7 @@ An Android image sharing app — browse images, annotate them, and upload to you
 - **Connection Testing** — Test S3, FTP, and SFTP connections from settings
 - **Custom File Naming** — Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
 - **S3 Explorer** — Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, image thumbnails, sorting (name/size/date/type), create folders, rename, and move files
+- **Bucket Stats** — Bucket analytics with file type breakdown, age distribution, storage growth charts, and estimated monthly cost calculator with adjustable parameters
 - **Albums & Tags** — Organize uploads into albums and assign multiple tags; filter history by album or tag; manage albums and tags from the history screen
 - **Upload History** — Searchable history with thumbnails, date filters, album/tag filtering, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
 - **Auto-Copy URL** — Optionally copy the upload URL to clipboard automatically after a successful upload
@@ -93,4 +94,4 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ## License
 
-All rights reserved.
+This project is licensed under the [GNU General Public License v3.0](LICENSE).

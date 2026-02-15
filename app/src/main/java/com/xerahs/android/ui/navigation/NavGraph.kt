@@ -24,6 +24,7 @@ import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
 import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
 import com.xerahs.android.feature.settings.destinations.S3ConfigScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
+import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -61,6 +62,7 @@ sealed class Screen(val route: String) {
     }
     data object History : Screen("history")
     data object S3Explorer : Screen("s3explorer")
+    data object S3Stats : Screen("s3explorer/stats")
     data object Settings : Screen("settings")
     data object AppearanceSettings : Screen("settings/appearance")
     data object UploadSettings : Screen("settings/uploads")
@@ -166,7 +168,16 @@ fun XerahSNavGraph(
             S3ExplorerScreen(
                 onNavigateToSettings = {
                     navController.navigate(Screen.S3Config.route)
+                },
+                onNavigateToStats = {
+                    navController.navigate(Screen.S3Stats.route)
                 }
+            )
+        }
+
+        composable(Screen.S3Stats.route) {
+            S3StatsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
