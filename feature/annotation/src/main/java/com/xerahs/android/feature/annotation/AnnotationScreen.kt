@@ -65,6 +65,7 @@ fun AnnotationScreen(
     // In-progress drag state
     var dragStartPos by remember { mutableStateOf<Offset?>(null) }
     var currentDragAnnotation by remember { mutableStateOf<Annotation?>(null) }
+    var freehandPoints by remember { mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
 
     // Text input dialog
     if (uiState.pendingTextPosition != null) {
@@ -147,22 +148,40 @@ fun AnnotationScreen(
                 currentAnnotation = currentDragAnnotation,
                 onDragStart = { offset ->
                     dragStartPos = offset
+                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                        freehandPoints = listOf(Pair(offset.x, offset.y))
+                    }
                 },
                 onDrag = { offset ->
-                    dragStartPos?.let { start ->
-                        currentDragAnnotation = createInProgressAnnotation(
-                            tool = uiState.selectedTool,
-                            start = start,
-                            current = offset,
+                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                        freehandPoints = freehandPoints + Pair(offset.x, offset.y)
+                        currentDragAnnotation = Annotation.Freehand(
+                            id = "in_progress",
                             strokeColor = uiState.strokeColor,
                             strokeWidth = uiState.strokeWidth,
-                            blurRadius = uiState.blurRadius
+                            points = freehandPoints
                         )
+                    } else {
+                        dragStartPos?.let { start ->
+                            currentDragAnnotation = createInProgressAnnotation(
+                                tool = uiState.selectedTool,
+                                start = start,
+                                current = offset,
+                                strokeColor = uiState.strokeColor,
+                                strokeWidth = uiState.strokeWidth,
+                                blurRadius = uiState.blurRadius
+                            )
+                        }
                     }
                 },
                 onDragEnd = { offset ->
-                    dragStartPos?.let { start ->
-                        viewModel.addAnnotation(start.x, start.y, offset.x, offset.y)
+                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                        viewModel.addFreehandAnnotation(freehandPoints)
+                        freehandPoints = emptyList()
+                    } else {
+                        dragStartPos?.let { start ->
+                            viewModel.addAnnotation(start.x, start.y, offset.x, offset.y)
+                        }
                     }
                     dragStartPos = null
                     currentDragAnnotation = null
@@ -177,9 +196,13 @@ fun AnnotationScreen(
                 strokeWidth = uiState.strokeWidth,
                 canUndo = uiState.undoStack.isNotEmpty(),
                 canRedo = uiState.redoStack.isNotEmpty(),
+                blurRadius = uiState.blurRadius,
+                textBackgroundEnabled = uiState.textBackgroundEnabled,
                 onToolSelected = viewModel::selectTool,
                 onColorSelected = viewModel::setStrokeColor,
                 onStrokeWidthChanged = viewModel::setStrokeWidth,
+                onBlurRadiusChanged = viewModel::setBlurRadius,
+                onTextBackgroundChanged = viewModel::setTextBackgroundEnabled,
                 onUndo = viewModel::undo,
                 onRedo = viewModel::redo,
                 onClear = viewModel::clearAnnotations
@@ -218,5 +241,21 @@ private fun createInProgressAnnotation(
             endX = current.x, endY = current.y,
             blurRadius = blurRadius
         )
+        AnnotationTool.CIRCLE -> {
+            val centerX = (start.x + current.x) / 2f
+            val centerY = (start.y + current.y) / 2f
+            val dx = current.x - start.x
+            val dy = current.y - start.y
+            val radius = kotlin.math.sqrt(dx * dx + dy * dy) / 2f
+            Annotation.Circle(
+                id = "in_progress",
+                strokeColor = strokeColor,
+                strokeWidth = strokeWidth,
+                centerX = centerX,
+                centerY = centerY,
+                radius = radius
+            )
+        }
+        AnnotationTool.FREEHAND -> null // Freehand uses accumulated points
     }
 }

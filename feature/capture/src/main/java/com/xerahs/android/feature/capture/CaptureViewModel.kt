@@ -17,6 +17,7 @@ import javax.inject.Inject
 
 data class BrowseUiState(
     val pickedImagePath: String? = null,
+    val pickedImagePaths: List<String>? = null,
     val errorMessage: String? = null
 )
 
@@ -31,27 +32,53 @@ class CaptureViewModel @Inject constructor(
     fun onImagePicked(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: throw Exception("Cannot read selected image")
-                val capturesDir = File(context.filesDir, "captures")
-                if (!capturesDir.exists()) capturesDir.mkdirs()
-                val file = File(capturesDir, "browse_${System.currentTimeMillis()}.png")
-                FileOutputStream(file).use { out ->
-                    inputStream.copyTo(out)
-                }
-                inputStream.close()
-                _uiState.value = _uiState.value.copy(pickedImagePath = file.absolutePath)
+                val path = copyUriToInternal(uri)
+                _uiState.value = _uiState.value.copy(pickedImagePath = path)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(errorMessage = "Failed to load image: ${e.message}")
             }
         }
     }
 
+    fun onImagesPicked(uris: List<Uri>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val paths = uris.mapNotNull { uri ->
+                    try { copyUriToInternal(uri) } catch (_: Exception) { null }
+                }
+                if (paths.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(errorMessage = "Failed to load images")
+                    return@launch
+                }
+                if (paths.size == 1) {
+                    _uiState.value = _uiState.value.copy(pickedImagePath = paths.first())
+                } else {
+                    _uiState.value = _uiState.value.copy(pickedImagePaths = paths)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to load images: ${e.message}")
+            }
+        }
+    }
+
     fun onImageHandled() {
-        _uiState.value = _uiState.value.copy(pickedImagePath = null)
+        _uiState.value = _uiState.value.copy(pickedImagePath = null, pickedImagePaths = null)
     }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    private fun copyUriToInternal(uri: Uri): String {
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw Exception("Cannot read selected image")
+        val capturesDir = File(context.filesDir, "captures")
+        if (!capturesDir.exists()) capturesDir.mkdirs()
+        val file = File(capturesDir, "browse_${System.currentTimeMillis()}_${uri.hashCode()}.png")
+        FileOutputStream(file).use { out ->
+            inputStream.copyTo(out)
+        }
+        inputStream.close()
+        return file.absolutePath
     }
 }

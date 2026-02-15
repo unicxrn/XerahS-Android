@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
 enum class AnnotationTool {
-    RECTANGLE, ARROW, TEXT, BLUR
+    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND
 }
 
 data class AnnotationUiState(
@@ -25,7 +25,8 @@ data class AnnotationUiState(
     val undoStack: List<List<Annotation>> = emptyList(),
     val redoStack: List<List<Annotation>> = emptyList(),
     val isExporting: Boolean = false,
-    val pendingTextPosition: Pair<Float, Float>? = null
+    val pendingTextPosition: Pair<Float, Float>? = null,
+    val textBackgroundEnabled: Boolean = true
 )
 
 @HiltViewModel
@@ -87,12 +88,55 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                 endX = endX, endY = endY,
                 blurRadius = state.blurRadius
             )
+            AnnotationTool.CIRCLE -> {
+                val centerX = (startX + endX) / 2f
+                val centerY = (startY + endY) / 2f
+                val dx = endX - startX
+                val dy = endY - startY
+                val radius = kotlin.math.sqrt(dx * dx + dy * dy) / 2f
+                Annotation.Circle(
+                    id = generateId(),
+                    zIndex = state.annotations.size,
+                    strokeColor = state.strokeColor,
+                    strokeWidth = state.strokeWidth,
+                    centerX = centerX,
+                    centerY = centerY,
+                    radius = radius
+                )
+            }
+            AnnotationTool.FREEHAND -> {
+                // Freehand uses addFreehandAnnotation instead
+                return
+            }
         }
 
         _uiState.value = state.copy(
             annotations = state.annotations + annotation,
             redoStack = emptyList()
         )
+    }
+
+    fun addFreehandAnnotation(points: List<Pair<Float, Float>>) {
+        if (points.size < 2) return
+        val state = _uiState.value
+        pushUndo()
+
+        val annotation = Annotation.Freehand(
+            id = generateId(),
+            zIndex = state.annotations.size,
+            strokeColor = state.strokeColor,
+            strokeWidth = state.strokeWidth,
+            points = points
+        )
+
+        _uiState.value = state.copy(
+            annotations = state.annotations + annotation,
+            redoStack = emptyList()
+        )
+    }
+
+    fun setTextBackgroundEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(textBackgroundEnabled = enabled)
     }
 
     fun addTextAnnotation(text: String) {
@@ -108,7 +152,8 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
             text = text,
             x = position.first,
             y = position.second,
-            fontSize = state.fontSize
+            fontSize = state.fontSize,
+            backgroundColor = if (state.textBackgroundEnabled) 0xCC000000.toInt() else null
         )
 
         _uiState.value = state.copy(

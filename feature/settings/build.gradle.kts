@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
+    implementation(project(":core:ui"))
 
     implementation(libs.core.ktx)
     implementation(libs.lifecycle.runtime.compose)
@@ -54,4 +55,8 @@ dependencies {
 
     implementation(libs.activity.compose)
     implementation(libs.gson)
+
+    implementation(libs.okhttp)
+    implementation(libs.commons.net)
+    implementation(libs.jsch)
 }

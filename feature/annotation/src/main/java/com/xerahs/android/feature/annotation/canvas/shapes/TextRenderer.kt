@@ -2,6 +2,7 @@ package com.xerahs.android.feature.annotation.canvas.shapes
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import com.xerahs.android.core.domain.model.Annotation
 
@@ -26,10 +27,32 @@ object TextRenderer {
         // Draw text with word wrap
         val lines = wrapText(textAnnotation.text, paint, canvas.width.toFloat() - textAnnotation.x)
         var y = textAnnotation.y + textAnnotation.fontSize // baseline offset
+        val lineHeight = textAnnotation.fontSize * 1.2f
+        val padding = 4f
+
+        // Background paint
+        val bgPaint = textAnnotation.backgroundColor?.let { bgColor ->
+            Paint().apply {
+                color = bgColor
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+        }
 
         for (line in lines) {
+            if (bgPaint != null) {
+                val textWidth = paint.measureText(line)
+                val metrics = paint.fontMetrics
+                val bgRect = RectF(
+                    textAnnotation.x - padding,
+                    y + metrics.ascent - padding,
+                    textAnnotation.x + textWidth + padding,
+                    y + metrics.descent + padding
+                )
+                canvas.drawRoundRect(bgRect, padding, padding, bgPaint)
+            }
             canvas.drawText(line, textAnnotation.x, y, paint)
-            y += textAnnotation.fontSize * 1.2f // line spacing
+            y += lineHeight
         }
     }
 

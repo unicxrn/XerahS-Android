@@ -5,6 +5,8 @@ import android.graphics.Canvas
 import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.feature.annotation.canvas.shapes.ArrowRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.BlurRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.CircleRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.FreehandRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.RectangleRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.TextRenderer
 import java.io.File
@@ -26,6 +28,8 @@ object AnnotationEngine {
                 is Annotation.Arrow -> ArrowRenderer.draw(canvas, annotation)
                 is Annotation.Text -> TextRenderer.draw(canvas, annotation)
                 is Annotation.Blur -> BlurRenderer.draw(canvas, annotation, sourceBitmap)
+                is Annotation.Circle -> CircleRenderer.draw(canvas, annotation)
+                is Annotation.Freehand -> FreehandRenderer.draw(canvas, annotation)
             }
         }
 

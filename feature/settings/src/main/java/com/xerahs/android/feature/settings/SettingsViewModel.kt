@@ -2,14 +2,17 @@ package com.xerahs.android.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
 import javax.inject.Inject
@@ -19,6 +22,11 @@ data class SettingsUiState(
     val overlayEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fileNamingPattern: String = "{original}",
+    val dynamicColor: Boolean = true,
+    val colorTheme: ColorTheme = ColorTheme.VIOLET,
+    val oledBlack: Boolean = false,
+    val imageQuality: Int = 85,
+    val maxImageDimension: Int = 0,
     val exportImportMessage: String? = null
 )
 
@@ -53,6 +61,31 @@ class SettingsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(fileNamingPattern = pattern)
                 }
             }
+            launch {
+                settingsRepository.getDynamicColor().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(dynamicColor = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getColorTheme().collect { theme ->
+                    _uiState.value = _uiState.value.copy(colorTheme = theme)
+                }
+            }
+            launch {
+                settingsRepository.getOledBlack().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(oledBlack = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getImageQuality().collect { quality ->
+                    _uiState.value = _uiState.value.copy(imageQuality = quality)
+                }
+            }
+            launch {
+                settingsRepository.getMaxImageDimension().collect { maxDim ->
+                    _uiState.value = _uiState.value.copy(maxImageDimension = maxDim)
+                }
+            }
         }
     }
 
@@ -80,11 +113,43 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setDynamicColor(enabled)
+        }
+    }
+
+    fun setColorTheme(theme: ColorTheme) {
+        viewModelScope.launch {
+            settingsRepository.setColorTheme(theme)
+        }
+    }
+
+    fun setOledBlack(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setOledBlack(enabled)
+        }
+    }
+
+    fun setImageQuality(quality: Int) {
+        viewModelScope.launch {
+            settingsRepository.setImageQuality(quality)
+        }
+    }
+
+    fun setMaxImageDimension(maxDim: Int) {
+        viewModelScope.launch {
+            settingsRepository.setMaxImageDimension(maxDim)
+        }
+    }
+
     fun exportSettings(outputStream: OutputStream) {
         viewModelScope.launch {
             try {
-                val json = exportImportManager.exportSettings()
-                outputStream.use { it.write(json.toByteArray()) }
+                withContext(Dispatchers.IO) {
+                    val json = exportImportManager.exportSettings()
+                    outputStream.use { it.write(json.toByteArray()) }
+                }
                 _uiState.value = _uiState.value.copy(exportImportMessage = "Settings exported successfully")
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(exportImportMessage = "Export failed: ${e.message}")
@@ -95,8 +160,10 @@ class SettingsViewModel @Inject constructor(
     fun importSettings(inputStream: InputStream) {
         viewModelScope.launch {
             try {
-                val json = inputStream.use { it.bufferedReader().readText() }
-                exportImportManager.importSettings(json)
+                withContext(Dispatchers.IO) {
+                    val json = inputStream.use { it.bufferedReader().readText() }
+                    exportImportManager.importSettings(json)
+                }
                 _uiState.value = _uiState.value.copy(exportImportMessage = "Settings imported successfully")
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(exportImportMessage = "Import failed: ${e.message}")

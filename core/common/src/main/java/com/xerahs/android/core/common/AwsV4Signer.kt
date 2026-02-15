@@ -1,4 +1,4 @@
-package com.xerahs.android.feature.upload.uploader
+package com.xerahs.android.core.common
 
 import java.net.URLEncoder
 import java.security.MessageDigest

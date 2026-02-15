@@ -43,3 +43,28 @@ fun Context.exportsDir(): File {
 }
 
 fun String.fileExtension(): String = substringAfterLast('.', "png")
+
+fun Long.toDateGroupKey(): String {
+    val now = java.util.Calendar.getInstance()
+    val date = java.util.Calendar.getInstance().apply { timeInMillis = this@toDateGroupKey }
+
+    return when {
+        now.get(java.util.Calendar.YEAR) == date.get(java.util.Calendar.YEAR) &&
+            now.get(java.util.Calendar.DAY_OF_YEAR) == date.get(java.util.Calendar.DAY_OF_YEAR) -> "Today"
+        now.get(java.util.Calendar.YEAR) == date.get(java.util.Calendar.YEAR) &&
+            now.get(java.util.Calendar.DAY_OF_YEAR) - date.get(java.util.Calendar.DAY_OF_YEAR) == 1 -> "Yesterday"
+        else -> {
+            val sdf = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
+            sdf.format(Date(this))
+        }
+    }
+}
+
+fun Long.formatSize(): String {
+    return when {
+        this < 1024 -> "$this B"
+        this < 1024 * 1024 -> "%.1f KB".format(this / 1024.0)
+        this < 1024 * 1024 * 1024 -> "%.1f MB".format(this / (1024.0 * 1024.0))
+        else -> "%.1f GB".format(this / (1024.0 * 1024.0 * 1024.0))
+    }
+}

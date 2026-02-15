@@ -2,6 +2,7 @@ package com.xerahs.android.core.data.repository
 
 import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
 import com.xerahs.android.core.data.local.datastore.SettingsDataStore
+import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -46,6 +47,18 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setOnboardingCompleted(completed: Boolean) =
         settingsDataStore.setOnboardingCompleted(completed)
 
+    override fun getDynamicColor(): Flow<Boolean> =
+        settingsDataStore.getDynamicColor()
+
+    override suspend fun setDynamicColor(enabled: Boolean) =
+        settingsDataStore.setDynamicColor(enabled)
+
+    override fun getColorTheme(): Flow<ColorTheme> =
+        settingsDataStore.getColorTheme()
+
+    override suspend fun setColorTheme(theme: ColorTheme) =
+        settingsDataStore.setColorTheme(theme)
+
     override suspend fun getImgurConfig(): UploadConfig.ImgurConfig =
         secureCredentialStore.getImgurConfig()
 
@@ -69,4 +82,22 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveSftpConfig(config: UploadConfig.SftpConfig) =
         secureCredentialStore.saveSftpConfig(config)
+
+    override fun getOledBlack(): Flow<Boolean> =
+        settingsDataStore.getOledBlack()
+
+    override suspend fun setOledBlack(enabled: Boolean) =
+        settingsDataStore.setOledBlack(enabled)
+
+    override fun getImageQuality(): Flow<Int> =
+        settingsDataStore.getImageQuality()
+
+    override suspend fun setImageQuality(quality: Int) =
+        settingsDataStore.setImageQuality(quality)
+
+    override fun getMaxImageDimension(): Flow<Int> =
+        settingsDataStore.getMaxImageDimension()
+
+    override suspend fun setMaxImageDimension(maxDim: Int) =
+        settingsDataStore.setMaxImageDimension(maxDim)
 }

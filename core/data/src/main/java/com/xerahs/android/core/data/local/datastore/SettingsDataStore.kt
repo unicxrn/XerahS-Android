@@ -5,8 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,6 +29,11 @@ class SettingsDataStore @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FILE_NAMING_PATTERN = stringPreferencesKey("file_naming_pattern")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val COLOR_THEME = stringPreferencesKey("color_theme")
+        val OLED_BLACK = booleanPreferencesKey("oled_black")
+        val IMAGE_QUALITY = intPreferencesKey("image_quality")
+        val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
@@ -82,6 +89,61 @@ class SettingsDataStore @Inject constructor(
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.ONBOARDING_COMPLETED] = completed
+        }
+    }
+
+    fun getDynamicColor(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.DYNAMIC_COLOR] ?: true
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.DYNAMIC_COLOR] = enabled
+        }
+    }
+
+    fun getColorTheme(): Flow<ColorTheme> = context.dataStore.data.map { prefs ->
+        val name = prefs[Keys.COLOR_THEME] ?: ColorTheme.VIOLET.name
+        try {
+            ColorTheme.valueOf(name)
+        } catch (e: IllegalArgumentException) {
+            ColorTheme.VIOLET
+        }
+    }
+
+    suspend fun setColorTheme(theme: ColorTheme) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.COLOR_THEME] = theme.name
+        }
+    }
+
+    fun getOledBlack(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.OLED_BLACK] ?: false
+    }
+
+    suspend fun setOledBlack(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.OLED_BLACK] = enabled
+        }
+    }
+
+    fun getImageQuality(): Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[Keys.IMAGE_QUALITY] ?: 85
+    }
+
+    suspend fun setImageQuality(quality: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.IMAGE_QUALITY] = quality
+        }
+    }
+
+    fun getMaxImageDimension(): Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[Keys.MAX_IMAGE_DIMENSION] ?: 0
+    }
+
+    suspend fun setMaxImageDimension(maxDim: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.MAX_IMAGE_DIMENSION] = maxDim
         }
     }
 }

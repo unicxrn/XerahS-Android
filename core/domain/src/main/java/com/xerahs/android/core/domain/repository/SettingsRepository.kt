@@ -1,5 +1,6 @@
 package com.xerahs.android.core.domain.repository
 
+import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -21,6 +22,12 @@ interface SettingsRepository {
     fun getOnboardingCompleted(): Flow<Boolean>
     suspend fun setOnboardingCompleted(completed: Boolean)
 
+    fun getDynamicColor(): Flow<Boolean>
+    suspend fun setDynamicColor(enabled: Boolean)
+
+    fun getColorTheme(): Flow<ColorTheme>
+    suspend fun setColorTheme(theme: ColorTheme)
+
     suspend fun getImgurConfig(): UploadConfig.ImgurConfig
     suspend fun saveImgurConfig(config: UploadConfig.ImgurConfig)
 
@@ -32,4 +39,13 @@ interface SettingsRepository {
 
     suspend fun getSftpConfig(): UploadConfig.SftpConfig
     suspend fun saveSftpConfig(config: UploadConfig.SftpConfig)
+
+    fun getOledBlack(): Flow<Boolean>
+    suspend fun setOledBlack(enabled: Boolean)
+
+    fun getImageQuality(): Flow<Int>
+    suspend fun setImageQuality(quality: Int)
+
+    fun getMaxImageDimension(): Flow<Int>
+    suspend fun setMaxImageDimension(maxDim: Int)
 }

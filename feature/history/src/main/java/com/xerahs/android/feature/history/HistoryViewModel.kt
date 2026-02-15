@@ -20,7 +20,9 @@ data class HistoryUiState(
     val filterDestination: UploadDestination? = null,
     val dateFilter: DateFilter = DateFilter.ALL,
     val searchQuery: String = "",
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val totalUploads: Int = 0,
+    val totalSize: Long = 0
 )
 
 @HiltViewModel
@@ -32,6 +34,7 @@ class HistoryViewModel @Inject constructor(
     val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private var lastDeletedItem: HistoryItem? = null
 
     init {
         loadHistory()
@@ -51,7 +54,12 @@ class HistoryViewModel @Inject constructor(
 
             flow.collect { items ->
                 val filtered = applyDateFilter(items, _uiState.value.dateFilter)
-                _uiState.value = _uiState.value.copy(items = filtered, isLoading = false)
+                _uiState.value = _uiState.value.copy(
+                    items = filtered,
+                    isLoading = false,
+                    totalUploads = filtered.size,
+                    totalSize = filtered.sumOf { it.fileSize }
+                )
             }
         }
     }
@@ -109,7 +117,17 @@ class HistoryViewModel @Inject constructor(
 
     fun deleteItem(id: String) {
         viewModelScope.launch {
+            // Save for undo before deleting
+            lastDeletedItem = historyRepository.getHistoryItem(id)
             historyRepository.deleteHistoryItem(id)
+        }
+    }
+
+    fun undoDelete() {
+        val item = lastDeletedItem ?: return
+        lastDeletedItem = null
+        viewModelScope.launch {
+            historyRepository.insertHistoryItem(item)
         }
     }
 

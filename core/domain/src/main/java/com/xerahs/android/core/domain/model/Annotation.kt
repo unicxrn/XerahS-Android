@@ -42,7 +42,8 @@ sealed class Annotation {
         val y: Float,
         val fontSize: Float = 24f,
         val isBold: Boolean = false,
-        val isItalic: Boolean = false
+        val isItalic: Boolean = false,
+        val backgroundColor: Int? = null
     ) : Annotation()
 
     data class Blur(
@@ -55,5 +56,24 @@ sealed class Annotation {
         val endX: Float,
         val endY: Float,
         val blurRadius: Float = 25f
+    ) : Annotation()
+
+    data class Circle(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFF0000.toInt(),
+        override val strokeWidth: Float = 3f,
+        val fillColor: Int? = null,
+        val centerX: Float,
+        val centerY: Float,
+        val radius: Float
+    ) : Annotation()
+
+    data class Freehand(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFF0000.toInt(),
+        override val strokeWidth: Float = 3f,
+        val points: List<Pair<Float, Float>>
     ) : Annotation()
 }

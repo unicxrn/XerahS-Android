@@ -12,10 +12,10 @@ data class HistoryItem(
     val fileSize: Long = 0
 )
 
-enum class UploadDestination {
-    IMGUR,
-    S3,
-    FTP,
-    SFTP,
-    LOCAL
+enum class UploadDestination(val displayName: String) {
+    IMGUR("Imgur"),
+    S3("S3"),
+    FTP("FTP"),
+    SFTP("SFTP"),
+    LOCAL("Local")
 }

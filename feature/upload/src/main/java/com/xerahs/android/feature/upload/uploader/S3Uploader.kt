@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload.uploader
 
+import com.xerahs.android.core.common.AwsV4Signer
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult

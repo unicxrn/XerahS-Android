@@ -2,6 +2,7 @@ package com.xerahs.android.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,15 @@ class MainViewModel @Inject constructor(
 
     val onboardingCompleted: StateFlow<Boolean> = settingsRepository.getOnboardingCompleted()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val dynamicColor: StateFlow<Boolean> = settingsRepository.getDynamicColor()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val colorTheme: StateFlow<ColorTheme> = settingsRepository.getColorTheme()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ColorTheme.VIOLET)
+
+    val oledBlack: StateFlow<Boolean> = settingsRepository.getOledBlack()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun completeOnboarding() {
         viewModelScope.launch {

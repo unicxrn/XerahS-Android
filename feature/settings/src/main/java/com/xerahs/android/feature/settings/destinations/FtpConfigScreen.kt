@@ -1,21 +1,28 @@
 package com.xerahs.android.feature.settings.destinations
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ElevatedButton
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -37,6 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.ui.SectionHeader
+import com.xerahs.android.core.ui.SettingsGroupCard
+import com.xerahs.android.core.ui.StatusBanner
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +58,7 @@ fun FtpConfigScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(0) }
+    var isTesting by remember { mutableStateOf(false) }
 
     // FTP fields
     var ftpHost by remember { mutableStateOf("") }
@@ -107,6 +118,25 @@ fun FtpConfigScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Status indicator
+            val isConfigured = if (selectedTab == 0) ftpHost.isNotBlank() else sftpHost.isNotBlank()
+            StatusBanner(
+                icon = if (isConfigured) Icons.Default.CheckCircle else Icons.Default.Info,
+                title = if (isConfigured) "Configured" else "Not configured",
+                subtitle = if (isConfigured) "Host is set" else "Enter connection details",
+                containerColor = if (isConfigured) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                contentColor = if (isConfigured) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }) {
                     Text("FTP", modifier = Modifier.padding(16.dp))
@@ -117,64 +147,88 @@ fun FtpConfigScreen(
             }
 
             Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 if (selectedTab == 0) {
                     // FTP configuration
-                    OutlinedTextField(
-                        value = ftpHost, onValueChange = { ftpHost = it },
-                        label = { Text("Host") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ftpPort, onValueChange = { ftpPort = it },
-                        label = { Text("Port") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ftpUsername, onValueChange = { ftpUsername = it },
-                        label = { Text("Username") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ftpPassword, onValueChange = { ftpPassword = it },
-                        label = { Text("Password") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        visualTransformation = PasswordVisualTransformation()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ftpRemotePath, onValueChange = { ftpRemotePath = it },
-                        label = { Text("Remote Path") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = ftpHttpUrl, onValueChange = { ftpHttpUrl = it },
-                        label = { Text("HTTP URL (for link generation)") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ListItem(
-                        headlineContent = { Text("Use FTPS") },
-                        trailingContent = {
-                            Switch(checked = ftpUseFtps, onCheckedChange = { ftpUseFtps = it })
+                    SectionHeader("Connection")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = ftpHost, onValueChange = { ftpHost = it },
+                                label = { Text("Host") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                isError = ftpHost.isBlank(),
+                                supportingText = if (ftpHost.isBlank()) {{ Text("Required") }} else null
+                            )
+                            OutlinedTextField(
+                                value = ftpPort, onValueChange = { ftpPort = it },
+                                label = { Text("Port") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Passive Mode") },
-                        trailingContent = {
-                            Switch(checked = ftpUsePassive, onCheckedChange = { ftpUsePassive = it })
+                    }
+
+                    SectionHeader("Authentication")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = ftpUsername, onValueChange = { ftpUsername = it },
+                                label = { Text("Username") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = ftpPassword, onValueChange = { ftpPassword = it },
+                                label = { Text("Password") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                visualTransformation = PasswordVisualTransformation()
+                            )
                         }
-                    )
+                    }
+
+                    SectionHeader("Paths")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = ftpRemotePath, onValueChange = { ftpRemotePath = it },
+                                label = { Text("Remote Path") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = ftpHttpUrl, onValueChange = { ftpHttpUrl = it },
+                                label = { Text("HTTP URL (for link generation)") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                        }
+                    }
+
+                    SectionHeader("Options")
+                    SettingsGroupCard {
+                        ListItem(
+                            headlineContent = { Text("Use FTPS") },
+                            trailingContent = {
+                                Switch(checked = ftpUseFtps, onCheckedChange = { ftpUseFtps = it })
+                            }
+                        )
+                        ListItem(
+                            headlineContent = { Text("Passive Mode") },
+                            trailingContent = {
+                                Switch(checked = ftpUsePassive, onCheckedChange = { ftpUsePassive = it })
+                            }
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    ElevatedButton(
+                    Button(
                         onClick = {
                             coroutineScope.launch {
                                 viewModel.saveFtpConfig(
@@ -185,56 +239,110 @@ fun FtpConfigScreen(
                                 snackbarHostState.showSnackbar("FTP settings saved")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        shape = MaterialTheme.shapes.large,
+                        enabled = ftpHost.isNotBlank()
                     ) { Text("Save FTP Settings") }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            isTesting = true
+                            coroutineScope.launch {
+                                val result = viewModel.testFtpConnection(
+                                    ftpHost, ftpPort.toIntOrNull() ?: 21,
+                                    ftpUsername, ftpPassword, ftpUseFtps
+                                )
+                                isTesting = false
+                                snackbarHostState.showSnackbar(result)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        shape = MaterialTheme.shapes.large,
+                        enabled = ftpHost.isNotBlank() && !isTesting
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Test Connection")
+                    }
 
                 } else {
                     // SFTP configuration
-                    OutlinedTextField(
-                        value = sftpHost, onValueChange = { sftpHost = it },
-                        label = { Text("Host") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpPort, onValueChange = { sftpPort = it },
-                        label = { Text("Port") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpUsername, onValueChange = { sftpUsername = it },
-                        label = { Text("Username") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpPassword, onValueChange = { sftpPassword = it },
-                        label = { Text("Password") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        visualTransformation = PasswordVisualTransformation()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpKeyPath, onValueChange = { sftpKeyPath = it },
-                        label = { Text("SSH Key Path (optional)") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpRemotePath, onValueChange = { sftpRemotePath = it },
-                        label = { Text("Remote Path") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sftpHttpUrl, onValueChange = { sftpHttpUrl = it },
-                        label = { Text("HTTP URL (for link generation)") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
+                    SectionHeader("Connection")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = sftpHost, onValueChange = { sftpHost = it },
+                                label = { Text("Host") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                isError = sftpHost.isBlank(),
+                                supportingText = if (sftpHost.isBlank()) {{ Text("Required") }} else null
+                            )
+                            OutlinedTextField(
+                                value = sftpPort, onValueChange = { sftpPort = it },
+                                label = { Text("Port") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                        }
+                    }
+
+                    SectionHeader("Authentication")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = sftpUsername, onValueChange = { sftpUsername = it },
+                                label = { Text("Username") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = sftpPassword, onValueChange = { sftpPassword = it },
+                                label = { Text("Password") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                visualTransformation = PasswordVisualTransformation()
+                            )
+                            OutlinedTextField(
+                                value = sftpKeyPath, onValueChange = { sftpKeyPath = it },
+                                label = { Text("SSH Key Path (optional)") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                        }
+                    }
+
+                    SectionHeader("Paths")
+                    SettingsGroupCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = sftpRemotePath, onValueChange = { sftpRemotePath = it },
+                                label = { Text("Remote Path") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = sftpHttpUrl, onValueChange = { sftpHttpUrl = it },
+                                label = { Text("HTTP URL (for link generation)") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    ElevatedButton(
+                    Button(
                         onClick = {
                             coroutineScope.launch {
                                 viewModel.saveSftpConfig(
@@ -246,9 +354,44 @@ fun FtpConfigScreen(
                                 snackbarHostState.showSnackbar("SFTP settings saved")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        shape = MaterialTheme.shapes.large,
+                        enabled = sftpHost.isNotBlank()
                     ) { Text("Save SFTP Settings") }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            isTesting = true
+                            coroutineScope.launch {
+                                val result = viewModel.testSftpConnection(
+                                    sftpHost, sftpPort.toIntOrNull() ?: 22,
+                                    sftpUsername, sftpPassword,
+                                    sftpKeyPath.ifEmpty { null }
+                                )
+                                isTesting = false
+                                snackbarHostState.showSnackbar(result)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        shape = MaterialTheme.shapes.large,
+                        enabled = sftpHost.isNotBlank() && !isTesting
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Test Connection")
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
