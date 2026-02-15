@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.domain.model.UploadDestination
+import androidx.compose.material3.Switch
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 
@@ -130,6 +131,24 @@ fun UploadSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Behavior section
+            SectionHeader("Behavior")
+
+            SettingsGroupCard {
+                ListItem(
+                    headlineContent = { Text("Auto-copy URL after upload") },
+                    supportingContent = { Text("Automatically copy the URL to clipboard when a single upload completes") },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.autoCopyUrl,
+                            onCheckedChange = { viewModel.setAutoCopyUrl(it) }
+                        )
+                    }
                 )
             }
 

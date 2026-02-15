@@ -27,6 +27,8 @@ data class SettingsUiState(
     val oledBlack: Boolean = false,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
+    val autoCopyUrl: Boolean = false,
+    val biometricLockMode: String = "OFF",
     val exportImportMessage: String? = null
 )
 
@@ -86,6 +88,16 @@ class SettingsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(maxImageDimension = maxDim)
                 }
             }
+            launch {
+                settingsRepository.getAutoCopyUrl().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(autoCopyUrl = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getBiometricLockMode().collect { mode ->
+                    _uiState.value = _uiState.value.copy(biometricLockMode = mode)
+                }
+            }
         }
     }
 
@@ -140,6 +152,18 @@ class SettingsViewModel @Inject constructor(
     fun setMaxImageDimension(maxDim: Int) {
         viewModelScope.launch {
             settingsRepository.setMaxImageDimension(maxDim)
+        }
+    }
+
+    fun setAutoCopyUrl(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setAutoCopyUrl(enabled)
+        }
+    }
+
+    fun setBiometricLockMode(mode: String) {
+        viewModelScope.launch {
+            settingsRepository.setBiometricLockMode(mode)
         }
     }
 

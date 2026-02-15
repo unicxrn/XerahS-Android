@@ -5,15 +5,21 @@ An Android image sharing app — browse images, annotate them, and upload to you
 ## Features
 
 - **Image Browser** — Pick images from your gallery using Android's Photo Picker
-- **Annotation Editor** — Draw freehand, circles, arrows, rectangles, text with backgrounds, and blur sensitive areas
+- **Annotation Editor** — Draw freehand, circles, arrows, rectangles, text with backgrounds, blur sensitive areas, and numbered steps
+- **Crop Tool** — Crop images with draggable handles and grid overlay before or after annotating
+- **Annotation Selection** — Tap to select individual annotations, delete them, or adjust per-annotation opacity
+- **HSV Color Picker** — Full color picker with hue/saturation canvas, brightness slider, and hex input
 - **Canvas Zoom/Pan** — Pinch-to-zoom and two-finger pan while annotating
 - **Multi-Image Upload** — Pick and upload multiple images at once with batch progress
 - **Multi-Destination Upload** — Upload to Amazon S3, Imgur, FTP, SFTP, or save locally
 - **Image Quality Controls** — JPEG compression slider and max dimension resize before upload
 - **Connection Testing** — Test S3, FTP, and SFTP connections from settings
 - **Custom File Naming** — Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
-- **S3 Explorer** — Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, and image thumbnails via signed requests
-- **Upload History** — Searchable history with thumbnails, date filters, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
+- **S3 Explorer** — Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, image thumbnails, sorting (name/size/date/type), create folders, rename, and move files
+- **Albums & Tags** — Organize uploads into albums and assign multiple tags; filter history by album or tag; manage albums and tags from the history screen
+- **Upload History** — Searchable history with thumbnails, date filters, album/tag filtering, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
+- **Auto-Copy URL** — Optionally copy the upload URL to clipboard automatically after a successful upload
+- **Biometric Lock** — Lock the entire app or just credential screens behind fingerprint/face authentication
 - **Theme Options** — System, Light, and Dark modes with multiple color themes and OLED pure black mode
 - **Settings Backup** — Export/import all settings (including credentials) as JSON
 - **Share Intent** — Receive shared images from other apps
@@ -50,6 +56,7 @@ feature/
 | Networking | Retrofit, OkHttp |
 | Image Loading | Coil |
 | Background Work | WorkManager |
+| Security | AndroidX Biometric |
 | FTP/SFTP | Apache Commons Net, JSch |
 | Serialization | Gson |
 

@@ -23,6 +23,7 @@ object TextRenderer {
             isAntiAlias = true
             style = Paint.Style.FILL
         }
+        paint.alpha = (paint.alpha * textAnnotation.opacity).toInt()
 
         // Draw text with word wrap
         val lines = wrapText(textAnnotation.text, paint, canvas.width.toFloat() - textAnnotation.x)
@@ -36,7 +37,7 @@ object TextRenderer {
                 color = bgColor
                 style = Paint.Style.FILL
                 isAntiAlias = true
-            }
+            }.also { it.alpha = (it.alpha * textAnnotation.opacity).toInt() }
         }
 
         for (line in lines) {

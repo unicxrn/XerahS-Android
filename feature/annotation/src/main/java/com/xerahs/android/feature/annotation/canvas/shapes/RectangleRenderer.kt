@@ -19,6 +19,7 @@ object RectangleRenderer {
                 style = Paint.Style.FILL
                 isAntiAlias = true
             }
+            fillPaint.alpha = (fillPaint.alpha * rect.opacity).toInt()
             canvas.drawRect(left, top, right, bottom, fillPaint)
         }
 
@@ -30,6 +31,7 @@ object RectangleRenderer {
             isAntiAlias = true
             strokeJoin = Paint.Join.MITER
         }
+        strokePaint.alpha = (strokePaint.alpha * rect.opacity).toInt()
         canvas.drawRect(left, top, right, bottom, strokePaint)
     }
 }

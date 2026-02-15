@@ -52,6 +52,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -96,6 +98,13 @@ import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
 import com.xerahs.android.feature.s3explorer.model.S3Folder
 import com.xerahs.android.feature.s3explorer.model.S3Object
+import com.xerahs.android.feature.s3explorer.model.SortDirection
+import com.xerahs.android.feature.s3explorer.model.SortField
+import com.xerahs.android.feature.s3explorer.model.SortOption
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Sort
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -111,6 +120,8 @@ fun S3ExplorerScreen(
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingDeleteKey by remember { mutableStateOf<String?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var contextMenuObj by remember { mutableStateOf<S3Object?>(null) }
 
     // Image preview dialog
     uiState.previewObject?.let { obj ->
@@ -148,12 +159,186 @@ fun S3ExplorerScreen(
         )
     }
 
+    // Create folder dialog
+    if (uiState.showCreateFolderDialog) {
+        var folderName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowCreateFolderDialog(false) },
+            title = { Text("Create Folder") },
+            text = {
+                OutlinedTextField(
+                    value = folderName,
+                    onValueChange = { folderName = it },
+                    label = { Text("Folder name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (folderName.isNotBlank()) viewModel.createFolder(folderName) },
+                    enabled = folderName.isNotBlank()
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setShowCreateFolderDialog(false) }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Rename dialog
+    uiState.showRenameDialog?.let { obj ->
+        var newName by remember { mutableStateOf(obj.name) }
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowRenameDialog(null) },
+            title = { Text("Rename") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("New name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (newName.isNotBlank()) viewModel.renameObject(obj, newName) },
+                    enabled = newName.isNotBlank() && newName != obj.name
+                ) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setShowRenameDialog(null) }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Move dialog
+    uiState.showMoveDialog?.let { obj ->
+        var destPrefix by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowMoveDialog(null) },
+            title = { Text("Move ${obj.name}") },
+            text = {
+                OutlinedTextField(
+                    value = destPrefix,
+                    onValueChange = { destPrefix = it },
+                    label = { Text("Destination prefix") },
+                    supportingText = { Text("e.g. photos/2024/") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (destPrefix.isNotBlank()) viewModel.moveObject(obj, destPrefix) },
+                    enabled = destPrefix.isNotBlank()
+                ) { Text("Move") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setShowMoveDialog(null) }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Context menu for file items
+    contextMenuObj?.let { obj ->
+        AlertDialog(
+            onDismissRequest = { contextMenuObj = null },
+            title = { Text(obj.name) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        contextMenuObj = null
+                        viewModel.setShowRenameDialog(obj)
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Rename")
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    TextButton(onClick = {
+                        contextMenuObj = null
+                        viewModel.setShowMoveDialog(obj)
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.DriveFileMove, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Move")
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    TextButton(onClick = {
+                        contextMenuObj = null
+                        pendingDeleteKey = obj.key
+                        showDeleteConfirm = true
+                    }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete")
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    TextButton(onClick = {
+                        val obj2 = contextMenuObj
+                        contextMenuObj = null
+                        obj2?.let {
+                            scope.launch { downloadToDevice(context, viewModel, it) }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Download")
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { contextMenuObj = null }) { Text("Close") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("S3 Explorer") },
                 actions = {
                     if (uiState.isConfigured) {
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(Icons.Default.Sort, contentDescription = "Sort")
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false }
+                            ) {
+                                SortField.entries.forEach { field ->
+                                    DropdownMenuItem(
+                                        text = { Text(field.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                        onClick = {
+                                            val current = uiState.sortOption
+                                            val newDir = if (current.field == field) {
+                                                if (current.direction == SortDirection.ASC) SortDirection.DESC else SortDirection.ASC
+                                            } else SortDirection.ASC
+                                            viewModel.setSortOption(SortOption(field, newDir))
+                                            showSortMenu = false
+                                        },
+                                        trailingIcon = {
+                                            if (uiState.sortOption.field == field) {
+                                                Text(
+                                                    if (uiState.sortOption.direction == SortDirection.ASC) "↑" else "↓",
+                                                    style = MaterialTheme.typography.labelMedium
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = { viewModel.setShowCreateFolderDialog(true) }) {
+                            Icon(Icons.Default.CreateNewFolder, contentDescription = "Create folder")
+                        }
                         IconButton(onClick = { viewModel.toggleViewMode() }) {
                             Icon(
                                 if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
@@ -351,7 +536,7 @@ fun S3ExplorerScreen(
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
-                                        onLongClick = { viewModel.toggleSelection(obj.key) }
+                                        onLongClick = { contextMenuObj = obj }
                                     )
                                 }
                             }
@@ -395,7 +580,7 @@ fun S3ExplorerScreen(
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
-                                        onLongClick = { viewModel.toggleSelection(obj.key) }
+                                        onLongClick = { contextMenuObj = obj }
                                     )
                                 }
                             }

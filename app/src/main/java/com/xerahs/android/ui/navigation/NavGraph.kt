@@ -17,6 +17,7 @@ import com.xerahs.android.feature.capture.CaptureScreen
 import com.xerahs.android.feature.history.HistoryScreen
 import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
+import com.xerahs.android.feature.settings.SecuritySettingsScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
 import com.xerahs.android.feature.settings.UploadSettingsScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
@@ -24,6 +25,31 @@ import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
 import com.xerahs.android.feature.settings.destinations.S3ConfigScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.ui.MainViewModel
+import com.xerahs.android.util.BiometricHelper
 
 sealed class Screen(val route: String) {
     data object Capture : Screen("capture")
@@ -42,6 +68,7 @@ sealed class Screen(val route: String) {
     data object ImgurConfig : Screen("settings/imgur")
     data object S3Config : Screen("settings/s3")
     data object FtpConfig : Screen("settings/ftp")
+    data object SecuritySettings : Screen("settings/security")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${java.net.URLEncoder.encode(imagePaths.joinToString("|"), "UTF-8")}"
@@ -148,6 +175,7 @@ fun XerahSNavGraph(
                 onNavigateToAppearance = { navController.navigate(Screen.AppearanceSettings.route) },
                 onNavigateToUploads = { navController.navigate(Screen.UploadSettings.route) },
                 onNavigateToBackup = { navController.navigate(Screen.BackupSettings.route) },
+                onNavigateToSecurity = { navController.navigate(Screen.SecuritySettings.route) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -173,16 +201,28 @@ fun XerahSNavGraph(
             )
         }
 
+        composable(Screen.SecuritySettings.route) {
+            SecuritySettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.ImgurConfig.route) {
-            ImgurConfigScreen(onBack = { navController.popBackStack() })
+            BiometricGate(navController) {
+                ImgurConfigScreen(onBack = { navController.popBackStack() })
+            }
         }
 
         composable(Screen.S3Config.route) {
-            S3ConfigScreen(onBack = { navController.popBackStack() })
+            BiometricGate(navController) {
+                S3ConfigScreen(onBack = { navController.popBackStack() })
+            }
         }
 
         composable(Screen.FtpConfig.route) {
-            FtpConfigScreen(onBack = { navController.popBackStack() })
+            BiometricGate(navController) {
+                FtpConfigScreen(onBack = { navController.popBackStack() })
+            }
         }
 
         composable(
@@ -209,6 +249,81 @@ fun XerahSNavGraph(
                 },
                 onBack = { navController.popBackStack() }
             )
+        }
+    }
+}
+
+@Composable
+private fun BiometricGate(
+    navController: NavHostController,
+    content: @Composable () -> Unit
+) {
+    val mainViewModel: MainViewModel = hiltViewModel()
+    val lockMode by mainViewModel.biometricLockMode.collectAsState()
+
+    if (lockMode != "LOCK_CREDENTIALS") {
+        content()
+        return
+    }
+
+    var authenticated by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    if (authenticated) {
+        content()
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.padding(12.dp))
+                Text(
+                    text = "Authentication required",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.padding(8.dp))
+                FilledTonalButton(onClick = {
+                    val activity = context as? androidx.fragment.app.FragmentActivity
+                    if (activity != null && BiometricHelper.canAuthenticate(activity)) {
+                        BiometricHelper.showPrompt(
+                            activity = activity,
+                            title = "Verify Identity",
+                            subtitle = "Authenticate to access credentials",
+                            onSuccess = { authenticated = true },
+                            onFailure = { navController.popBackStack() }
+                        )
+                    } else {
+                        authenticated = true
+                    }
+                }) {
+                    Text("Authenticate")
+                }
+            }
+        }
+
+        // Auto-prompt on first composition
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val activity = context as? androidx.fragment.app.FragmentActivity
+            if (activity != null && BiometricHelper.canAuthenticate(activity)) {
+                BiometricHelper.showPrompt(
+                    activity = activity,
+                    title = "Verify Identity",
+                    subtitle = "Authenticate to access credentials",
+                    onSuccess = { authenticated = true },
+                    onFailure = { navController.popBackStack() }
+                )
+            } else {
+                authenticated = true
+            }
         }
     }
 }

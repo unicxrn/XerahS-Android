@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,9 +32,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
+import com.xerahs.android.feature.annotation.crop.CropEngine
+import com.xerahs.android.feature.annotation.crop.CropOverlay
 import com.xerahs.android.feature.annotation.engine.AnnotationEngine
 import com.xerahs.android.feature.annotation.toolbar.AnnotationToolbar
 import kotlinx.coroutines.Dispatchers
@@ -53,19 +55,24 @@ fun AnnotationScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    val bitmap = remember(imagePath) {
-        BitmapFactory.decodeFile(imagePath)
+    var currentBitmap by remember(imagePath) {
+        mutableStateOf(BitmapFactory.decodeFile(imagePath))
     }
 
-    if (bitmap == null) {
+    if (currentBitmap == null) {
         Text("Failed to load image", color = MaterialTheme.colorScheme.error)
         return
     }
+
+    val bitmap = currentBitmap!!
 
     // In-progress drag state
     var dragStartPos by remember { mutableStateOf<Offset?>(null) }
     var currentDragAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var freehandPoints by remember { mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
+
+    // Crop state
+    var cropRect by remember { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
 
     // Text input dialog
     if (uiState.pendingTextPosition != null) {
@@ -101,35 +108,51 @@ fun AnnotationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Annotate") },
+                title = { Text(if (uiState.isCropMode) "Crop" else "Annotate") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (uiState.isCropMode) viewModel.setCropMode(false) else onBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    if (uiState.isExporting) {
-                        CircularProgressIndicator(modifier = Modifier.padding(12.dp))
-                    } else {
-                        IconButton(onClick = {
-                            viewModel.setExporting(true)
-                            coroutineScope.launch {
-                                val exported = withContext(Dispatchers.Default) {
-                                    val annotatedBitmap = AnnotationEngine.renderAnnotations(
-                                        bitmap, uiState.annotations
-                                    )
-                                    val exportsDir = File(context.filesDir, "exports")
-                                    if (!exportsDir.exists()) exportsDir.mkdirs()
-                                    val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
-                                    AnnotationEngine.exportToFile(annotatedBitmap, exportFile)
-                                    annotatedBitmap.recycle()
-                                    exportFile.absolutePath
-                                }
-                                viewModel.setExporting(false)
-                                onExportComplete(exported)
-                            }
+                    if (uiState.isCropMode) {
+                        TextButton(onClick = {
+                            val cropped = CropEngine.cropBitmap(bitmap, cropRect)
+                            currentBitmap = cropped
+                            viewModel.setCropMode(false)
+                            viewModel.clearAnnotations()
                         }) {
-                            Icon(Icons.Default.Done, contentDescription = "Export")
+                            Text("Apply Crop")
+                        }
+                    } else {
+                        IconButton(onClick = { viewModel.setCropMode(true) }) {
+                            Icon(Icons.Default.Crop, contentDescription = "Crop")
+                        }
+                        if (uiState.isExporting) {
+                            CircularProgressIndicator(modifier = Modifier.padding(12.dp))
+                        } else {
+                            IconButton(onClick = {
+                                viewModel.setExporting(true)
+                                coroutineScope.launch {
+                                    val exported = withContext(Dispatchers.Default) {
+                                        val annotatedBitmap = AnnotationEngine.renderAnnotations(
+                                            bitmap, uiState.annotations
+                                        )
+                                        val exportsDir = File(context.filesDir, "exports")
+                                        if (!exportsDir.exists()) exportsDir.mkdirs()
+                                        val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
+                                        AnnotationEngine.exportToFile(annotatedBitmap, exportFile)
+                                        annotatedBitmap.recycle()
+                                        exportFile.absolutePath
+                                    }
+                                    viewModel.setExporting(false)
+                                    onExportComplete(exported)
+                                }
+                            }) {
+                                Icon(Icons.Default.Done, contentDescription = "Export")
+                            }
                         }
                     }
                 }
@@ -141,72 +164,95 @@ fun AnnotationScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Canvas area
-            AnnotationCanvas(
-                bitmap = bitmap,
-                annotations = uiState.annotations,
-                currentAnnotation = currentDragAnnotation,
-                onDragStart = { offset ->
-                    dragStartPos = offset
-                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
-                        freehandPoints = listOf(Pair(offset.x, offset.y))
-                    }
-                },
-                onDrag = { offset ->
-                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
-                        freehandPoints = freehandPoints + Pair(offset.x, offset.y)
-                        currentDragAnnotation = Annotation.Freehand(
-                            id = "in_progress",
-                            strokeColor = uiState.strokeColor,
-                            strokeWidth = uiState.strokeWidth,
-                            points = freehandPoints
-                        )
-                    } else {
-                        dragStartPos?.let { start ->
-                            currentDragAnnotation = createInProgressAnnotation(
-                                tool = uiState.selectedTool,
-                                start = start,
-                                current = offset,
+            if (uiState.isCropMode) {
+                CropOverlay(
+                    imageWidth = bitmap.width,
+                    imageHeight = bitmap.height,
+                    onCropRectChanged = { cropRect = it },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                // Canvas area
+                AnnotationCanvas(
+                    bitmap = bitmap,
+                    annotations = uiState.annotations,
+                    currentAnnotation = currentDragAnnotation,
+                    selectedAnnotationId = uiState.selectedAnnotationId,
+                    onAnnotationTapped = { id -> viewModel.selectAnnotation(id) },
+                    onDragStart = { offset ->
+                        if (uiState.selectedTool == AnnotationTool.NUMBERED_STEP) {
+                            viewModel.addNumberedStep(offset.x, offset.y)
+                            return@AnnotationCanvas
+                        }
+                        dragStartPos = offset
+                        if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                            freehandPoints = listOf(Pair(offset.x, offset.y))
+                        }
+                    },
+                    onDrag = { offset ->
+                        if (uiState.selectedTool == AnnotationTool.NUMBERED_STEP) return@AnnotationCanvas
+                        if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                            freehandPoints = freehandPoints + Pair(offset.x, offset.y)
+                            currentDragAnnotation = Annotation.Freehand(
+                                id = "in_progress",
                                 strokeColor = uiState.strokeColor,
                                 strokeWidth = uiState.strokeWidth,
-                                blurRadius = uiState.blurRadius
+                                opacity = uiState.opacity,
+                                points = freehandPoints
                             )
+                        } else {
+                            dragStartPos?.let { start ->
+                                currentDragAnnotation = createInProgressAnnotation(
+                                    tool = uiState.selectedTool,
+                                    start = start,
+                                    current = offset,
+                                    strokeColor = uiState.strokeColor,
+                                    strokeWidth = uiState.strokeWidth,
+                                    blurRadius = uiState.blurRadius,
+                                    opacity = uiState.opacity
+                                )
+                            }
                         }
-                    }
-                },
-                onDragEnd = { offset ->
-                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
-                        viewModel.addFreehandAnnotation(freehandPoints)
-                        freehandPoints = emptyList()
-                    } else {
-                        dragStartPos?.let { start ->
-                            viewModel.addAnnotation(start.x, start.y, offset.x, offset.y)
+                    },
+                    onDragEnd = { offset ->
+                        if (uiState.selectedTool == AnnotationTool.NUMBERED_STEP) return@AnnotationCanvas
+                        if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                            viewModel.addFreehandAnnotation(freehandPoints)
+                            freehandPoints = emptyList()
+                        } else {
+                            dragStartPos?.let { start ->
+                                viewModel.addAnnotation(start.x, start.y, offset.x, offset.y)
+                            }
                         }
-                    }
-                    dragStartPos = null
-                    currentDragAnnotation = null
-                },
-                modifier = Modifier.weight(1f)
-            )
+                        dragStartPos = null
+                        currentDragAnnotation = null
+                    },
+                    modifier = Modifier.weight(1f)
+                )
 
-            // Toolbar
-            AnnotationToolbar(
-                selectedTool = uiState.selectedTool,
-                strokeColor = uiState.strokeColor,
-                strokeWidth = uiState.strokeWidth,
-                canUndo = uiState.undoStack.isNotEmpty(),
-                canRedo = uiState.redoStack.isNotEmpty(),
-                blurRadius = uiState.blurRadius,
-                textBackgroundEnabled = uiState.textBackgroundEnabled,
-                onToolSelected = viewModel::selectTool,
-                onColorSelected = viewModel::setStrokeColor,
-                onStrokeWidthChanged = viewModel::setStrokeWidth,
-                onBlurRadiusChanged = viewModel::setBlurRadius,
-                onTextBackgroundChanged = viewModel::setTextBackgroundEnabled,
-                onUndo = viewModel::undo,
-                onRedo = viewModel::redo,
-                onClear = viewModel::clearAnnotations
-            )
+                // Toolbar
+                AnnotationToolbar(
+                    selectedTool = uiState.selectedTool,
+                    strokeColor = uiState.strokeColor,
+                    strokeWidth = uiState.strokeWidth,
+                    canUndo = uiState.undoStack.isNotEmpty(),
+                    canRedo = uiState.redoStack.isNotEmpty(),
+                    blurRadius = uiState.blurRadius,
+                    textBackgroundEnabled = uiState.textBackgroundEnabled,
+                    opacity = uiState.opacity,
+                    hasSelectedAnnotation = uiState.selectedAnnotationId != null,
+                    onToolSelected = viewModel::selectTool,
+                    onColorSelected = viewModel::setStrokeColor,
+                    onStrokeWidthChanged = viewModel::setStrokeWidth,
+                    onBlurRadiusChanged = viewModel::setBlurRadius,
+                    onTextBackgroundChanged = viewModel::setTextBackgroundEnabled,
+                    onOpacityChanged = viewModel::setOpacity,
+                    onDeleteSelected = viewModel::deleteSelectedAnnotation,
+                    onUndo = viewModel::undo,
+                    onRedo = viewModel::redo,
+                    onClear = viewModel::clearAnnotations
+                )
+            }
         }
     }
 }
@@ -217,13 +263,15 @@ private fun createInProgressAnnotation(
     current: Offset,
     strokeColor: Int,
     strokeWidth: Float,
-    blurRadius: Float
+    blurRadius: Float,
+    opacity: Float
 ): Annotation? {
     return when (tool) {
         AnnotationTool.RECTANGLE -> Annotation.Rectangle(
             id = "in_progress",
             strokeColor = strokeColor,
             strokeWidth = strokeWidth,
+            opacity = opacity,
             startX = start.x, startY = start.y,
             endX = current.x, endY = current.y
         )
@@ -231,12 +279,14 @@ private fun createInProgressAnnotation(
             id = "in_progress",
             strokeColor = strokeColor,
             strokeWidth = strokeWidth,
+            opacity = opacity,
             startX = start.x, startY = start.y,
             endX = current.x, endY = current.y
         )
-        AnnotationTool.TEXT -> null // Text uses dialog, not drag
+        AnnotationTool.TEXT -> null
         AnnotationTool.BLUR -> Annotation.Blur(
             id = "in_progress",
+            opacity = opacity,
             startX = start.x, startY = start.y,
             endX = current.x, endY = current.y,
             blurRadius = blurRadius
@@ -251,11 +301,13 @@ private fun createInProgressAnnotation(
                 id = "in_progress",
                 strokeColor = strokeColor,
                 strokeWidth = strokeWidth,
+                opacity = opacity,
                 centerX = centerX,
                 centerY = centerY,
                 radius = radius
             )
         }
-        AnnotationTool.FREEHAND -> null // Freehand uses accumulated points
+        AnnotationTool.FREEHAND -> null
+        AnnotationTool.NUMBERED_STEP -> null
     }
 }

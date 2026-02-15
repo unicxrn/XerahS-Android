@@ -9,7 +9,9 @@ data class HistoryItem(
     val uploadDestination: UploadDestination,
     val timestamp: Long,
     val fileName: String,
-    val fileSize: Long = 0
+    val fileSize: Long = 0,
+    val albumId: String? = null,
+    val tags: List<Tag> = emptyList()
 )
 
 enum class UploadDestination(val displayName: String) {

@@ -27,6 +27,7 @@ object FreehandRenderer {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
+        paint.alpha = (paint.alpha * freehand.opacity).toInt()
 
         canvas.drawPath(path, paint)
     }

@@ -8,8 +8,10 @@ import com.xerahs.android.feature.s3explorer.model.S3ListResult
 import com.xerahs.android.feature.s3explorer.model.S3Object
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
@@ -54,7 +56,9 @@ class S3ApiClient @Inject constructor(
         method: String,
         path: String,
         queryString: String = "",
-        payload: ByteArray = ByteArray(0)
+        payload: ByteArray = ByteArray(0),
+        extraHeaders: Map<String, String> = emptyMap(),
+        contentType: String? = null
     ): okhttp3.Response {
         val (host, baseUrl) = resolveHostAndBaseUrl(config)
         val encodedPath = path.split("/").joinToString("/") { segment ->
@@ -66,10 +70,15 @@ class S3ApiClient @Inject constructor(
             "$baseUrl$encodedPath"
         }
 
+        val allHeaders = extraHeaders.toMutableMap()
+        if (contentType != null) {
+            allHeaders["Content-Type"] = contentType
+        }
+
         val signed = AwsV4Signer.sign(
             method = method,
             url = url,
-            headers = emptyMap(),
+            headers = allHeaders,
             payload = payload,
             accessKeyId = config.accessKeyId,
             secretAccessKey = config.secretAccessKey,
@@ -81,14 +90,58 @@ class S3ApiClient @Inject constructor(
         when (method) {
             "GET" -> requestBuilder.get()
             "DELETE" -> requestBuilder.delete()
+            "PUT" -> {
+                val mediaType = contentType?.let { it.toMediaTypeOrNull() }
+                requestBuilder.put(payload.toRequestBody(mediaType))
+            }
         }
 
         signed.headers.forEach { (key, value) ->
             requestBuilder.addHeader(key, value)
         }
+        extraHeaders.forEach { (key, value) ->
+            requestBuilder.addHeader(key, value)
+        }
         requestBuilder.addHeader("Authorization", signed.authorization)
 
         return okHttpClient.newCall(requestBuilder.build()).execute()
+    }
+
+    suspend fun putObject(
+        config: UploadConfig.S3Config,
+        key: String,
+        body: ByteArray,
+        contentType: String = "application/octet-stream"
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        Result.runCatching {
+            val response = signAndExecute(
+                config, "PUT", "/$key",
+                payload = body,
+                contentType = contentType
+            )
+            if (!response.isSuccessful) {
+                val responseBody = response.body?.string()?.take(500) ?: ""
+                throw Exception("S3 PUT failed: ${response.code} ${response.message}\n$responseBody")
+            }
+        }
+    }
+
+    suspend fun copyObject(
+        config: UploadConfig.S3Config,
+        sourceKey: String,
+        destKey: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        Result.runCatching {
+            val copySource = "/${config.bucket}/$sourceKey"
+            val response = signAndExecute(
+                config, "PUT", "/$destKey",
+                extraHeaders = mapOf("x-amz-copy-source" to copySource)
+            )
+            if (!response.isSuccessful) {
+                val responseBody = response.body?.string()?.take(500) ?: ""
+                throw Exception("S3 copy failed: ${response.code} ${response.message}\n$responseBody")
+            }
+        }
     }
 
     suspend fun listObjects(

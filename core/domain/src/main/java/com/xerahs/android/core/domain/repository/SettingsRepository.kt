@@ -48,4 +48,10 @@ interface SettingsRepository {
 
     fun getMaxImageDimension(): Flow<Int>
     suspend fun setMaxImageDimension(maxDim: Int)
+
+    fun getAutoCopyUrl(): Flow<Boolean>
+    suspend fun setAutoCopyUrl(enabled: Boolean)
+
+    fun getBiometricLockMode(): Flow<String>
+    suspend fun setBiometricLockMode(mode: String)
 }

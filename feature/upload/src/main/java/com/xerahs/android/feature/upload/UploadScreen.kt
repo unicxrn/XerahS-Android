@@ -12,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +44,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,7 +64,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -69,6 +76,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,7 +84,7 @@ import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.GradientBorderCard
 import com.xerahs.android.core.ui.StatusBanner
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UploadScreen(
     imagePath: String,
@@ -94,6 +102,14 @@ fun UploadScreen(
         uiState.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
+        }
+    }
+
+    // Auto-copy URL for single uploads
+    LaunchedEffect(uiState.autoCopiableUrl) {
+        uiState.autoCopiableUrl?.let { url ->
+            clipboardManager.setText(AnnotatedString(url))
+            snackbarHostState.showSnackbar("URL copied to clipboard")
         }
     }
 
@@ -266,6 +282,88 @@ fun UploadScreen(
                 }
             }
 
+            // Album & Tag selection
+            if (uiState.albums.isNotEmpty() || uiState.tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Album dropdown
+                if (uiState.albums.isNotEmpty()) {
+                    Text(
+                        text = "Album",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    Box {
+                        var showAlbumMenu by remember { mutableStateOf(false) }
+                        val selectedAlbumName = uiState.albums.find { it.id == uiState.selectedAlbumId }?.name ?: "None"
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAlbumMenu = true },
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Text(
+                                text = selectedAlbumName,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showAlbumMenu,
+                            onDismissRequest = { showAlbumMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("None") },
+                                onClick = {
+                                    viewModel.selectAlbum(null)
+                                    showAlbumMenu = false
+                                }
+                            )
+                            uiState.albums.forEach { album ->
+                                DropdownMenuItem(
+                                    text = { Text(album.name) },
+                                    onClick = {
+                                        viewModel.selectAlbum(album.id)
+                                        showAlbumMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Tag chips
+                if (uiState.tags.isNotEmpty()) {
+                    Text(
+                        text = "Tags",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 8.dp)
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        uiState.tags.forEach { tag ->
+                            FilterChip(
+                                selected = tag.id in uiState.selectedTagIds,
+                                onClick = { viewModel.toggleTag(tag.id) },
+                                label = { Text(tag.name) }
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Upload states
@@ -293,27 +391,68 @@ fun UploadScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                uiState.result?.url?.let { url ->
-                    GradientBorderCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = url,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            FilledTonalIconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(url))
-                            }) {
-                                Icon(
-                                    Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
-                                    modifier = Modifier.size(18.dp)
+                // Show batch URLs if available
+                if (uiState.batchUrls.size > 1) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${uiState.batchUrls.size} URLs",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        uiState.batchUrls.forEach { batchUrl ->
+                            GradientBorderCard {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = batchUrl,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    FilledTonalIconButton(onClick = {
+                                        clipboardManager.setText(AnnotatedString(batchUrl))
+                                    }) {
+                                        Icon(
+                                            Icons.Default.ContentCopy,
+                                            contentDescription = "Copy URL",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    uiState.result?.url?.let { url ->
+                        GradientBorderCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = url,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
+                                FilledTonalIconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(url))
+                                }) {
+                                    Icon(
+                                        Icons.Default.ContentCopy,
+                                        contentDescription = "Copy URL",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }

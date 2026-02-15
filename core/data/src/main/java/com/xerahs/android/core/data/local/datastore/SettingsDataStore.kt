@@ -34,6 +34,8 @@ class SettingsDataStore @Inject constructor(
         val OLED_BLACK = booleanPreferencesKey("oled_black")
         val IMAGE_QUALITY = intPreferencesKey("image_quality")
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
+        val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
+        val BIOMETRIC_LOCK_MODE = stringPreferencesKey("biometric_lock_mode")
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
@@ -144,6 +146,26 @@ class SettingsDataStore @Inject constructor(
     suspend fun setMaxImageDimension(maxDim: Int) {
         context.dataStore.edit { prefs ->
             prefs[Keys.MAX_IMAGE_DIMENSION] = maxDim
+        }
+    }
+
+    fun getAutoCopyUrl(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.AUTO_COPY_URL] ?: false
+    }
+
+    suspend fun setAutoCopyUrl(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.AUTO_COPY_URL] = enabled
+        }
+    }
+
+    fun getBiometricLockMode(): Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.BIOMETRIC_LOCK_MODE] ?: "OFF"
+    }
+
+    suspend fun setBiometricLockMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.BIOMETRIC_LOCK_MODE] = mode
         }
     }
 }

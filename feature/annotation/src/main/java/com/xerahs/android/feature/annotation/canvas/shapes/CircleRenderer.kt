@@ -14,6 +14,7 @@ object CircleRenderer {
                 style = Paint.Style.FILL
                 isAntiAlias = true
             }
+            fillPaint.alpha = (fillPaint.alpha * circle.opacity).toInt()
             canvas.drawCircle(circle.centerX, circle.centerY, circle.radius, fillPaint)
         }
 
@@ -25,6 +26,7 @@ object CircleRenderer {
             isAntiAlias = true
             strokeJoin = Paint.Join.MITER
         }
+        strokePaint.alpha = (strokePaint.alpha * circle.opacity).toInt()
         canvas.drawCircle(circle.centerX, circle.centerY, circle.radius, strokePaint)
     }
 }

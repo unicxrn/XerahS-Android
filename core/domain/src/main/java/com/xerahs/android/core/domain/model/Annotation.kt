@@ -7,12 +7,14 @@ sealed class Annotation {
     abstract val zIndex: Int
     abstract val strokeColor: Int
     abstract val strokeWidth: Float
+    abstract val opacity: Float
 
     data class Rectangle(
         override val id: String = generateId(),
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0xFFFF0000.toInt(),
         override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
         val fillColor: Int? = null,
         val startX: Float,
         val startY: Float,
@@ -25,6 +27,7 @@ sealed class Annotation {
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0xFFFF0000.toInt(),
         override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
         val startX: Float,
         val startY: Float,
         val endX: Float,
@@ -37,6 +40,7 @@ sealed class Annotation {
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0xFFFF0000.toInt(),
         override val strokeWidth: Float = 1f,
+        override val opacity: Float = 1f,
         val text: String,
         val x: Float,
         val y: Float,
@@ -51,6 +55,7 @@ sealed class Annotation {
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0x00000000,
         override val strokeWidth: Float = 0f,
+        override val opacity: Float = 1f,
         val startX: Float,
         val startY: Float,
         val endX: Float,
@@ -63,6 +68,7 @@ sealed class Annotation {
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0xFFFF0000.toInt(),
         override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
         val fillColor: Int? = null,
         val centerX: Float,
         val centerY: Float,
@@ -74,6 +80,19 @@ sealed class Annotation {
         override val zIndex: Int = 0,
         override val strokeColor: Int = 0xFFFF0000.toInt(),
         override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
         val points: List<Pair<Float, Float>>
+    ) : Annotation()
+
+    data class NumberedStep(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFF0000.toInt(),
+        override val strokeWidth: Float = 1f,
+        override val opacity: Float = 1f,
+        val number: Int,
+        val centerX: Float,
+        val centerY: Float,
+        val radius: Float = 20f
     ) : Annotation()
 }

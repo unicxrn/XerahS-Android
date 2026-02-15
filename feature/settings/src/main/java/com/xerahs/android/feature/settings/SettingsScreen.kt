@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +48,7 @@ fun SettingsHubScreen(
     onNavigateToAppearance: () -> Unit,
     onNavigateToUploads: () -> Unit,
     onNavigateToBackup: () -> Unit,
+    onNavigateToSecurity: () -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -93,6 +95,16 @@ fun SettingsHubScreen(
                 subtitle = "Export and import settings",
                 onClick = onNavigateToBackup,
                 index = 2
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SettingsCategoryCard(
+                icon = Icons.Default.Lock,
+                title = "Security",
+                subtitle = "Biometric lock settings",
+                onClick = onNavigateToSecurity,
+                index = 3
             )
 
             Spacer(modifier = Modifier.weight(1f))

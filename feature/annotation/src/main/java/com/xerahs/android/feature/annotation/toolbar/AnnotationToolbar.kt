@@ -22,8 +22,11 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.Rectangle
 import androidx.compose.material.icons.filled.TextFields
@@ -36,6 +39,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,16 +61,32 @@ fun AnnotationToolbar(
     canRedo: Boolean,
     blurRadius: Float,
     textBackgroundEnabled: Boolean,
+    opacity: Float,
+    hasSelectedAnnotation: Boolean,
     onToolSelected: (AnnotationTool) -> Unit,
     onColorSelected: (Int) -> Unit,
     onStrokeWidthChanged: (Float) -> Unit,
     onBlurRadiusChanged: (Float) -> Unit,
     onTextBackgroundChanged: (Boolean) -> Unit,
+    onOpacityChanged: (Float) -> Unit,
+    onDeleteSelected: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showColorPicker by remember { mutableStateOf(false) }
+
+    if (showColorPicker) {
+        ColorPickerDialog(
+            initialColor = strokeColor,
+            onColorSelected = { color ->
+                onColorSelected(color)
+                showColorPicker = false
+            },
+            onDismiss = { showColorPicker = false }
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -82,6 +105,7 @@ fun AnnotationToolbar(
                 Triple(Icons.Default.Draw, "Free", AnnotationTool.FREEHAND),
                 Triple(Icons.Default.TextFields, "Text", AnnotationTool.TEXT),
                 Triple(Icons.Default.BlurOn, "Blur", AnnotationTool.BLUR),
+                Triple(Icons.Default.FormatListNumbered, "Steps", AnnotationTool.NUMBERED_STEP),
             )
 
             items(tools) { (icon, label, tool) ->
@@ -112,6 +136,18 @@ fun AnnotationToolbar(
                     Icon(Icons.Default.Delete, contentDescription = "Clear")
                 }
             }
+
+            if (hasSelectedAnnotation) {
+                item {
+                    IconButton(onClick = onDeleteSelected) {
+                        Icon(
+                            Icons.Default.DeleteForever,
+                            contentDescription = "Delete Selected",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -138,6 +174,23 @@ fun AnnotationToolbar(
                     color = color,
                     selected = color.toArgb() == strokeColor,
                     onClick = { onColorSelected(color.toArgb()) }
+                )
+            }
+
+            // "+" button to open full color picker
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, Color.Gray, CircleShape)
+                    .clickable { showColorPicker = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Custom color",
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -194,6 +247,26 @@ fun AnnotationToolbar(
                     selected = textBackgroundEnabled,
                     onClick = { onTextBackgroundChanged(!textBackgroundEnabled) },
                     label = { Text("Background") }
+                )
+            }
+        }
+
+        // Opacity slider — visible for all tools except blur
+        AnimatedVisibility(visible = selectedTool != AnnotationTool.BLUR) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Alpha",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.width(36.dp)
+                )
+                Slider(
+                    value = opacity,
+                    onValueChange = onOpacityChanged,
+                    valueRange = 0.1f..1f,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }

@@ -3,14 +3,18 @@ package com.xerahs.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.History
@@ -40,15 +44,22 @@ import com.xerahs.android.ui.navigation.Screen
 import com.xerahs.android.ui.navigation.XerahSNavGraph
 import com.xerahs.android.ui.onboarding.OnboardingScreen
 import com.xerahs.android.ui.theme.XerahSTheme
+import com.xerahs.android.util.BiometricHelper
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import java.io.File
 import java.io.FileOutputStream
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
     private var pendingSharedImagePath by mutableStateOf<String?>(null)
+    private var isUnlocked by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +73,7 @@ class MainActivity : ComponentActivity() {
             val dynamicColor by mainViewModel.dynamicColor.collectAsState()
             val colorTheme by mainViewModel.colorTheme.collectAsState()
             val oledBlack by mainViewModel.oledBlack.collectAsState()
+            val biometricLockMode by mainViewModel.biometricLockMode.collectAsState()
 
             XerahSTheme(
                 themeMode = themeMode,
@@ -78,6 +90,32 @@ class MainActivity : ComponentActivity() {
                         OnboardingScreen(
                             onComplete = { mainViewModel.completeOnboarding() }
                         )
+                    } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
+                        // Lock overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Lock,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.padding(16.dp))
+                                Text(
+                                    text = "XerahS is locked",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                                Spacer(modifier = Modifier.padding(8.dp))
+                                FilledTonalButton(onClick = { promptBiometric() }) {
+                                    Text("Unlock")
+                                }
+                            }
+                        }
                     } else {
                         MainScreen(
                             sharedImagePath = pendingSharedImagePath,
@@ -87,6 +125,34 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val mode = mainViewModel.biometricLockMode.value
+        if (mode == "LOCK_APP" && !isUnlocked && BiometricHelper.canAuthenticate(this)) {
+            promptBiometric()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val mode = mainViewModel.biometricLockMode.value
+        if (mode == "LOCK_APP") {
+            isUnlocked = false
+        }
+    }
+
+    private fun promptBiometric() {
+        if (!BiometricHelper.canAuthenticate(this)) {
+            isUnlocked = true
+            return
+        }
+        BiometricHelper.showPrompt(
+            activity = this,
+            onSuccess = { isUnlocked = true },
+            onFailure = { /* stay locked */ }
+        )
     }
 
     override fun onNewIntent(intent: Intent) {

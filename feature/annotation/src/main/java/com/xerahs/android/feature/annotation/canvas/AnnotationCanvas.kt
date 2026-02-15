@@ -22,6 +22,7 @@ import com.xerahs.android.feature.annotation.canvas.shapes.ArrowRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.BlurRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.CircleRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.FreehandRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.NumberedStepRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.RectangleRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.TextRenderer
 
@@ -33,6 +34,8 @@ fun AnnotationCanvas(
     onDragStart: (Offset) -> Unit,
     onDragEnd: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
+    selectedAnnotationId: String? = null,
+    onAnnotationTapped: ((String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Zoom/pan state
@@ -168,5 +171,57 @@ private fun drawAnnotation(canvas: android.graphics.Canvas, annotation: Annotati
         is Annotation.Blur -> BlurRenderer.draw(canvas, annotation, bitmap)
         is Annotation.Circle -> CircleRenderer.draw(canvas, annotation)
         is Annotation.Freehand -> FreehandRenderer.draw(canvas, annotation)
+        is Annotation.NumberedStep -> NumberedStepRenderer.draw(canvas, annotation)
     }
+}
+
+private fun hitTest(annotations: List<Annotation>, x: Float, y: Float): String? {
+    // Check in reverse z-order (topmost first)
+    for (annotation in annotations.sortedByDescending { it.zIndex }) {
+        val hit = when (annotation) {
+            is Annotation.Rectangle -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Arrow -> {
+                val l = minOf(annotation.startX, annotation.endX) - 10f
+                val t = minOf(annotation.startY, annotation.endY) - 10f
+                val r = maxOf(annotation.startX, annotation.endX) + 10f
+                val b = maxOf(annotation.startY, annotation.endY) + 10f
+                x in l..r && y in t..b
+            }
+            is Annotation.Circle -> {
+                val dx = x - annotation.centerX
+                val dy = y - annotation.centerY
+                dx * dx + dy * dy <= annotation.radius * annotation.radius
+            }
+            is Annotation.NumberedStep -> {
+                val dx = x - annotation.centerX
+                val dy = y - annotation.centerY
+                dx * dx + dy * dy <= annotation.radius * annotation.radius
+            }
+            is Annotation.Text -> {
+                x >= annotation.x && x <= annotation.x + 200f &&
+                    y >= annotation.y && y <= annotation.y + annotation.fontSize * 1.5f
+            }
+            is Annotation.Blur -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Freehand -> {
+                annotation.points.any { (px, py) ->
+                    val dx = x - px; val dy = y - py
+                    dx * dx + dy * dy < 400f // ~20px radius
+                }
+            }
+        }
+        if (hit) return annotation.id
+    }
+    return null
 }

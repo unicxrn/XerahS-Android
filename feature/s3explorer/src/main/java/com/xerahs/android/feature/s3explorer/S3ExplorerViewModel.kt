@@ -9,6 +9,9 @@ import com.xerahs.android.feature.s3explorer.data.S3ApiClient
 import com.xerahs.android.feature.s3explorer.model.S3Folder
 import com.xerahs.android.feature.s3explorer.model.S3ListResult
 import com.xerahs.android.feature.s3explorer.model.S3Object
+import com.xerahs.android.feature.s3explorer.model.SortDirection
+import com.xerahs.android.feature.s3explorer.model.SortField
+import com.xerahs.android.feature.s3explorer.model.SortOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +38,11 @@ data class S3ExplorerUiState(
     val totalSize: Long = 0,
     val selectedObjects: Set<String> = emptySet(),
     val isDeleting: Boolean = false,
-    val previewObject: S3Object? = null
+    val previewObject: S3Object? = null,
+    val sortOption: SortOption = SortOption(),
+    val showCreateFolderDialog: Boolean = false,
+    val showRenameDialog: S3Object? = null,
+    val showMoveDialog: S3Object? = null
 )
 
 @HiltViewModel
@@ -170,17 +177,27 @@ class S3ExplorerViewModel @Inject constructor(
     private fun applyFilter() {
         _uiState.update { state ->
             val query = state.searchQuery.trim().lowercase()
-            if (query.isEmpty()) {
-                state.copy(
-                    filteredFolders = state.folders,
-                    filteredObjects = state.objects
-                )
-            } else {
-                state.copy(
-                    filteredFolders = state.folders.filter { it.name.lowercase().contains(query) },
-                    filteredObjects = state.objects.filter { it.name.lowercase().contains(query) }
-                )
+            val filteredFolders = if (query.isEmpty()) state.folders
+                else state.folders.filter { it.name.lowercase().contains(query) }
+            var filteredObjects = if (query.isEmpty()) state.objects
+                else state.objects.filter { it.name.lowercase().contains(query) }
+
+            // Apply sorting
+            val sort = state.sortOption
+            filteredObjects = when (sort.field) {
+                SortField.NAME -> filteredObjects.sortedBy { it.name.lowercase() }
+                SortField.SIZE -> filteredObjects.sortedBy { it.size }
+                SortField.DATE -> filteredObjects.sortedBy { it.lastModified }
+                SortField.TYPE -> filteredObjects.sortedBy { it.extension }
             }
+            if (sort.direction == SortDirection.DESC) {
+                filteredObjects = filteredObjects.reversed()
+            }
+
+            state.copy(
+                filteredFolders = filteredFolders,
+                filteredObjects = filteredObjects
+            )
         }
     }
 
@@ -251,6 +268,81 @@ class S3ExplorerViewModel @Inject constructor(
 
     fun setPreviewObject(obj: S3Object?) {
         _uiState.update { it.copy(previewObject = obj) }
+    }
+
+    fun setSortOption(option: SortOption) {
+        _uiState.update { it.copy(sortOption = option) }
+        applyFilter()
+    }
+
+    fun setShowCreateFolderDialog(show: Boolean) {
+        _uiState.update { it.copy(showCreateFolderDialog = show) }
+    }
+
+    fun setShowRenameDialog(obj: S3Object?) {
+        _uiState.update { it.copy(showRenameDialog = obj) }
+    }
+
+    fun setShowMoveDialog(obj: S3Object?) {
+        _uiState.update { it.copy(showMoveDialog = obj) }
+    }
+
+    fun createFolder(name: String) {
+        val config = s3Config ?: return
+        val prefix = _uiState.value.currentPrefix
+        val folderKey = "$prefix$name/"
+        viewModelScope.launch {
+            when (s3ApiClient.putObject(config, folderKey, ByteArray(0), "application/x-directory")) {
+                is Result.Success -> {
+                    _uiState.update { it.copy(showCreateFolderDialog = false) }
+                    refresh()
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(
+                        showCreateFolderDialog = false,
+                        error = "Failed to create folder"
+                    ) }
+                }
+                is Result.Loading -> {}
+            }
+        }
+    }
+
+    fun renameObject(obj: S3Object, newName: String) {
+        val config = s3Config ?: return
+        val prefix = obj.key.substringBeforeLast('/').let { if (it == obj.key) "" else "$it/" }
+        val destKey = "$prefix$newName"
+        viewModelScope.launch {
+            _uiState.update { it.copy(showRenameDialog = null) }
+            when (s3ApiClient.copyObject(config, obj.key, destKey)) {
+                is Result.Success -> {
+                    s3ApiClient.deleteObject(config, obj.key)
+                    refresh()
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(error = "Rename failed") }
+                }
+                is Result.Loading -> {}
+            }
+        }
+    }
+
+    fun moveObject(obj: S3Object, destPrefix: String) {
+        val config = s3Config ?: return
+        val destKey = if (destPrefix.endsWith("/")) "$destPrefix${obj.name}" else "$destPrefix/${obj.name}"
+        viewModelScope.launch {
+            _uiState.update { it.copy(showMoveDialog = null) }
+            when (s3ApiClient.copyObject(config, obj.key, destKey)) {
+                is Result.Success -> {
+                    s3ApiClient.deleteObject(config, obj.key)
+                    refresh()
+                }
+                is Result.Error -> {
+                    _uiState.update { it.copy(error = "Move failed") }
+                }
+                is Result.Loading -> {}
+            }
+        }
     }
 
     fun getSignedUrl(objectKey: String): Pair<String, Map<String, String>> {

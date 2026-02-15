@@ -4,10 +4,13 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +26,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
@@ -32,9 +36,11 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,8 +89,10 @@ import coil.compose.AsyncImage
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toDateGroupKey
 import com.xerahs.android.core.common.toShortDate
+import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DateFilter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadDestination
 import kotlinx.coroutines.launch
 import com.xerahs.android.core.ui.AnimatedListItem
@@ -92,7 +100,7 @@ import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun HistoryScreen(
     onBack: () -> Unit,
@@ -104,6 +112,11 @@ fun HistoryScreen(
     val scope = rememberCoroutineScope()
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<HistoryItem?>(null) }
+    var showManageAlbumsDialog by remember { mutableStateOf(false) }
+    var showManageTagsDialog by remember { mutableStateOf(false) }
+    var longPressItem by remember { mutableStateOf<HistoryItem?>(null) }
+    var showSetAlbumDialog by remember { mutableStateOf(false) }
+    var showManageItemTagsDialog by remember { mutableStateOf(false) }
 
     // Fullscreen image preview dialog
     previewItem?.let { item ->
@@ -212,6 +225,91 @@ fun HistoryScreen(
         )
     }
 
+    // Manage Albums dialog
+    if (showManageAlbumsDialog) {
+        ManageAlbumsDialog(
+            albums = uiState.albums,
+            onCreateAlbum = viewModel::createAlbum,
+            onDeleteAlbum = viewModel::deleteAlbum,
+            onRenameAlbum = viewModel::renameAlbum,
+            onDismiss = { showManageAlbumsDialog = false }
+        )
+    }
+
+    // Manage Tags dialog
+    if (showManageTagsDialog) {
+        ManageTagsDialog(
+            tags = uiState.tags,
+            onCreateTag = viewModel::createTag,
+            onDeleteTag = viewModel::deleteTag,
+            onDismiss = { showManageTagsDialog = false }
+        )
+    }
+
+    // Set Album dialog (long-press)
+    if (showSetAlbumDialog) {
+        longPressItem?.let { item ->
+            SetAlbumDialog(
+                albums = uiState.albums,
+                currentAlbumId = item.albumId,
+                onAlbumSelected = { albumId ->
+                    viewModel.setItemAlbum(item.id, albumId)
+                    showSetAlbumDialog = false
+                    longPressItem = null
+                },
+                onDismiss = {
+                    showSetAlbumDialog = false
+                    longPressItem = null
+                }
+            )
+        }
+    }
+
+    // Manage Item Tags dialog (long-press)
+    if (showManageItemTagsDialog) {
+        longPressItem?.let { item ->
+            ManageItemTagsDialog(
+                allTags = uiState.tags,
+                itemTags = item.tags,
+                onAddTag = { tagId -> viewModel.addTagToItem(item.id, tagId) },
+                onRemoveTag = { tagId -> viewModel.removeTagFromItem(item.id, tagId) },
+                onDismiss = {
+                    showManageItemTagsDialog = false
+                    longPressItem = null
+                }
+            )
+        }
+    }
+
+    // Long-press context menu
+    longPressItem?.let { item ->
+        if (!showSetAlbumDialog && !showManageItemTagsDialog) {
+            AlertDialog(
+                onDismissRequest = { longPressItem = null },
+                title = { Text(item.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                text = {
+                    Column {
+                        TextButton(
+                            onClick = {
+                                showSetAlbumDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Set Album") }
+                        TextButton(
+                            onClick = {
+                                showManageItemTagsDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Add/Remove Tags") }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { longPressItem = null }) { Text("Close") }
+                }
+            )
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -271,7 +369,9 @@ fun HistoryScreen(
 
             // Filter bar
             val activeFilterCount = (if (uiState.filterDestination != null) 1 else 0) +
-                    (if (uiState.dateFilter != DateFilter.ALL) 1 else 0)
+                    (if (uiState.dateFilter != DateFilter.ALL) 1 else 0) +
+                    (if (uiState.filterAlbumId != null) 1 else 0) +
+                    (if (uiState.filterTagId != null) 1 else 0)
 
             Row(
                 modifier = Modifier
@@ -286,6 +386,36 @@ fun HistoryScreen(
                         selected = true,
                         onClick = { viewModel.setFilter(null) },
                         label = { Text(uiState.filterDestination!!.displayName) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Clear",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    )
+                }
+                if (uiState.filterAlbumId != null) {
+                    val albumName = uiState.albums.find { it.id == uiState.filterAlbumId }?.name ?: "Album"
+                    FilterChip(
+                        selected = true,
+                        onClick = { viewModel.setAlbumFilter(null) },
+                        label = { Text(albumName) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Clear",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    )
+                }
+                if (uiState.filterTagId != null) {
+                    val tagName = uiState.tags.find { it.id == uiState.filterTagId }?.name ?: "Tag"
+                    FilterChip(
+                        selected = true,
+                        onClick = { viewModel.setTagFilter(null) },
+                        label = { Text(tagName) },
                         trailingIcon = {
                             Icon(
                                 Icons.Default.Delete,
@@ -350,7 +480,7 @@ fun HistoryScreen(
                                 showFilterMenu = false
                             },
                             trailingIcon = {
-                                if (uiState.filterDestination == null) {
+                                if (uiState.filterDestination == null && uiState.filterAlbumId == null && uiState.filterTagId == null) {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 }
                             }
@@ -364,6 +494,90 @@ fun HistoryScreen(
                                 },
                                 trailingIcon = {
                                     if (uiState.filterDestination == dest) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Albums section
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Album",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            TextButton(onClick = {
+                                showFilterMenu = false
+                                showManageAlbumsDialog = true
+                            }) { Text("Manage", style = MaterialTheme.typography.labelSmall) }
+                        }
+
+                        DropdownMenuItem(
+                            text = { Text("No Album Filter") },
+                            onClick = {
+                                viewModel.setAlbumFilter(null)
+                                showFilterMenu = false
+                            },
+                            trailingIcon = {
+                                if (uiState.filterAlbumId == null && uiState.filterDestination == null && uiState.filterTagId == null) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        )
+                        uiState.albums.forEach { album ->
+                            DropdownMenuItem(
+                                text = { Text(album.name) },
+                                onClick = {
+                                    viewModel.setAlbumFilter(album.id)
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = {
+                                    if (uiState.filterAlbumId == album.id) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Tags section
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Tag",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            TextButton(onClick = {
+                                showFilterMenu = false
+                                showManageTagsDialog = true
+                            }) { Text("Manage", style = MaterialTheme.typography.labelSmall) }
+                        }
+
+                        uiState.tags.forEach { tag ->
+                            DropdownMenuItem(
+                                text = { Text(tag.name) },
+                                onClick = {
+                                    viewModel.setTagFilter(tag.id)
+                                    showFilterMenu = false
+                                },
+                                trailingIcon = {
+                                    if (uiState.filterTagId == tag.id) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                     }
                                 }
@@ -451,7 +665,9 @@ fun HistoryScreen(
                             AnimatedListItem(index = index) {
                                 SwipeToDeleteItem(
                                     item = item,
+                                    albumName = uiState.albums.find { it.id == item.albumId }?.name,
                                     onClick = { previewItem = item },
+                                    onLongClick = { longPressItem = item },
                                     onCopyUrl = { url ->
                                         clipboardManager.setText(AnnotatedString(url))
                                         scope.launch {
@@ -481,11 +697,13 @@ fun HistoryScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeToDeleteItem(
     item: HistoryItem,
+    albumName: String?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onCopyUrl: (String) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -528,7 +746,9 @@ private fun SwipeToDeleteItem(
     ) {
         HistoryItemCard(
             item = item,
+            albumName = albumName,
             onClick = onClick,
+            onLongClick = onLongClick,
             onCopyUrl = onCopyUrl
         )
     }
@@ -551,17 +771,23 @@ private fun destinationAccentColor(destination: UploadDestination): Color {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryItemCard(
     item: HistoryItem,
+    albumName: String?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onCopyUrl: (String) -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = MaterialTheme.shapes.large
     ) {
         Row(
@@ -634,12 +860,52 @@ private fun HistoryItemCard(
                             )
                         }
                     }
+
+                    // Album badge
+                    if (albumName != null) {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Text(
+                                text = albumName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = item.timestamp.toShortDate(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    // Tag chips
+                    if (item.tags.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            item.tags.forEach { tag ->
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        text = tag.name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     item.url?.let { url ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically
@@ -667,4 +933,268 @@ private fun HistoryItemCard(
             }
         }
     }
+}
+
+@Composable
+private fun ManageAlbumsDialog(
+    albums: List<Album>,
+    onCreateAlbum: (String) -> Unit,
+    onDeleteAlbum: (String) -> Unit,
+    onRenameAlbum: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newAlbumName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage Albums") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newAlbumName,
+                        onValueChange = { newAlbumName = it },
+                        placeholder = { Text("New album name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = {
+                            if (newAlbumName.isNotBlank()) {
+                                onCreateAlbum(newAlbumName.trim())
+                                newAlbumName = ""
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                albums.forEach { album ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = album.name,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        IconButton(onClick = { onDeleteAlbum(album.id) }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                if (albums.isEmpty()) {
+                    Text(
+                        text = "No albums yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
+}
+
+@Composable
+private fun ManageTagsDialog(
+    tags: List<Tag>,
+    onCreateTag: (String) -> Unit,
+    onDeleteTag: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newTagName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage Tags") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newTagName,
+                        onValueChange = { newTagName = it },
+                        placeholder = { Text("New tag name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = {
+                            if (newTagName.isNotBlank()) {
+                                onCreateTag(newTagName.trim())
+                                newTagName = ""
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                tags.forEach { tag ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = tag.name,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        IconButton(onClick = { onDeleteTag(tag.id) }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                if (tags.isEmpty()) {
+                    Text(
+                        text = "No tags yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
+}
+
+@Composable
+private fun SetAlbumDialog(
+    albums: List<Album>,
+    currentAlbumId: String?,
+    onAlbumSelected: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set Album") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = { onAlbumSelected(null) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("None", modifier = Modifier.weight(1f))
+                        if (currentAlbumId == null) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                albums.forEach { album ->
+                    TextButton(
+                        onClick = { onAlbumSelected(album.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(album.name, modifier = Modifier.weight(1f))
+                            if (currentAlbumId == album.id) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+                if (albums.isEmpty()) {
+                    Text(
+                        text = "No albums created yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun ManageItemTagsDialog(
+    allTags: List<Tag>,
+    itemTags: List<Tag>,
+    onAddTag: (String) -> Unit,
+    onRemoveTag: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val itemTagIds = itemTags.map { it.id }.toSet()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add/Remove Tags") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (allTags.isEmpty()) {
+                    Text(
+                        text = "No tags created yet. Create tags from the filter menu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                allTags.forEach { tag ->
+                    val isChecked = tag.id in itemTagIds
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (isChecked) onRemoveTag(tag.id) else onAddTag(tag.id)
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = { checked ->
+                                if (checked) onAddTag(tag.id) else onRemoveTag(tag.id)
+                            }
+                        )
+                        Text(
+                            text = tag.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
 }

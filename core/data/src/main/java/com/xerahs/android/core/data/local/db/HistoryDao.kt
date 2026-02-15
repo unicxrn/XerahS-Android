@@ -32,4 +32,13 @@ interface HistoryDao {
 
     @Query("SELECT * FROM history WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp DESC")
     fun getHistoryByDateRange(startTime: Long, endTime: Long): Flow<List<HistoryEntity>>
+
+    @Query("SELECT * FROM history WHERE albumId = :albumId ORDER BY timestamp DESC")
+    fun getHistoryByAlbum(albumId: String): Flow<List<HistoryEntity>>
+
+    @Query("UPDATE history SET albumId = :albumId WHERE id = :historyId")
+    suspend fun setAlbum(historyId: String, albumId: String?)
+
+    @Query("SELECT h.* FROM history h INNER JOIN history_tag_cross_ref ref ON h.id = ref.historyId WHERE ref.tagId = :tagId ORDER BY h.timestamp DESC")
+    fun getHistoryByTag(tagId: String): Flow<List<HistoryEntity>>
 }

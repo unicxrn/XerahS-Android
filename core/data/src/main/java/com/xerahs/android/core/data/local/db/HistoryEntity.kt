@@ -1,11 +1,22 @@
 package com.xerahs.android.core.data.local.db
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
 
-@Entity(tableName = "history")
+@Entity(
+    tableName = "history",
+    foreignKeys = [
+        ForeignKey(
+            entity = AlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["albumId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ]
+)
 data class HistoryEntity(
     @PrimaryKey val id: String,
     val filePath: String,
@@ -15,7 +26,8 @@ data class HistoryEntity(
     val uploadDestination: String,
     val timestamp: Long,
     val fileName: String,
-    val fileSize: Long
+    val fileSize: Long,
+    val albumId: String? = null
 ) {
     fun toDomain(): HistoryItem = HistoryItem(
         id = id,
@@ -26,7 +38,8 @@ data class HistoryEntity(
         uploadDestination = UploadDestination.valueOf(uploadDestination),
         timestamp = timestamp,
         fileName = fileName,
-        fileSize = fileSize
+        fileSize = fileSize,
+        albumId = albumId
     )
 
     companion object {
@@ -39,7 +52,8 @@ data class HistoryEntity(
             uploadDestination = item.uploadDestination.name,
             timestamp = item.timestamp,
             fileName = item.fileName,
-            fileSize = item.fileSize
+            fileSize = item.fileSize,
+            albumId = item.albumId
         )
     }
 }

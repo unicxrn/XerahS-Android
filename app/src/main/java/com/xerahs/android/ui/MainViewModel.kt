@@ -32,6 +32,9 @@ class MainViewModel @Inject constructor(
     val oledBlack: StateFlow<Boolean> = settingsRepository.getOledBlack()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val biometricLockMode: StateFlow<String> = settingsRepository.getBiometricLockMode()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "OFF")
+
     fun completeOnboarding() {
         viewModelScope.launch {
             settingsRepository.setOnboardingCompleted(true)

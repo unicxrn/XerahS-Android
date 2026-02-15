@@ -94,6 +94,7 @@ object ArrowRenderer {
             style = Paint.Style.FILL
             isAntiAlias = true
         }
+        fillPaint.alpha = (fillPaint.alpha * arrow.opacity).toInt()
 
         canvas.drawPath(path, fillPaint)
     }

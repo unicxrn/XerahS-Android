@@ -47,6 +47,7 @@ object BlurRenderer {
                 color = 0x80808080.toInt()
                 style = Paint.Style.FILL
             }
+            paint.alpha = (paint.alpha * blur.opacity).toInt()
             canvas.drawRect(
                 left.toFloat(), top.toFloat(),
                 right.toFloat(), bottom.toFloat(),

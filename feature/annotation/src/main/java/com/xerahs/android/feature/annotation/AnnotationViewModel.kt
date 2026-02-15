@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
 enum class AnnotationTool {
-    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND
+    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND, NUMBERED_STEP
 }
 
 data class AnnotationUiState(
@@ -22,11 +22,15 @@ data class AnnotationUiState(
     val strokeWidth: Float = 4f,
     val fontSize: Float = 24f,
     val blurRadius: Float = 25f,
+    val opacity: Float = 1f,
     val undoStack: List<List<Annotation>> = emptyList(),
     val redoStack: List<List<Annotation>> = emptyList(),
     val isExporting: Boolean = false,
     val pendingTextPosition: Pair<Float, Float>? = null,
-    val textBackgroundEnabled: Boolean = true
+    val textBackgroundEnabled: Boolean = true,
+    val selectedAnnotationId: String? = null,
+    val nextStepNumber: Int = 1,
+    val isCropMode: Boolean = false
 )
 
 @HiltViewModel
@@ -36,7 +40,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
     val uiState: StateFlow<AnnotationUiState> = _uiState.asStateFlow()
 
     fun selectTool(tool: AnnotationTool) {
-        _uiState.value = _uiState.value.copy(selectedTool = tool)
+        _uiState.value = _uiState.value.copy(selectedTool = tool, selectedAnnotationId = null)
     }
 
     fun setStrokeColor(color: Int) {
@@ -55,6 +59,29 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
         _uiState.value = _uiState.value.copy(blurRadius = radius)
     }
 
+    fun setOpacity(opacity: Float) {
+        _uiState.value = _uiState.value.copy(opacity = opacity)
+    }
+
+    fun selectAnnotation(id: String?) {
+        _uiState.value = _uiState.value.copy(selectedAnnotationId = id)
+    }
+
+    fun deleteSelectedAnnotation() {
+        val state = _uiState.value
+        val selectedId = state.selectedAnnotationId ?: return
+        pushUndo()
+        _uiState.value = state.copy(
+            annotations = state.annotations.filter { it.id != selectedId },
+            selectedAnnotationId = null,
+            redoStack = emptyList()
+        )
+    }
+
+    fun setCropMode(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(isCropMode = enabled)
+    }
+
     fun addAnnotation(startX: Float, startY: Float, endX: Float, endY: Float) {
         val state = _uiState.value
         pushUndo()
@@ -65,6 +92,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                 zIndex = state.annotations.size,
                 strokeColor = state.strokeColor,
                 strokeWidth = state.strokeWidth,
+                opacity = state.opacity,
                 startX = startX, startY = startY,
                 endX = endX, endY = endY
             )
@@ -73,17 +101,18 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                 zIndex = state.annotations.size,
                 strokeColor = state.strokeColor,
                 strokeWidth = state.strokeWidth,
+                opacity = state.opacity,
                 startX = startX, startY = startY,
                 endX = endX, endY = endY
             )
             AnnotationTool.TEXT -> {
-                // For text, we set a pending position and show dialog
                 _uiState.value = state.copy(pendingTextPosition = Pair(startX, startY))
                 return
             }
             AnnotationTool.BLUR -> Annotation.Blur(
                 id = generateId(),
                 zIndex = state.annotations.size,
+                opacity = state.opacity,
                 startX = startX, startY = startY,
                 endX = endX, endY = endY,
                 blurRadius = state.blurRadius
@@ -99,6 +128,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                     zIndex = state.annotations.size,
                     strokeColor = state.strokeColor,
                     strokeWidth = state.strokeWidth,
+                    opacity = state.opacity,
                     centerX = centerX,
                     centerY = centerY,
                     radius = radius
@@ -106,6 +136,10 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
             }
             AnnotationTool.FREEHAND -> {
                 // Freehand uses addFreehandAnnotation instead
+                return
+            }
+            AnnotationTool.NUMBERED_STEP -> {
+                // NumberedStep uses addNumberedStep instead
                 return
             }
         }
@@ -126,11 +160,34 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
             zIndex = state.annotations.size,
             strokeColor = state.strokeColor,
             strokeWidth = state.strokeWidth,
+            opacity = state.opacity,
             points = points
         )
 
         _uiState.value = state.copy(
             annotations = state.annotations + annotation,
+            redoStack = emptyList()
+        )
+    }
+
+    fun addNumberedStep(x: Float, y: Float) {
+        val state = _uiState.value
+        pushUndo()
+
+        val annotation = Annotation.NumberedStep(
+            id = generateId(),
+            zIndex = state.annotations.size,
+            strokeColor = state.strokeColor,
+            opacity = state.opacity,
+            number = state.nextStepNumber,
+            centerX = x,
+            centerY = y,
+            radius = 20f
+        )
+
+        _uiState.value = state.copy(
+            annotations = state.annotations + annotation,
+            nextStepNumber = state.nextStepNumber + 1,
             redoStack = emptyList()
         )
     }
@@ -149,6 +206,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
             zIndex = state.annotations.size,
             strokeColor = state.strokeColor,
             strokeWidth = state.strokeWidth,
+            opacity = state.opacity,
             text = text,
             x = position.first,
             y = position.second,
@@ -195,7 +253,8 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
         pushUndo()
         _uiState.value = _uiState.value.copy(
             annotations = emptyList(),
-            redoStack = emptyList()
+            redoStack = emptyList(),
+            nextStepNumber = 1
         )
     }
 

@@ -100,4 +100,16 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setMaxImageDimension(maxDim: Int) =
         settingsDataStore.setMaxImageDimension(maxDim)
+
+    override fun getAutoCopyUrl(): Flow<Boolean> =
+        settingsDataStore.getAutoCopyUrl()
+
+    override suspend fun setAutoCopyUrl(enabled: Boolean) =
+        settingsDataStore.setAutoCopyUrl(enabled)
+
+    override fun getBiometricLockMode(): Flow<String> =
+        settingsDataStore.getBiometricLockMode()
+
+    override suspend fun setBiometricLockMode(mode: String) =
+        settingsDataStore.setBiometricLockMode(mode)
 }

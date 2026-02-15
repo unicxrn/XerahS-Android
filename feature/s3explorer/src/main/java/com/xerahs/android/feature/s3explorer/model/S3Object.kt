@@ -26,3 +26,10 @@ data class S3ListResult(
     val isTruncated: Boolean,
     val nextContinuationToken: String?
 )
+
+enum class SortField { NAME, SIZE, DATE, TYPE }
+enum class SortDirection { ASC, DESC }
+data class SortOption(
+    val field: SortField = SortField.NAME,
+    val direction: SortDirection = SortDirection.ASC
+)

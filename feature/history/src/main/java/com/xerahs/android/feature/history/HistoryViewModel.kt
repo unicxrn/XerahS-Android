@@ -2,10 +2,16 @@ package com.xerahs.android.feature.history
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.common.generateId
+import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DateFilter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.repository.AlbumRepository
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.TagRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,12 +28,18 @@ data class HistoryUiState(
     val searchQuery: String = "",
     val isLoading: Boolean = true,
     val totalUploads: Int = 0,
-    val totalSize: Long = 0
+    val totalSize: Long = 0,
+    val albums: List<Album> = emptyList(),
+    val tags: List<Tag> = emptyList(),
+    val filterAlbumId: String? = null,
+    val filterTagId: String? = null
 )
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
-    private val historyRepository: HistoryRepository
+    private val historyRepository: HistoryRepository,
+    private val albumRepository: AlbumRepository,
+    private val tagRepository: TagRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistoryUiState())
@@ -38,27 +50,47 @@ class HistoryViewModel @Inject constructor(
 
     init {
         loadHistory()
+        viewModelScope.launch {
+            albumRepository.getAllAlbums().collect { albums ->
+                _uiState.value = _uiState.value.copy(albums = albums)
+            }
+        }
+        viewModelScope.launch {
+            tagRepository.getAllTags().collect { tags ->
+                _uiState.value = _uiState.value.copy(tags = tags)
+            }
+        }
     }
 
     private fun loadHistory() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            val state = _uiState.value
             val flow = when {
-                _uiState.value.searchQuery.isNotEmpty() ->
-                    historyRepository.searchHistory(_uiState.value.searchQuery)
-                _uiState.value.filterDestination != null ->
-                    historyRepository.getHistoryByDestination(_uiState.value.filterDestination!!)
+                state.searchQuery.isNotEmpty() ->
+                    historyRepository.searchHistory(state.searchQuery)
+                state.filterAlbumId != null ->
+                    albumRepository.getHistoryByAlbum(state.filterAlbumId)
+                state.filterTagId != null ->
+                    tagRepository.getHistoryByTag(state.filterTagId)
+                state.filterDestination != null ->
+                    historyRepository.getHistoryByDestination(state.filterDestination)
                 else ->
                     historyRepository.getAllHistory()
             }
 
             flow.collect { items ->
                 val filtered = applyDateFilter(items, _uiState.value.dateFilter)
+                // Load tags for each item
+                val itemsWithTags = filtered.map { item ->
+                    val itemTags = tagRepository.getTagsForHistory(item.id)
+                    item.copy(tags = itemTags)
+                }
                 _uiState.value = _uiState.value.copy(
-                    items = filtered,
+                    items = itemsWithTags,
                     isLoading = false,
-                    totalUploads = filtered.size,
-                    totalSize = filtered.sumOf { it.fileSize }
+                    totalUploads = itemsWithTags.size,
+                    totalSize = itemsWithTags.sumOf { it.fileSize }
                 )
             }
         }
@@ -101,7 +133,32 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun setFilter(destination: UploadDestination?) {
-        _uiState.value = _uiState.value.copy(filterDestination = destination, isLoading = true)
+        _uiState.value = _uiState.value.copy(
+            filterDestination = destination,
+            filterAlbumId = null,
+            filterTagId = null,
+            isLoading = true
+        )
+        loadHistory()
+    }
+
+    fun setAlbumFilter(albumId: String?) {
+        _uiState.value = _uiState.value.copy(
+            filterAlbumId = albumId,
+            filterDestination = null,
+            filterTagId = null,
+            isLoading = true
+        )
+        loadHistory()
+    }
+
+    fun setTagFilter(tagId: String?) {
+        _uiState.value = _uiState.value.copy(
+            filterTagId = tagId,
+            filterAlbumId = null,
+            filterDestination = null,
+            isLoading = true
+        )
         loadHistory()
     }
 
@@ -117,7 +174,6 @@ class HistoryViewModel @Inject constructor(
 
     fun deleteItem(id: String) {
         viewModelScope.launch {
-            // Save for undo before deleting
             lastDeletedItem = historyRepository.getHistoryItem(id)
             historyRepository.deleteHistoryItem(id)
         }
@@ -134,6 +190,67 @@ class HistoryViewModel @Inject constructor(
     fun clearHistory() {
         viewModelScope.launch {
             historyRepository.clearHistory()
+        }
+    }
+
+    // Album management
+    fun createAlbum(name: String) {
+        viewModelScope.launch {
+            albumRepository.createAlbum(
+                Album(id = generateId(), name = name, createdAt = generateTimestamp())
+            )
+        }
+    }
+
+    fun deleteAlbum(id: String) {
+        viewModelScope.launch {
+            albumRepository.deleteAlbum(id)
+            if (_uiState.value.filterAlbumId == id) {
+                setAlbumFilter(null)
+            }
+        }
+    }
+
+    fun renameAlbum(id: String, name: String) {
+        viewModelScope.launch {
+            albumRepository.renameAlbum(id, name)
+        }
+    }
+
+    fun setItemAlbum(historyId: String, albumId: String?) {
+        viewModelScope.launch {
+            albumRepository.setAlbum(historyId, albumId)
+            loadHistory()
+        }
+    }
+
+    // Tag management
+    fun createTag(name: String) {
+        viewModelScope.launch {
+            tagRepository.createTag(Tag(id = generateId(), name = name))
+        }
+    }
+
+    fun deleteTag(id: String) {
+        viewModelScope.launch {
+            tagRepository.deleteTag(id)
+            if (_uiState.value.filterTagId == id) {
+                setTagFilter(null)
+            }
+        }
+    }
+
+    fun addTagToItem(historyId: String, tagId: String) {
+        viewModelScope.launch {
+            tagRepository.addTagToHistory(historyId, tagId)
+            loadHistory()
+        }
+    }
+
+    fun removeTagFromItem(historyId: String, tagId: String) {
+        viewModelScope.launch {
+            tagRepository.removeTagFromHistory(historyId, tagId)
+            loadHistory()
         }
     }
 }
