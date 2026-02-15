@@ -22,6 +22,7 @@ import com.xerahs.android.feature.settings.UploadSettingsScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
 import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
 import com.xerahs.android.feature.settings.destinations.S3ConfigScreen
+import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.upload.UploadScreen
 
 sealed class Screen(val route: String) {
@@ -33,6 +34,7 @@ sealed class Screen(val route: String) {
         fun createRoute(imagePath: String) = "upload/${java.net.URLEncoder.encode(imagePath, "UTF-8")}"
     }
     data object History : Screen("history")
+    data object S3Explorer : Screen("s3explorer")
     data object Settings : Screen("settings")
     data object AppearanceSettings : Screen("settings/appearance")
     data object UploadSettings : Screen("settings/uploads")
@@ -130,6 +132,14 @@ fun XerahSNavGraph(
         composable(Screen.History.route) {
             HistoryScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.S3Explorer.route) {
+            S3ExplorerScreen(
+                onNavigateToSettings = {
+                    navController.navigate(Screen.S3Config.route)
+                }
             )
         }
 

@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
@@ -134,6 +135,7 @@ fun MainScreen(
     val bottomNavItems = listOf(
         BottomNavItem("Browse", Icons.Default.PhotoLibrary, Screen.Capture.route),
         BottomNavItem("History", Icons.Default.History, Screen.History.route),
+        BottomNavItem("Explorer", Icons.Default.CloudQueue, Screen.S3Explorer.route),
         BottomNavItem("Settings", Icons.Default.Settings, Screen.Settings.route)
     )
 
@@ -150,6 +152,7 @@ fun MainScreen(
     val showBottomBar = currentDestination?.route in listOf(
         Screen.Capture.route,
         Screen.History.route,
+        Screen.S3Explorer.route,
         Screen.Settings.route
     )
 

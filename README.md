@@ -12,6 +12,7 @@ An Android image sharing app — browse images, annotate them, and upload to you
 - **Image Quality Controls** — JPEG compression slider and max dimension resize before upload
 - **Connection Testing** — Test S3, FTP, and SFTP connections from settings
 - **Custom File Naming** — Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
+- **S3 Explorer** — Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, and image thumbnails via signed requests
 - **Upload History** — Searchable history with thumbnails, date filters, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
 - **Theme Options** — System, Light, and Dark modes with multiple color themes and OLED pure black mode
 - **Settings Backup** — Export/import all settings (including credentials) as JSON
@@ -34,6 +35,7 @@ feature/
   annotation/         Canvas-based image markup editor
   upload/             Upload logic for S3, Imgur, FTP, SFTP + WorkManager
   history/            Upload history with search, filters, swipe gestures
+  s3explorer/         S3 bucket file browser with folder navigation and preview
   settings/           App settings, destination configs, export/import
 ```
 

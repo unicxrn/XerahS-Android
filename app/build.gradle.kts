@@ -53,6 +53,7 @@ dependencies {
     implementation(project(":feature:annotation"))
     implementation(project(":feature:upload"))
     implementation(project(":feature:history"))
+    implementation(project(":feature:s3explorer"))
     implementation(project(":feature:settings"))
 
     implementation(libs.core.ktx)

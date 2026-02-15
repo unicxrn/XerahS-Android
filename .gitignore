@@ -17,4 +17,5 @@ local.properties
 /feature/annotation/build
 /feature/upload/build
 /feature/history/build
+/feature/s3explorer/build
 /feature/settings/build
