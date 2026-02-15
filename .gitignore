@@ -12,6 +12,7 @@ local.properties
 /core/common/build
 /core/domain/build
 /core/data/build
+/core/ui/build
 /feature/capture/build
 /feature/annotation/build
 /feature/upload/build
