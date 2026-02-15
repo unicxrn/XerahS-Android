@@ -1,5 +1,7 @@
 # XerahS
 
+> **Early Development** — This project is under active development. Expect bugs, breaking changes, and incomplete features. Feedback and bug reports are welcome.
+
 An Android image sharing app — browse images, annotate them, and upload to your preferred destination.
 
 ## Features
