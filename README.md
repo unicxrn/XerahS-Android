@@ -2,6 +2,8 @@
 
 > **Early Development** — This project is under active development. Expect bugs, breaking changes, and incomplete features. Feedback and bug reports are welcome.
 
+> **Disclaimer** — XerahS is an unofficial, third-party client. It is not affiliated with, endorsed by, or associated with [ShareX](https://getsharex.com/) or its developers in any way.
+
 An Android image sharing app — browse images, annotate them, and upload to your preferred destination.
 
 ## Features
