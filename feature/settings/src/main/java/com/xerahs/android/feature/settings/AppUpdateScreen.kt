@@ -2,6 +2,8 @@ package com.xerahs.android.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,7 +38,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.ui.AnimatedListItem
@@ -224,12 +234,8 @@ fun AppUpdateScreen(
                                 }
 
                                 if (!release.body.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = release.body,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    MarkdownBody(release.body)
                                 }
                             }
                         }
@@ -242,8 +248,159 @@ fun AppUpdateScreen(
     }
 }
 
+@Composable
+private fun MarkdownBody(markdown: String) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val accentColor = MaterialTheme.colorScheme.primary
+    val quoteBarColor = MaterialTheme.colorScheme.outlineVariant
+    val bodyStyle = MaterialTheme.typography.bodySmall
+    val headingStyle = MaterialTheme.typography.titleSmall
+    val subheadingStyle = MaterialTheme.typography.labelLarge
+
+    val lines = markdown.lines()
+    var i = 0
+
+    Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp)) {
+        while (i < lines.size) {
+            val line = lines[i]
+            val trimmed = line.trim()
+
+            when {
+                // Blank line — small spacer
+                trimmed.isEmpty() -> {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // H2 heading: ## Title
+                trimmed.startsWith("## ") -> {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = trimmed.removePrefix("## "),
+                        style = headingStyle,
+                        color = textColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // H3 heading: ### Title
+                trimmed.startsWith("### ") -> {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = trimmed.removePrefix("### "),
+                        style = subheadingStyle,
+                        color = accentColor
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
+
+                // Blockquote: > text
+                trimmed.startsWith("> ") || trimmed == ">" -> {
+                    val quoteText = trimmed.removePrefix("> ").removePrefix(">")
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(20.dp)
+                                .clip(MaterialTheme.shapes.extraSmall)
+                                .background(quoteBarColor)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = parseInlineMarkdown(quoteText),
+                            style = bodyStyle,
+                            fontStyle = FontStyle.Italic,
+                            color = mutedColor
+                        )
+                    }
+                }
+
+                // Bullet point: - item or * item
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "\u2022",
+                            style = bodyStyle,
+                            color = accentColor,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = parseInlineMarkdown(trimmed.drop(2)),
+                            style = bodyStyle,
+                            color = mutedColor
+                        )
+                    }
+                }
+
+                // Regular text
+                else -> {
+                    Text(
+                        text = parseInlineMarkdown(trimmed),
+                        style = bodyStyle,
+                        color = mutedColor
+                    )
+                }
+            }
+            i++
+        }
+    }
+}
+
+private fun parseInlineMarkdown(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        var pos = 0
+        while (pos < text.length) {
+            when {
+                // Bold: **text**
+                text.startsWith("**", pos) -> {
+                    val end = text.indexOf("**", pos + 2)
+                    if (end != -1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(text.substring(pos + 2, end))
+                        }
+                        pos = end + 2
+                    } else {
+                        append(text[pos])
+                        pos++
+                    }
+                }
+                // Bold: __text__
+                text.startsWith("__", pos) -> {
+                    val end = text.indexOf("__", pos + 2)
+                    if (end != -1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(text.substring(pos + 2, end))
+                        }
+                        pos = end + 2
+                    } else {
+                        append(text[pos])
+                        pos++
+                    }
+                }
+                // Inline code: `code`
+                text[pos] == '`' -> {
+                    val end = text.indexOf('`', pos + 1)
+                    if (end != -1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) {
+                            append(text.substring(pos + 1, end))
+                        }
+                        pos = end + 1
+                    } else {
+                        append(text[pos])
+                        pos++
+                    }
+                }
+                else -> {
+                    append(text[pos])
+                    pos++
+                }
+            }
+        }
+    }
+}
+
 private fun formatDate(isoDate: String): String {
-    // ISO 8601: "2024-01-15T10:30:00Z" -> "Jan 15, 2024"
     return try {
         val parts = isoDate.take(10).split("-")
         val months = listOf(
