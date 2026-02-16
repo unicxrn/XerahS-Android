@@ -10,7 +10,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -128,17 +133,24 @@ fun S3ExplorerScreen(
 
     // Image preview dialog
     uiState.previewObject?.let { obj ->
+        val imageObjects = remember(uiState.filteredObjects) {
+            uiState.filteredObjects.filter { it.isImage }
+        }
+        val initialIndex = remember(obj, imageObjects) {
+            imageObjects.indexOfFirst { it.key == obj.key }.coerceAtLeast(0)
+        }
         ImagePreviewDialog(
-            obj = obj,
+            imageObjects = imageObjects,
+            initialIndex = initialIndex,
             viewModel = viewModel,
             onDismiss = { viewModel.setPreviewObject(null) },
-            onDelete = {
-                pendingDeleteKey = obj.key
+            onDelete = { currentObj ->
+                pendingDeleteKey = currentObj.key
                 showDeleteConfirm = true
             },
-            onDownload = {
+            onDownload = { currentObj ->
                 scope.launch {
-                    downloadToDevice(context, viewModel, obj)
+                    downloadToDevice(context, viewModel, currentObj)
                 }
             }
         )
@@ -808,6 +820,8 @@ private fun FileListItem(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
                         .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                        .diskCacheKey(obj.key)
+                        .memoryCacheKey(obj.key)
                         .crossfade(true)
                         .size(160)
                         .build(),
@@ -885,6 +899,8 @@ private fun FileGridItem(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
                         .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                        .diskCacheKey(obj.key)
+                        .memoryCacheKey(obj.key)
                         .crossfade(true)
                         .size(320)
                         .build(),
@@ -950,16 +966,16 @@ private fun FileGridItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ImagePreviewDialog(
-    obj: S3Object,
+    imageObjects: List<S3Object>,
+    initialIndex: Int,
     viewModel: S3ExplorerViewModel,
     onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-    onDownload: () -> Unit
+    onDelete: (S3Object) -> Unit,
+    onDownload: (S3Object) -> Unit
 ) {
-    val (url, headers) = remember(obj.key) { viewModel.getSignedUrl(obj.key) }
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -969,34 +985,69 @@ private fun ImagePreviewDialog(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.9f))
         ) {
-            var scale by remember { mutableFloatStateOf(1f) }
-            var offsetX by remember { mutableFloatStateOf(0f) }
-            var offsetY by remember { mutableFloatStateOf(0f) }
-
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(url)
-                    .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Preview",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offsetX,
-                        translationY = offsetY
-                    )
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            offsetX += pan.x
-                            offsetY += pan.y
-                        }
-                    },
-                contentScale = ContentScale.Fit
+            val pagerState = rememberPagerState(
+                initialPage = initialIndex,
+                pageCount = { imageObjects.size }
             )
+            val currentObj = imageObjects.getOrNull(pagerState.currentPage) ?: return@Dialog
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val obj = imageObjects[page]
+                val (url, headers) = remember(obj.key) { viewModel.getSignedUrl(obj.key) }
+                var scale by remember { mutableFloatStateOf(1f) }
+                var offsetX by remember { mutableFloatStateOf(0f) }
+                var offsetY by remember { mutableFloatStateOf(0f) }
+
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(url)
+                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                        .diskCacheKey(obj.key)
+                        .memoryCacheKey(obj.key)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Preview",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offsetX,
+                            translationY = offsetY
+                        )
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val fingerCount = event.changes.count { it.pressed }
+                                    if (fingerCount >= 2) {
+                                        val zoom = event.calculateZoom()
+                                        val pan = event.calculatePan()
+                                        scale = (scale * zoom).coerceIn(1f, 5f)
+                                        offsetX += pan.x
+                                        offsetY += pan.y
+                                        event.changes.forEach { it.consume() }
+                                    } else if (fingerCount == 1 && scale > 1f) {
+                                        val pan = event.calculatePan()
+                                        offsetX += pan.x
+                                        offsetY += pan.y
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                } while (event.changes.any { it.pressed })
+                                if (scale < 1.05f) {
+                                    scale = 1f
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                }
+                            }
+                        },
+                    contentScale = ContentScale.Fit
+                )
+            }
 
             // Close button
             FilledTonalIconButton(
@@ -1017,7 +1068,7 @@ private fun ImagePreviewDialog(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = obj.name,
+                    text = currentObj.name,
                     style = MaterialTheme.typography.titleSmall,
                     color = Color.White
                 )
@@ -1025,21 +1076,21 @@ private fun ImagePreviewDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = obj.size.formatSize(),
+                        text = currentObj.size.formatSize(),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
-                    if (obj.lastModified > 0) {
+                    if (currentObj.lastModified > 0) {
                         Text(
-                            text = obj.lastModified.toShortDate(),
+                            text = currentObj.lastModified.toShortDate(),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
-                if (obj.storageClass.isNotEmpty()) {
+                if (currentObj.storageClass.isNotEmpty()) {
                     Text(
-                        text = obj.storageClass,
+                        text = currentObj.storageClass,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.5f)
                     )
@@ -1048,7 +1099,7 @@ private fun ImagePreviewDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FilledTonalButton(onClick = onDownload) {
+                    FilledTonalButton(onClick = { onDownload(currentObj) }) {
                         Icon(
                             Icons.Default.Download,
                             contentDescription = null,
@@ -1058,7 +1109,7 @@ private fun ImagePreviewDialog(
                         Text("Download")
                     }
                     FilledTonalButton(
-                        onClick = onDelete,
+                        onClick = { onDelete(currentObj) },
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer

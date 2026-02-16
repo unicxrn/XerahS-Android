@@ -19,5 +19,6 @@ enum class UploadDestination(val displayName: String) {
     S3("S3"),
     FTP("FTP"),
     SFTP("SFTP"),
+    CUSTOM_HTTP("Custom HTTP"),
     LOCAL("Local")
 }

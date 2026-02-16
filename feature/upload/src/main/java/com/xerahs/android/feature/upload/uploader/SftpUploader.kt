@@ -3,6 +3,7 @@ package com.xerahs.android.feature.upload.uploader
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
+import com.xerahs.android.core.common.PathPattern
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
@@ -50,7 +51,7 @@ class SftpUploader @Inject constructor() {
                 channel.connect(30000)
 
                 // Navigate to remote directory
-                val remotePath = config.remotePath.trimEnd('/')
+                val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     try {
                         channel.cd(remotePath)

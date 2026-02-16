@@ -1,8 +1,13 @@
 package com.xerahs.android.feature.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +20,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,22 +45,28 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadDestination
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Switch
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UploadSettingsScreen(
     onNavigateToImgurConfig: () -> Unit,
     onNavigateToS3Config: () -> Unit,
     onNavigateToFtpConfig: () -> Unit,
+    onNavigateToCustomHttpConfig: () -> Unit,
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -76,14 +90,14 @@ fun UploadSettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // General section
-            SectionHeader("General")
+            // Destinations section — pick default + configure each service
+            SectionHeader("Destinations")
 
             SettingsGroupCard {
-                var expanded by remember { mutableStateOf(false) }
+                var dropdownExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
+                    expanded = dropdownExpanded,
+                    onExpandedChange = { dropdownExpanded = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
@@ -93,25 +107,54 @@ fun UploadSettingsScreen(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Default Upload Destination") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
                         modifier = Modifier
                             .menuAnchor()
                             .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false }
                     ) {
                         UploadDestination.entries.forEach { dest ->
                             DropdownMenuItem(
                                 text = { Text(dest.displayName) },
                                 onClick = {
                                     viewModel.setDefaultDestination(dest)
-                                    expanded = false
+                                    dropdownExpanded = false
                                 }
                             )
                         }
                     }
+                }
+
+                // Destination health check
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (uiState.destinationConfigured) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (uiState.destinationConfigured) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.padding(start = 0.dp)
+                    )
+                    Text(
+                        text = if (uiState.destinationConfigured) "Configured" else "Not configured",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (uiState.destinationConfigured) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
                 }
 
                 HorizontalDivider(
@@ -119,43 +162,81 @@ fun UploadSettingsScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                OutlinedTextField(
-                    value = uiState.fileNamingPattern,
-                    onValueChange = { viewModel.setFileNamingPattern(it) },
-                    label = { Text("File Naming Pattern") },
-                    supportingText = {
-                        Text("Tokens: {original}, {date}, {time}, {timestamp}, {random}")
-                    },
-                    leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Behavior section
-            SectionHeader("Behavior")
-
-            SettingsGroupCard {
+                var destinationsExpanded by rememberSaveable { mutableStateOf(false) }
                 ListItem(
-                    headlineContent = { Text("Auto-copy URL after upload") },
-                    supportingContent = { Text("Automatically copy the URL to clipboard when a single upload completes") },
+                    headlineContent = { Text("Configure Destinations") },
+                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom HTTP") },
                     trailingContent = {
-                        Switch(
-                            checked = uiState.autoCopyUrl,
-                            onCheckedChange = { viewModel.setAutoCopyUrl(it) }
+                        Icon(
+                            if (destinationsExpanded) Icons.Default.KeyboardArrowUp
+                            else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (destinationsExpanded) "Collapse" else "Expand"
+                        )
+                    },
+                    modifier = Modifier.clickable { destinationsExpanded = !destinationsExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = destinationsExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Column {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.Image,
+                            title = "Imgur",
+                            subtitle = "Configure Imgur upload",
+                            onClick = onNavigateToImgurConfig
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.Cloud,
+                            title = "Amazon S3",
+                            subtitle = "Configure S3 bucket upload",
+                            onClick = onNavigateToS3Config
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.Dns,
+                            title = "FTP / SFTP",
+                            subtitle = "Configure FTP/SFTP upload",
+                            onClick = onNavigateToFtpConfig
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.Http,
+                            title = "Custom HTTP",
+                            subtitle = "Configure custom HTTP endpoint",
+                            onClick = onNavigateToCustomHttpConfig
                         )
                     }
-                )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Image Quality section
-            SectionHeader("Image Quality")
+            // Image Processing section — quality and resize settings
+            SectionHeader("Image Processing")
 
             SettingsGroupCard {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -189,8 +270,9 @@ fun UploadSettingsScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val dimensions = listOf(
                             0 to "Original",
@@ -213,44 +295,85 @@ fun UploadSettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Output Format",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ImageFormat.entries.forEach { format ->
+                            FilterChip(
+                                selected = uiState.uploadFormat == format,
+                                onClick = { viewModel.setUploadFormat(format) },
+                                label = { Text(format.displayName) }
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Convert images before uploading. Original keeps the source format.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                ListItem(
+                    headlineContent = { Text("Strip EXIF metadata") },
+                    supportingContent = { Text("Remove GPS, camera info, and other metadata before uploading") },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.stripExif,
+                            onCheckedChange = { viewModel.setStripExif(it) }
+                        )
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Destination configuration section
-            SectionHeader("Destination Configuration")
+            // Behavior section — naming, clipboard, and other general settings
+            SectionHeader("Behavior")
 
             SettingsGroupCard {
-                DestinationItem(
-                    icon = Icons.Default.Image,
-                    title = "Imgur",
-                    subtitle = "Configure Imgur upload",
-                    onClick = onNavigateToImgurConfig
+                OutlinedTextField(
+                    value = uiState.fileNamingPattern,
+                    onValueChange = { viewModel.setFileNamingPattern(it) },
+                    label = { Text("File Naming Pattern") },
+                    supportingText = {
+                        Text("Tokens: {original}, {date}, {time}, {timestamp}, {random}")
+                    },
+                    leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 )
 
                 HorizontalDivider(
-                    modifier = Modifier.padding(start = 56.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                DestinationItem(
-                    icon = Icons.Default.Cloud,
-                    title = "Amazon S3",
-                    subtitle = "Configure S3 bucket upload",
-                    onClick = onNavigateToS3Config
-                )
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 56.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-
-                DestinationItem(
-                    icon = Icons.Default.Dns,
-                    title = "FTP / SFTP",
-                    subtitle = "Configure FTP/SFTP upload",
-                    onClick = onNavigateToFtpConfig
+                ListItem(
+                    headlineContent = { Text("Auto-copy URL after upload") },
+                    supportingContent = { Text("Automatically copy the URL to clipboard when a single upload completes") },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.autoCopyUrl,
+                            onCheckedChange = { viewModel.setAutoCopyUrl(it) }
+                        )
+                    }
                 )
             }
 

@@ -3,6 +3,7 @@ package com.xerahs.android.core.data.repository
 import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
 import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -112,4 +113,28 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setBiometricLockMode(mode: String) =
         settingsDataStore.setBiometricLockMode(mode)
+
+    override suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig =
+        secureCredentialStore.getCustomHttpConfig()
+
+    override suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig) =
+        secureCredentialStore.saveCustomHttpConfig(config)
+
+    override fun getUploadFormat(): Flow<ImageFormat> =
+        settingsDataStore.getUploadFormat()
+
+    override suspend fun setUploadFormat(format: ImageFormat) =
+        settingsDataStore.setUploadFormat(format)
+
+    override fun getStripExif(): Flow<Boolean> =
+        settingsDataStore.getStripExif()
+
+    override suspend fun setStripExif(enabled: Boolean) =
+        settingsDataStore.setStripExif(enabled)
+
+    override fun getAutoLockTimeout(): Flow<Long> =
+        settingsDataStore.getAutoLockTimeout()
+
+    override suspend fun setAutoLockTimeout(timeout: Long) =
+        settingsDataStore.setAutoLockTimeout(timeout)
 }

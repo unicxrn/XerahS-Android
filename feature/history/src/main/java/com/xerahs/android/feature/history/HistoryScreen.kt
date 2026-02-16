@@ -5,7 +5,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,14 +32,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
@@ -81,6 +93,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,10 +108,14 @@ import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadDestination
 import kotlinx.coroutines.launch
+import android.content.Intent
+import androidx.compose.material3.FilledTonalButton
+import androidx.core.content.FileProvider
 import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -117,9 +134,16 @@ fun HistoryScreen(
     var longPressItem by remember { mutableStateOf<HistoryItem?>(null) }
     var showSetAlbumDialog by remember { mutableStateOf(false) }
     var showManageItemTagsDialog by remember { mutableStateOf(false) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
+    var showBulkAlbumDialog by remember { mutableStateOf(false) }
+    var showBulkTagsDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    // Fullscreen image preview dialog
+    // Fullscreen image preview dialog with swipe navigation
     previewItem?.let { item ->
+        val allItems = uiState.items
+        val initialIndex = allItems.indexOf(item).coerceAtLeast(0)
+
         Dialog(
             onDismissRequest = { previewItem = null },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -128,32 +152,73 @@ fun HistoryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.9f))
-                    .clickable { previewItem = null }
             ) {
-                var scale by remember { mutableFloatStateOf(1f) }
-                var offsetX by remember { mutableFloatStateOf(0f) }
-                var offsetY by remember { mutableFloatStateOf(0f) }
-
-                AsyncImage(
-                    model = item.filePath,
-                    contentDescription = "Preview",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offsetX,
-                            translationY = offsetY
-                        )
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                offsetX += pan.x
-                                offsetY += pan.y
-                            }
-                        },
-                    contentScale = ContentScale.Fit
+                val pagerState = rememberPagerState(
+                    initialPage = initialIndex,
+                    pageCount = { allItems.size }
                 )
+                val currentItem = allItems.getOrNull(pagerState.currentPage) ?: item
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val pageItem = allItems[page]
+                    var scale by remember { mutableFloatStateOf(1f) }
+                    var offsetX by remember { mutableFloatStateOf(0f) }
+                    var offsetY by remember { mutableFloatStateOf(0f) }
+
+                    AsyncImage(
+                        model = pageItem.filePath,
+                        contentDescription = "Preview",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            )
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val fingerCount = event.changes.count { it.pressed }
+                                        if (fingerCount >= 2) {
+                                            val zoom = event.calculateZoom()
+                                            val pan = event.calculatePan()
+                                            scale = (scale * zoom).coerceIn(1f, 5f)
+                                            offsetX += pan.x
+                                            offsetY += pan.y
+                                            event.changes.forEach { it.consume() }
+                                        } else if (fingerCount == 1 && scale > 1f) {
+                                            val pan = event.calculatePan()
+                                            offsetX += pan.x
+                                            offsetY += pan.y
+                                            event.changes.forEach { it.consume() }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                    if (scale < 1.05f) {
+                                        scale = 1f
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    }
+                                }
+                            },
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                // Close button
+                FilledTonalIconButton(
+                    onClick = { previewItem = null },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
 
                 // Info overlay at bottom
                 Column(
@@ -164,16 +229,16 @@ fun HistoryScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = item.fileName,
+                        text = currentItem.fileName,
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White
                     )
                     Text(
-                        text = "${item.timestamp.toShortDate()} - ${item.uploadDestination.displayName}",
+                        text = "${currentItem.timestamp.toShortDate()} - ${currentItem.uploadDestination.displayName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
-                    item.url?.let { url ->
+                    currentItem.url?.let { url ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp)
@@ -196,6 +261,16 @@ fun HistoryScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
+                        }
+                    }
+                    Row(modifier = Modifier.padding(top = 4.dp)) {
+                        FilledTonalButton(onClick = {
+                            previewItem = null
+                            shareHistoryItem(context, currentItem)
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Share")
                         }
                     }
                 }
@@ -281,6 +356,51 @@ fun HistoryScreen(
         }
     }
 
+    // Bulk delete confirmation
+    if (showBulkDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("Delete ${uiState.selectedIds.size} items?") },
+            text = { Text("This will permanently delete the selected items. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSelected()
+                        showBulkDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Bulk set album dialog
+    if (showBulkAlbumDialog) {
+        SetAlbumDialog(
+            albums = uiState.albums,
+            currentAlbumId = null,
+            onAlbumSelected = { albumId ->
+                viewModel.setSelectedAlbum(albumId)
+                showBulkAlbumDialog = false
+            },
+            onDismiss = { showBulkAlbumDialog = false }
+        )
+    }
+
+    // Bulk manage tags dialog
+    if (showBulkTagsDialog) {
+        ManageItemTagsDialog(
+            allTags = uiState.tags,
+            itemTags = emptyList(),
+            onAddTag = { tagId -> viewModel.addTagToSelected(tagId) },
+            onRemoveTag = { tagId -> viewModel.removeTagFromSelected(tagId) },
+            onDismiss = { showBulkTagsDialog = false }
+        )
+    }
+
     // Long-press context menu
     longPressItem?.let { item ->
         if (!showSetAlbumDialog && !showManageItemTagsDialog) {
@@ -301,6 +421,13 @@ fun HistoryScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Add/Remove Tags") }
+                        TextButton(
+                            onClick = {
+                                longPressItem = null
+                                shareHistoryItem(context, item)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Share") }
                     }
                 },
                 confirmButton = {
@@ -313,19 +440,78 @@ fun HistoryScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("History") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            if (uiState.isSelectionMode) {
+                TopAppBar(
+                    title = { Text("${uiState.selectedIds.size} selected") },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.toggleSelectionMode() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Exit selection")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.selectAll() }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select All")
+                        }
+                        IconButton(
+                            onClick = { viewModel.clearSelection() },
+                            enabled = uiState.selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Deselect All")
+                        }
                     }
-                },
-                actions = {
-                    IconButton(onClick = { showClearConfirmDialog = true }) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("History") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showClearConfirmDialog = true }) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
+                        }
+                    }
+                )
+            }
+        },
+        bottomBar = {
+            if (uiState.isSelectionMode && uiState.selectedIds.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 3.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        FilledTonalButton(
+                            onClick = { showBulkDeleteConfirm = true },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Delete")
+                        }
+                        FilledTonalButton(onClick = { showBulkAlbumDialog = true }) {
+                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Album")
+                        }
+                        FilledTonalButton(onClick = { showBulkTagsDialog = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Tags")
+                        }
                     }
                 }
-            )
+            }
         }
     ) { innerPadding ->
         Column(
@@ -371,7 +557,7 @@ fun HistoryScreen(
             val activeFilterCount = (if (uiState.filterDestination != null) 1 else 0) +
                     (if (uiState.dateFilter != DateFilter.ALL) 1 else 0) +
                     (if (uiState.filterAlbumId != null) 1 else 0) +
-                    (if (uiState.filterTagId != null) 1 else 0)
+                    uiState.filterTagIds.size
 
             Row(
                 modifier = Modifier
@@ -410,11 +596,11 @@ fun HistoryScreen(
                         }
                     )
                 }
-                if (uiState.filterTagId != null) {
-                    val tagName = uiState.tags.find { it.id == uiState.filterTagId }?.name ?: "Tag"
+                uiState.filterTagIds.forEach { tagId ->
+                    val tagName = uiState.tags.find { it.id == tagId }?.name ?: "Tag"
                     FilterChip(
                         selected = true,
-                        onClick = { viewModel.setTagFilter(null) },
+                        onClick = { viewModel.toggleTagFilter(tagId) },
                         label = { Text(tagName) },
                         trailingIcon = {
                             Icon(
@@ -480,7 +666,7 @@ fun HistoryScreen(
                                 showFilterMenu = false
                             },
                             trailingIcon = {
-                                if (uiState.filterDestination == null && uiState.filterAlbumId == null && uiState.filterTagId == null) {
+                                if (uiState.filterDestination == null && uiState.filterAlbumId == null && uiState.filterTagIds.isEmpty()) {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 }
                             }
@@ -528,7 +714,7 @@ fun HistoryScreen(
                                 showFilterMenu = false
                             },
                             trailingIcon = {
-                                if (uiState.filterAlbumId == null && uiState.filterDestination == null && uiState.filterTagId == null) {
+                                if (uiState.filterAlbumId == null && uiState.filterDestination == null && uiState.filterTagIds.isEmpty()) {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 }
                             }
@@ -550,7 +736,7 @@ fun HistoryScreen(
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                        // Tags section
+                        // Tags section (multi-select)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -559,25 +745,33 @@ fun HistoryScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Tag",
+                                text = "Tags",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            TextButton(onClick = {
-                                showFilterMenu = false
-                                showManageTagsDialog = true
-                            }) { Text("Manage", style = MaterialTheme.typography.labelSmall) }
+                            Row {
+                                if (uiState.filterTagIds.isNotEmpty()) {
+                                    TextButton(onClick = { viewModel.clearTagFilter() }) {
+                                        Text("Clear", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                TextButton(onClick = {
+                                    showFilterMenu = false
+                                    showManageTagsDialog = true
+                                }) { Text("Manage", style = MaterialTheme.typography.labelSmall) }
+                            }
                         }
 
                         uiState.tags.forEach { tag ->
+                            val isSelected = tag.id in uiState.filterTagIds
                             DropdownMenuItem(
                                 text = { Text(tag.name) },
                                 onClick = {
-                                    viewModel.setTagFilter(tag.id)
-                                    showFilterMenu = false
+                                    viewModel.toggleTagFilter(tag.id)
+                                    // Don't close dropdown — allow multi-select
                                 },
                                 trailingIcon = {
-                                    if (uiState.filterTagId == tag.id) {
+                                    if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                     }
                                 }
@@ -663,31 +857,50 @@ fun HistoryScreen(
 
                         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                             AnimatedListItem(index = index) {
-                                SwipeToDeleteItem(
-                                    item = item,
-                                    albumName = uiState.albums.find { it.id == item.albumId }?.name,
-                                    onClick = { previewItem = item },
-                                    onLongClick = { longPressItem = item },
-                                    onCopyUrl = { url ->
-                                        clipboardManager.setText(AnnotatedString(url))
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("URL copied")
-                                        }
-                                    },
-                                    onDelete = {
-                                        viewModel.deleteItem(item.id)
-                                        scope.launch {
-                                            val result = snackbarHostState.showSnackbar(
-                                                message = "Item deleted",
-                                                actionLabel = "Undo",
-                                                duration = SnackbarDuration.Short
-                                            )
-                                            if (result == SnackbarResult.ActionPerformed) {
-                                                viewModel.undoDelete()
+                                if (uiState.isSelectionMode) {
+                                    HistoryItemCard(
+                                        item = item,
+                                        albumName = uiState.albums.find { it.id == item.albumId }?.name,
+                                        isSelected = item.id in uiState.selectedIds,
+                                        onClick = { viewModel.toggleItemSelection(item.id) },
+                                        onLongClick = { viewModel.toggleItemSelection(item.id) },
+                                        onCopyUrl = { url ->
+                                            clipboardManager.setText(AnnotatedString(url))
+                                            scope.launch { snackbarHostState.showSnackbar("URL copied") }
+                                        },
+                                        onShare = { shareHistoryItem(context, item) }
+                                    )
+                                } else {
+                                    SwipeToDeleteItem(
+                                        item = item,
+                                        albumName = uiState.albums.find { it.id == item.albumId }?.name,
+                                        onClick = { previewItem = item },
+                                        onLongClick = {
+                                            viewModel.toggleSelectionMode()
+                                            viewModel.toggleItemSelection(item.id)
+                                        },
+                                        onCopyUrl = { url ->
+                                            clipboardManager.setText(AnnotatedString(url))
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("URL copied")
+                                            }
+                                        },
+                                        onShare = { shareHistoryItem(context, item) },
+                                        onDelete = {
+                                            viewModel.deleteItem(item.id)
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "Item deleted",
+                                                    actionLabel = "Undo",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                                if (result == SnackbarResult.ActionPerformed) {
+                                                    viewModel.undoDelete()
+                                                }
                                             }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -705,6 +918,7 @@ private fun SwipeToDeleteItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onCopyUrl: (String) -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
@@ -749,7 +963,8 @@ private fun SwipeToDeleteItem(
             albumName = albumName,
             onClick = onClick,
             onLongClick = onLongClick,
-            onCopyUrl = onCopyUrl
+            onCopyUrl = onCopyUrl,
+            onShare = onShare
         )
     }
 }
@@ -767,6 +982,7 @@ private fun destinationAccentColor(destination: UploadDestination): Color {
         UploadDestination.S3 -> S3Accent
         UploadDestination.FTP -> FtpAccent
         UploadDestination.SFTP -> SftpAccent
+        UploadDestination.CUSTOM_HTTP -> Color(0xFFFF9800)
         UploadDestination.LOCAL -> LocalAccent
     }
 }
@@ -778,7 +994,9 @@ private fun HistoryItemCard(
     albumName: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onCopyUrl: (String) -> Unit
+    onCopyUrl: (String) -> Unit,
+    onShare: () -> Unit,
+    isSelected: Boolean = false
 ) {
     Card(
         modifier = Modifier
@@ -788,7 +1006,10 @@ private fun HistoryItemCard(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = MaterialTheme.shapes.large
+        shape = MaterialTheme.shapes.large,
+        colors = if (isSelected) CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ) else CardDefaults.cardColors()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -807,8 +1028,18 @@ private fun HistoryItemCard(
                     .padding(12.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                // Thumbnail (bumped to 64dp)
-                if (item.thumbnailPath != null) {
+                // Selection checkbox or thumbnail
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier.size(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Checkbox(
+                            checked = true,
+                            onCheckedChange = { onClick() }
+                        )
+                    }
+                } else if (item.thumbnailPath != null) {
                     AsyncImage(
                         model = item.thumbnailPath,
                         contentDescription = "Thumbnail",
@@ -918,12 +1149,17 @@ private fun HistoryItemCard(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
-                            IconButton(
-                                onClick = { onCopyUrl(url) }
-                            ) {
+                            IconButton(onClick = { onCopyUrl(url) }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
                                     contentDescription = "Copy URL",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(onClick = onShare) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "Share",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -944,6 +1180,8 @@ private fun ManageAlbumsDialog(
     onDismiss: () -> Unit
 ) {
     var newAlbumName by remember { mutableStateOf("") }
+    var editingAlbumId by remember { mutableStateOf<String?>(null) }
+    var editingAlbumName by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -981,17 +1219,55 @@ private fun ManageAlbumsDialog(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = album.name,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        IconButton(onClick = { onDeleteAlbum(album.id) }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                modifier = Modifier.size(18.dp)
+                        if (editingAlbumId == album.id) {
+                            OutlinedTextField(
+                                value = editingAlbumName,
+                                onValueChange = { editingAlbumName = it },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodyMedium
                             )
+                            IconButton(
+                                onClick = {
+                                    if (editingAlbumName.isNotBlank()) {
+                                        onRenameAlbum(album.id, editingAlbumName.trim())
+                                        editingAlbumId = null
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Confirm rename",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { editingAlbumId = null }
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Cancel",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = album.name,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        editingAlbumId = album.id
+                                        editingAlbumName = album.name
+                                    },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            IconButton(onClick = { onDeleteAlbum(album.id) }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1142,6 +1418,30 @@ private fun SetAlbumDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+private fun shareHistoryItem(context: android.content.Context, item: HistoryItem) {
+    val shareIntent = if (item.url != null) {
+        Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, item.url)
+        }
+    } else {
+        val file = File(item.filePath)
+        if (file.exists()) {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            Intent(Intent.ACTION_SEND).apply {
+                type = "image/*"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        } else return
+    }
+    context.startActivity(Intent.createChooser(shareIntent, "Share"))
 }
 
 @Composable

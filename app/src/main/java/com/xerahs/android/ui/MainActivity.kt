@@ -59,13 +59,15 @@ class MainActivity : FragmentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
     private var pendingSharedImagePath by mutableStateOf<String?>(null)
+    private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
     private var isUnlocked by mutableStateOf(false)
+    private var lastBackgroundTime: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        pendingSharedImagePath = handleIncomingIntent(intent)
+        handleIncomingIntent(intent)
 
         setContent {
             val themeMode by mainViewModel.themeMode.collectAsState()
@@ -88,7 +90,10 @@ class MainActivity : FragmentActivity() {
                 ) { completed ->
                     if (!completed) {
                         OnboardingScreen(
-                            onComplete = { mainViewModel.completeOnboarding() }
+                            onComplete = { mainViewModel.completeOnboarding() },
+                            onSelectDestination = { dest ->
+                                mainViewModel.setDefaultDestination(dest)
+                            }
                         )
                     } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
                         // Lock overlay
@@ -119,7 +124,11 @@ class MainActivity : FragmentActivity() {
                     } else {
                         MainScreen(
                             sharedImagePath = pendingSharedImagePath,
-                            onSharedImageHandled = { pendingSharedImagePath = null }
+                            sharedImagePaths = pendingSharedImagePaths,
+                            onSharedImageHandled = {
+                                pendingSharedImagePath = null
+                                pendingSharedImagePaths = null
+                            }
                         )
                     }
                 }
@@ -130,8 +139,16 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         val mode = mainViewModel.biometricLockMode.value
-        if (mode == "LOCK_APP" && !isUnlocked && BiometricHelper.canAuthenticate(this)) {
-            promptBiometric()
+        if (mode == "LOCK_APP" && !isUnlocked) {
+            val timeout = mainViewModel.autoLockTimeout.value
+            val elapsed = System.currentTimeMillis() - lastBackgroundTime
+            if (lastBackgroundTime == 0L || elapsed >= timeout) {
+                if (BiometricHelper.canAuthenticate(this)) {
+                    promptBiometric()
+                }
+            } else {
+                isUnlocked = true
+            }
         }
     }
 
@@ -139,6 +156,7 @@ class MainActivity : FragmentActivity() {
         super.onStop()
         val mode = mainViewModel.biometricLockMode.value
         if (mode == "LOCK_APP") {
+            lastBackgroundTime = System.currentTimeMillis()
             isUnlocked = false
         }
     }
@@ -157,15 +175,24 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        pendingSharedImagePath = handleIncomingIntent(intent)
+        handleIncomingIntent(intent)
     }
 
-    private fun handleIncomingIntent(intent: Intent): String? {
+    private fun handleIncomingIntent(intent: Intent) {
         if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return null
-            return copyUriToInternal(uri)
+            val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return
+            val path = copyUriToInternal(uri) ?: return
+            pendingSharedImagePath = path
+            pendingSharedImagePaths = null
+        } else if (intent.action == Intent.ACTION_SEND_MULTIPLE && intent.type?.startsWith("image/") == true) {
+            @Suppress("DEPRECATION")
+            val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: return
+            val paths = uris.mapNotNull { copyUriToInternal(it) }
+            if (paths.isNotEmpty()) {
+                pendingSharedImagePaths = paths
+                pendingSharedImagePath = null
+            }
         }
-        return null
     }
 
     private fun copyUriToInternal(uri: Uri): String? {
@@ -194,6 +221,7 @@ data class BottomNavItem(
 @Composable
 fun MainScreen(
     sharedImagePath: String? = null,
+    sharedImagePaths: List<String>? = null,
     onSharedImageHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
@@ -208,6 +236,13 @@ fun MainScreen(
     LaunchedEffect(sharedImagePath) {
         if (sharedImagePath != null) {
             navController.navigate(Screen.Annotation.createRoute(sharedImagePath))
+            onSharedImageHandled()
+        }
+    }
+
+    LaunchedEffect(sharedImagePaths) {
+        if (sharedImagePaths != null && sharedImagePaths.isNotEmpty()) {
+            navController.navigate(Screen.UploadBatch.createRoute(sharedImagePaths))
             onSharedImageHandled()
         }
     }

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
@@ -596,6 +597,7 @@ private fun destinationIcon(destination: UploadDestination): ImageVector {
         UploadDestination.S3 -> Icons.Default.Storage
         UploadDestination.FTP -> Icons.Default.Dns
         UploadDestination.SFTP -> Icons.Default.Security
+        UploadDestination.CUSTOM_HTTP -> Icons.Default.Http
         UploadDestination.LOCAL -> Icons.Default.CloudUpload
     }
 }

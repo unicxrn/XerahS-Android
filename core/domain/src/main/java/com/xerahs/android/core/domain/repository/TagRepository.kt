@@ -12,4 +12,5 @@ interface TagRepository {
     suspend fun addTagToHistory(historyId: String, tagId: String)
     suspend fun removeTagFromHistory(historyId: String, tagId: String)
     fun getHistoryByTag(tagId: String): Flow<List<HistoryItem>>
+    fun getHistoryByTags(tagIds: Set<String>): Flow<List<HistoryItem>>
 }

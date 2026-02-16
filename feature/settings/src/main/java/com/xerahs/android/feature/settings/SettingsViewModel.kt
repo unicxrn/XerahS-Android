@@ -3,6 +3,7 @@ package com.xerahs.android.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
@@ -29,6 +30,10 @@ data class SettingsUiState(
     val maxImageDimension: Int = 0,
     val autoCopyUrl: Boolean = false,
     val biometricLockMode: String = "OFF",
+    val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
+    val stripExif: Boolean = false,
+    val autoLockTimeout: Long = 0L,
+    val destinationConfigured: Boolean = false,
     val exportImportMessage: String? = null
 )
 
@@ -98,6 +103,41 @@ class SettingsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(biometricLockMode = mode)
                 }
             }
+            launch {
+                settingsRepository.getUploadFormat().collect { format ->
+                    _uiState.value = _uiState.value.copy(uploadFormat = format)
+                }
+            }
+            launch {
+                settingsRepository.getStripExif().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(stripExif = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getAutoLockTimeout().collect { timeout ->
+                    _uiState.value = _uiState.value.copy(autoLockTimeout = timeout)
+                }
+            }
+            launch {
+                settingsRepository.getDefaultDestination().collect { dest ->
+                    val configured = checkDestinationConfigured(dest)
+                    _uiState.value = _uiState.value.copy(destinationConfigured = configured)
+                }
+            }
+        }
+    }
+
+    private suspend fun checkDestinationConfigured(destination: UploadDestination): Boolean {
+        return when (destination) {
+            UploadDestination.IMGUR -> settingsRepository.getImgurConfig().clientId.isNotBlank()
+            UploadDestination.S3 -> {
+                val config = settingsRepository.getS3Config()
+                config.accessKeyId.isNotBlank() && config.bucket.isNotBlank()
+            }
+            UploadDestination.FTP -> settingsRepository.getFtpConfig().host.isNotBlank()
+            UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
+            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomHttpConfig().url.isNotBlank()
+            UploadDestination.LOCAL -> true
         }
     }
 
@@ -164,6 +204,24 @@ class SettingsViewModel @Inject constructor(
     fun setBiometricLockMode(mode: String) {
         viewModelScope.launch {
             settingsRepository.setBiometricLockMode(mode)
+        }
+    }
+
+    fun setUploadFormat(format: ImageFormat) {
+        viewModelScope.launch {
+            settingsRepository.setUploadFormat(format)
+        }
+    }
+
+    fun setStripExif(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setStripExif(enabled)
+        }
+    }
+
+    fun setAutoLockTimeout(timeout: Long) {
+        viewModelScope.launch {
+            settingsRepository.setAutoLockTimeout(timeout)
         }
     }
 

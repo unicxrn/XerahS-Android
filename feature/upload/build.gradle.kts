@@ -62,4 +62,6 @@ dependencies {
 
     implementation(libs.commons.net)
     implementation(libs.jsch)
+
+    implementation(libs.exifinterface)
 }

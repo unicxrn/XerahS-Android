@@ -100,6 +100,48 @@ fun SecuritySettingsScreen(
                 }
             }
 
+            if (uiState.biometricLockMode == "LOCK_APP") {
+                SectionHeader("Auto-Lock Timeout")
+
+                SettingsGroupCard {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "How long after leaving the app before it locks again.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        val timeoutOptions = listOf(
+                            0L to "Immediately",
+                            60_000L to "1 minute",
+                            300_000L to "5 minutes",
+                            900_000L to "15 minutes",
+                            1_800_000L to "30 minutes"
+                        )
+
+                        timeoutOptions.forEach { (value, label) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = uiState.autoLockTimeout == value,
+                                    onClick = { viewModel.setAutoLockTimeout(value) }
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

@@ -63,12 +63,18 @@ fun AnnotationToolbar(
     textBackgroundEnabled: Boolean,
     opacity: Float,
     hasSelectedAnnotation: Boolean,
+    fillEnabled: Boolean = false,
+    fillColor: Int? = null,
+    fontSize: Float = 24f,
     onToolSelected: (AnnotationTool) -> Unit,
     onColorSelected: (Int) -> Unit,
     onStrokeWidthChanged: (Float) -> Unit,
     onBlurRadiusChanged: (Float) -> Unit,
     onTextBackgroundChanged: (Boolean) -> Unit,
     onOpacityChanged: (Float) -> Unit,
+    onFillEnabledChanged: (Boolean) -> Unit = {},
+    onFillColorChanged: (Int) -> Unit = {},
+    onFontSizeChanged: (Float) -> Unit = {},
     onDeleteSelected: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -235,19 +241,61 @@ fun AnnotationToolbar(
             }
         }
 
-        // Text background toggle — only visible when TEXT tool selected
-        AnimatedVisibility(visible = selectedTool == AnnotationTool.TEXT) {
+        // Fill toggle — visible when RECTANGLE or CIRCLE tool selected
+        AnimatedVisibility(visible = selectedTool == AnnotationTool.RECTANGLE || selectedTool == AnnotationTool.CIRCLE) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
-                    selected = textBackgroundEnabled,
-                    onClick = { onTextBackgroundChanged(!textBackgroundEnabled) },
-                    label = { Text("Background") }
+                    selected = fillEnabled,
+                    onClick = { onFillEnabledChanged(!fillEnabled) },
+                    label = { Text("Fill") }
                 )
+                if (fillEnabled && fillColor != null) {
+                    ColorCircle(
+                        color = Color(fillColor),
+                        selected = true,
+                        onClick = { onFillColorChanged(strokeColor) }
+                    )
+                }
+            }
+        }
+
+        // Text background toggle — only visible when TEXT tool selected
+        AnimatedVisibility(visible = selectedTool == AnnotationTool.TEXT) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = textBackgroundEnabled,
+                        onClick = { onTextBackgroundChanged(!textBackgroundEnabled) },
+                        label = { Text("Background") }
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Font",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.width(36.dp)
+                    )
+                    Slider(
+                        value = fontSize,
+                        onValueChange = onFontSizeChanged,
+                        valueRange = 12f..72f,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 

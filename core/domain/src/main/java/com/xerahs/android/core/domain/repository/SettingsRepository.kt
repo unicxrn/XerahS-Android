@@ -1,6 +1,7 @@
 package com.xerahs.android.core.domain.repository
 
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -54,4 +55,16 @@ interface SettingsRepository {
 
     fun getBiometricLockMode(): Flow<String>
     suspend fun setBiometricLockMode(mode: String)
+
+    suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig
+    suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig)
+
+    fun getUploadFormat(): Flow<ImageFormat>
+    suspend fun setUploadFormat(format: ImageFormat)
+
+    fun getStripExif(): Flow<Boolean>
+    suspend fun setStripExif(enabled: Boolean)
+
+    fun getAutoLockTimeout(): Flow<Long>
+    suspend fun setAutoLockTimeout(timeout: Long)
 }

@@ -6,9 +6,11 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,6 +38,9 @@ class SettingsDataStore @Inject constructor(
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
         val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
         val BIOMETRIC_LOCK_MODE = stringPreferencesKey("biometric_lock_mode")
+        val UPLOAD_FORMAT = stringPreferencesKey("upload_format")
+        val STRIP_EXIF = booleanPreferencesKey("strip_exif")
+        val AUTO_LOCK_TIMEOUT = longPreferencesKey("auto_lock_timeout")
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
@@ -166,6 +171,41 @@ class SettingsDataStore @Inject constructor(
     suspend fun setBiometricLockMode(mode: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.BIOMETRIC_LOCK_MODE] = mode
+        }
+    }
+
+    fun getUploadFormat(): Flow<ImageFormat> = context.dataStore.data.map { prefs ->
+        val name = prefs[Keys.UPLOAD_FORMAT] ?: ImageFormat.ORIGINAL.name
+        try {
+            ImageFormat.valueOf(name)
+        } catch (e: IllegalArgumentException) {
+            ImageFormat.ORIGINAL
+        }
+    }
+
+    suspend fun setUploadFormat(format: ImageFormat) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.UPLOAD_FORMAT] = format.name
+        }
+    }
+
+    fun getStripExif(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.STRIP_EXIF] ?: false
+    }
+
+    suspend fun setStripExif(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.STRIP_EXIF] = enabled
+        }
+    }
+
+    fun getAutoLockTimeout(): Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[Keys.AUTO_LOCK_TIMEOUT] ?: 0L
+    }
+
+    suspend fun setAutoLockTimeout(timeout: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.AUTO_LOCK_TIMEOUT] = timeout
         }
     }
 }

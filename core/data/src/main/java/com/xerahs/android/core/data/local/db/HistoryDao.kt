@@ -41,4 +41,7 @@ interface HistoryDao {
 
     @Query("SELECT h.* FROM history h INNER JOIN history_tag_cross_ref ref ON h.id = ref.historyId WHERE ref.tagId = :tagId ORDER BY h.timestamp DESC")
     fun getHistoryByTag(tagId: String): Flow<List<HistoryEntity>>
+
+    @Query("SELECT h.* FROM history h INNER JOIN history_tag_cross_ref ref ON h.id = ref.historyId WHERE ref.tagId IN (:tagIds) GROUP BY h.id HAVING COUNT(DISTINCT ref.tagId) = :tagCount ORDER BY h.timestamp DESC")
+    fun getHistoryByTags(tagIds: List<String>, tagCount: Int): Flow<List<HistoryEntity>>
 }

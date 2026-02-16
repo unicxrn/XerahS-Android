@@ -20,7 +20,9 @@ import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
 import com.xerahs.android.feature.settings.AppUpdateScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
+import com.xerahs.android.feature.settings.StorageSettingsScreen
 import com.xerahs.android.feature.settings.UploadSettingsScreen
+import com.xerahs.android.feature.settings.destinations.CustomHttpConfigScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
 import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
 import com.xerahs.android.feature.settings.destinations.S3ConfigScreen
@@ -71,6 +73,8 @@ sealed class Screen(val route: String) {
     data object ImgurConfig : Screen("settings/imgur")
     data object S3Config : Screen("settings/s3")
     data object FtpConfig : Screen("settings/ftp")
+    data object CustomHttpConfig : Screen("settings/custom-http")
+    data object StorageSettings : Screen("settings/storage")
     data object SecuritySettings : Screen("settings/security")
     data object AppUpdate : Screen("settings/updates")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
@@ -188,6 +192,7 @@ fun XerahSNavGraph(
                 onNavigateToAppearance = { navController.navigate(Screen.AppearanceSettings.route) },
                 onNavigateToUploads = { navController.navigate(Screen.UploadSettings.route) },
                 onNavigateToBackup = { navController.navigate(Screen.BackupSettings.route) },
+                onNavigateToStorage = { navController.navigate(Screen.StorageSettings.route) },
                 onNavigateToSecurity = { navController.navigate(Screen.SecuritySettings.route) },
                 onNavigateToUpdates = { navController.navigate(Screen.AppUpdate.route) },
                 onBack = { navController.popBackStack() }
@@ -205,12 +210,19 @@ fun XerahSNavGraph(
                 onNavigateToImgurConfig = { navController.navigate(Screen.ImgurConfig.route) },
                 onNavigateToS3Config = { navController.navigate(Screen.S3Config.route) },
                 onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.route) },
+                onNavigateToCustomHttpConfig = { navController.navigate(Screen.CustomHttpConfig.route) },
                 onBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.BackupSettings.route) {
             BackupSettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.StorageSettings.route) {
+            StorageSettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
@@ -242,6 +254,12 @@ fun XerahSNavGraph(
         composable(Screen.FtpConfig.route) {
             BiometricGate(navController) {
                 FtpConfigScreen(onBack = { navController.popBackStack() })
+            }
+        }
+
+        composable(Screen.CustomHttpConfig.route) {
+            BiometricGate(navController) {
+                CustomHttpConfigScreen(onBack = { navController.popBackStack() })
             }
         }
 

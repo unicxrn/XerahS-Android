@@ -42,4 +42,12 @@ sealed class UploadConfig {
         val remotePath: String = "/",
         val httpUrl: String = ""
     ) : UploadConfig()
+
+    data class CustomHttpConfig(
+        val url: String = "",
+        val method: String = "POST",
+        val headers: Map<String, String> = emptyMap(),
+        val responseUrlJsonPath: String = "url",
+        val formFieldName: String = "file"
+    ) : UploadConfig()
 }

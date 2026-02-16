@@ -32,7 +32,9 @@ data class HistoryUiState(
     val albums: List<Album> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val filterAlbumId: String? = null,
-    val filterTagId: String? = null
+    val filterTagIds: Set<String> = emptySet(),
+    val isSelectionMode: Boolean = false,
+    val selectedIds: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -71,8 +73,8 @@ class HistoryViewModel @Inject constructor(
                     historyRepository.searchHistory(state.searchQuery)
                 state.filterAlbumId != null ->
                     albumRepository.getHistoryByAlbum(state.filterAlbumId)
-                state.filterTagId != null ->
-                    tagRepository.getHistoryByTag(state.filterTagId)
+                state.filterTagIds.isNotEmpty() ->
+                    tagRepository.getHistoryByTags(state.filterTagIds)
                 state.filterDestination != null ->
                     historyRepository.getHistoryByDestination(state.filterDestination)
                 else ->
@@ -136,7 +138,7 @@ class HistoryViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             filterDestination = destination,
             filterAlbumId = null,
-            filterTagId = null,
+            filterTagIds = emptySet(),
             isLoading = true
         )
         loadHistory()
@@ -146,19 +148,26 @@ class HistoryViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             filterAlbumId = albumId,
             filterDestination = null,
-            filterTagId = null,
+            filterTagIds = emptySet(),
             isLoading = true
         )
         loadHistory()
     }
 
-    fun setTagFilter(tagId: String?) {
+    fun toggleTagFilter(tagId: String) {
+        val current = _uiState.value.filterTagIds
+        val updated = if (tagId in current) current - tagId else current + tagId
         _uiState.value = _uiState.value.copy(
-            filterTagId = tagId,
+            filterTagIds = updated,
             filterAlbumId = null,
             filterDestination = null,
             isLoading = true
         )
+        loadHistory()
+    }
+
+    fun clearTagFilter() {
+        _uiState.value = _uiState.value.copy(filterTagIds = emptySet(), isLoading = true)
         loadHistory()
     }
 
@@ -234,8 +243,8 @@ class HistoryViewModel @Inject constructor(
     fun deleteTag(id: String) {
         viewModelScope.launch {
             tagRepository.deleteTag(id)
-            if (_uiState.value.filterTagId == id) {
-                setTagFilter(null)
+            if (id in _uiState.value.filterTagIds) {
+                toggleTagFilter(id)
             }
         }
     }
@@ -250,6 +259,75 @@ class HistoryViewModel @Inject constructor(
     fun removeTagFromItem(historyId: String, tagId: String) {
         viewModelScope.launch {
             tagRepository.removeTagFromHistory(historyId, tagId)
+            loadHistory()
+        }
+    }
+
+    // Bulk selection methods
+    fun toggleSelectionMode() {
+        val current = _uiState.value.isSelectionMode
+        _uiState.value = _uiState.value.copy(
+            isSelectionMode = !current,
+            selectedIds = emptySet()
+        )
+    }
+
+    fun toggleItemSelection(id: String) {
+        val current = _uiState.value.selectedIds
+        _uiState.value = _uiState.value.copy(
+            selectedIds = if (id in current) current - id else current + id
+        )
+    }
+
+    fun selectAll() {
+        _uiState.value = _uiState.value.copy(
+            selectedIds = _uiState.value.items.map { it.id }.toSet()
+        )
+    }
+
+    fun clearSelection() {
+        _uiState.value = _uiState.value.copy(selectedIds = emptySet())
+    }
+
+    fun deleteSelected() {
+        viewModelScope.launch {
+            _uiState.value.selectedIds.forEach { id ->
+                historyRepository.deleteHistoryItem(id)
+            }
+            _uiState.value = _uiState.value.copy(
+                isSelectionMode = false,
+                selectedIds = emptySet()
+            )
+        }
+    }
+
+    fun setSelectedAlbum(albumId: String?) {
+        viewModelScope.launch {
+            _uiState.value.selectedIds.forEach { id ->
+                albumRepository.setAlbum(id, albumId)
+            }
+            _uiState.value = _uiState.value.copy(
+                isSelectionMode = false,
+                selectedIds = emptySet()
+            )
+            loadHistory()
+        }
+    }
+
+    fun addTagToSelected(tagId: String) {
+        viewModelScope.launch {
+            _uiState.value.selectedIds.forEach { id ->
+                tagRepository.addTagToHistory(id, tagId)
+            }
+            loadHistory()
+        }
+    }
+
+    fun removeTagFromSelected(tagId: String) {
+        viewModelScope.launch {
+            _uiState.value.selectedIds.forEach { id ->
+                tagRepository.removeTagFromHistory(id, tagId)
+            }
             loadHistory()
         }
     }

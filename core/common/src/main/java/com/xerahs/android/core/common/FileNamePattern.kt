@@ -22,3 +22,16 @@ object FileNamePattern {
         return "$resolved.$extension"
     }
 }
+
+object PathPattern {
+
+    fun resolve(path: String): String {
+        val now = Date()
+        return path
+            .replace("{yyyy}", SimpleDateFormat("yyyy", Locale.US).format(now))
+            .replace("{yy}", SimpleDateFormat("yy", Locale.US).format(now))
+            .replace("{MM}", SimpleDateFormat("MM", Locale.US).format(now))
+            .replace("{dd}", SimpleDateFormat("dd", Locale.US).format(now))
+            .replace("{month}", SimpleDateFormat("MMMM", Locale.US).format(now).lowercase())
+    }
+}

@@ -2,6 +2,7 @@ package com.xerahs.android.feature.settings
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
@@ -68,6 +69,21 @@ class ExportImportManager @Inject constructor(
         sftp.addProperty("remotePath", sftpConfig.remotePath)
         sftp.addProperty("httpUrl", sftpConfig.httpUrl)
         json.add("sftp", sftp)
+
+        val customHttpConfig = settingsRepository.getCustomHttpConfig()
+        val customHttp = JsonObject()
+        customHttp.addProperty("url", customHttpConfig.url)
+        customHttp.addProperty("method", customHttpConfig.method)
+        customHttp.addProperty("responseUrlJsonPath", customHttpConfig.responseUrlJsonPath)
+        customHttp.addProperty("formFieldName", customHttpConfig.formFieldName)
+        val headersObj = JsonObject()
+        customHttpConfig.headers.forEach { (k, v) -> headersObj.addProperty(k, v) }
+        customHttp.add("headers", headersObj)
+        json.add("customHttp", customHttp)
+
+        json.addProperty("uploadFormat", settingsRepository.getUploadFormat().first().name)
+        json.addProperty("stripExif", settingsRepository.getStripExif().first())
+        json.addProperty("autoLockTimeout", settingsRepository.getAutoLockTimeout().first())
 
         return gson.toJson(json)
     }
@@ -155,6 +171,37 @@ class ExportImportManager @Inject constructor(
                     httpUrl = sftp.get("httpUrl")?.asString ?: current.httpUrl
                 )
             )
+        }
+
+        json.getAsJsonObject("customHttp")?.let { ch ->
+            val current = settingsRepository.getCustomHttpConfig()
+            val headers = mutableMapOf<String, String>()
+            ch.getAsJsonObject("headers")?.entrySet()?.forEach { (k, v) ->
+                headers[k] = v.asString
+            }
+            settingsRepository.saveCustomHttpConfig(
+                current.copy(
+                    url = ch.get("url")?.asString ?: current.url,
+                    method = ch.get("method")?.asString ?: current.method,
+                    responseUrlJsonPath = ch.get("responseUrlJsonPath")?.asString ?: current.responseUrlJsonPath,
+                    formFieldName = ch.get("formFieldName")?.asString ?: current.formFieldName,
+                    headers = if (headers.isNotEmpty()) headers else current.headers
+                )
+            )
+        }
+
+        json.get("uploadFormat")?.asString?.let { name ->
+            try {
+                settingsRepository.setUploadFormat(ImageFormat.valueOf(name))
+            } catch (_: IllegalArgumentException) {}
+        }
+
+        json.get("stripExif")?.asBoolean?.let {
+            settingsRepository.setStripExif(it)
+        }
+
+        json.get("autoLockTimeout")?.asLong?.let {
+            settingsRepository.setAutoLockTimeout(it)
         }
     }
 }

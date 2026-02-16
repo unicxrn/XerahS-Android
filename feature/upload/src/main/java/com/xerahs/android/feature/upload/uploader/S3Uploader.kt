@@ -1,6 +1,7 @@
 package com.xerahs.android.feature.upload.uploader
 
 import com.xerahs.android.core.common.AwsV4Signer
+import com.xerahs.android.core.common.PathPattern
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
@@ -22,8 +23,9 @@ class S3Uploader @Inject constructor(
         withContext(Dispatchers.IO) {
             try {
                 val fileName = remoteFileName ?: file.name
-                val objectKey = if (config.prefix.isNotEmpty()) {
-                    "${config.prefix.trimEnd('/')}/$fileName"
+                val resolvedPrefix = PathPattern.resolve(config.prefix)
+                val objectKey = if (resolvedPrefix.isNotEmpty()) {
+                    "${resolvedPrefix.trimEnd('/')}/$fileName"
                 } else {
                     fileName
                 }

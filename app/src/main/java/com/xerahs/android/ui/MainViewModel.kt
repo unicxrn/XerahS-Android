@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,9 +36,18 @@ class MainViewModel @Inject constructor(
     val biometricLockMode: StateFlow<String> = settingsRepository.getBiometricLockMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "OFF")
 
+    val autoLockTimeout: StateFlow<Long> = settingsRepository.getAutoLockTimeout()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
     fun completeOnboarding() {
         viewModelScope.launch {
             settingsRepository.setOnboardingCompleted(true)
+        }
+    }
+
+    fun setDefaultDestination(destination: UploadDestination) {
+        viewModelScope.launch {
+            settingsRepository.setDefaultDestination(destination)
         }
     }
 }

@@ -36,6 +36,7 @@ fun AnnotationCanvas(
     onDrag: (Offset) -> Unit,
     selectedAnnotationId: String? = null,
     onAnnotationTapped: ((String?) -> Unit)? = null,
+    onTextAnnotationTapped: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Zoom/pan state
@@ -110,6 +111,16 @@ fun AnnotationCanvas(
                         // All fingers lifted
                         if (event.changes.all { it.changedToUp() }) {
                             if (isDrawing) {
+                                // Check for tap on text annotation (no movement)
+                                if (!hasMoved && onTextAnnotationTapped != null) {
+                                    val imgCoords = toImageCoords(lastPosition)
+                                    val hitId = hitTest(annotations, imgCoords.x, imgCoords.y)
+                                    val hitAnnotation = hitId?.let { id -> annotations.find { it.id == id } }
+                                    if (hitAnnotation is Annotation.Text) {
+                                        onTextAnnotationTapped.invoke(hitAnnotation.id)
+                                        break
+                                    }
+                                }
                                 onDragEnd(toImageCoords(lastPosition))
                             }
                             break

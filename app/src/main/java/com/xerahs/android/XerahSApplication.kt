@@ -8,6 +8,9 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
 import com.xerahs.android.worker.UpdateCheckWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
@@ -19,6 +22,19 @@ class XerahSApplication : Application() {
         super.onCreate()
         createNotificationChannels()
         scheduleUpdateCheck()
+        configureCoil()
+    }
+
+    private fun configureCoil() {
+        val imageLoader = ImageLoader.Builder(this)
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("s3_thumbnails"))
+                    .maxSizeBytes(50L * 1024 * 1024) // 50MB
+                    .build()
+            }
+            .build()
+        Coil.setImageLoader(imageLoader)
     }
 
     private fun scheduleUpdateCheck() {
@@ -40,14 +56,6 @@ class XerahSApplication : Application() {
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java)
 
-        val captureChannel = NotificationChannel(
-            CHANNEL_CAPTURE,
-            "Screen Capture",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Notifications for screen capture service"
-        }
-
         val uploadChannel = NotificationChannel(
             CHANNEL_UPLOAD,
             "Upload Progress",
@@ -56,22 +64,20 @@ class XerahSApplication : Application() {
             description = "Notifications for file upload progress"
         }
 
-        val quickCaptureChannel = NotificationChannel(
-            CHANNEL_QUICK_CAPTURE,
-            "Quick Capture",
+        val uploadCompleteChannel = NotificationChannel(
+            CHANNEL_UPLOAD_COMPLETE,
+            "Upload Complete",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Quick capture notification action"
+            description = "Notifications for completed uploads"
         }
 
-        manager.createNotificationChannel(captureChannel)
         manager.createNotificationChannel(uploadChannel)
-        manager.createNotificationChannel(quickCaptureChannel)
+        manager.createNotificationChannel(uploadCompleteChannel)
     }
 
     companion object {
-        const val CHANNEL_CAPTURE = "capture_channel"
         const val CHANNEL_UPLOAD = "upload_channel"
-        const val CHANNEL_QUICK_CAPTURE = "quick_capture_channel"
+        const val CHANNEL_UPLOAD_COMPLETE = "upload_complete_channel"
     }
 }

@@ -46,4 +46,9 @@ class TagRepositoryImpl @Inject constructor(
         historyDao.getHistoryByTag(tagId).map { entities ->
             entities.map { it.toDomain() }
         }
+
+    override fun getHistoryByTags(tagIds: Set<String>): Flow<List<HistoryItem>> =
+        historyDao.getHistoryByTags(tagIds.toList(), tagIds.size).map { entities ->
+            entities.map { it.toDomain() }
+        }
 }

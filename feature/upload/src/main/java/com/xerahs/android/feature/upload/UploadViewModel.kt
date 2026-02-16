@@ -1,39 +1,29 @@
 package com.xerahs.android.feature.upload
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xerahs.android.core.common.FileNamePattern
-import com.xerahs.android.core.common.ThumbnailGenerator
-import com.xerahs.android.core.common.generateId
-import com.xerahs.android.core.common.generateTimestamp
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.xerahs.android.feature.upload.worker.UploadWorker
 import com.xerahs.android.core.domain.model.Album
-import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.Tag
-import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
 import com.xerahs.android.core.domain.repository.AlbumRepository
-import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
-import com.xerahs.android.feature.upload.uploader.FtpUploader
-import com.xerahs.android.feature.upload.uploader.ImgurUploader
-import com.xerahs.android.feature.upload.uploader.S3Uploader
-import com.xerahs.android.feature.upload.uploader.SftpUploader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 import javax.inject.Inject
 
 data class UploadUiState(
@@ -56,13 +46,8 @@ data class UploadUiState(
 class UploadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
-    private val historyRepository: HistoryRepository,
     private val albumRepository: AlbumRepository,
-    private val tagRepository: TagRepository,
-    private val imgurUploader: ImgurUploader,
-    private val s3Uploader: S3Uploader,
-    private val ftpUploader: FtpUploader,
-    private val sftpUploader: SftpUploader
+    private val tagRepository: TagRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UploadUiState())
@@ -105,206 +90,92 @@ class UploadViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedDestination = destination)
     }
 
-    private suspend fun prepareFile(file: File): File = withContext(Dispatchers.IO) {
-        val quality = settingsRepository.getImageQuality().first()
-        val maxDimension = settingsRepository.getMaxImageDimension().first()
-
-        if (quality >= 100 && maxDimension <= 0) return@withContext file
-
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return@withContext file
-
-        val processedBitmap = if (maxDimension > 0 && (bitmap.width > maxDimension || bitmap.height > maxDimension)) {
-            val scale = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
-            val newWidth = (bitmap.width * scale).toInt()
-            val newHeight = (bitmap.height * scale).toInt()
-            val scaled = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
-            if (scaled != bitmap) bitmap.recycle()
-            scaled
-        } else {
-            bitmap
-        }
-
-        val tempFile = File(context.cacheDir, "upload_${System.currentTimeMillis()}.jpg")
-        FileOutputStream(tempFile).use { out ->
-            processedBitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
-        }
-        processedBitmap.recycle()
-        tempFile
-    }
-
     fun upload(imagePath: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isUploading = true, errorMessage = null, result = null)
-
-            val originalFile = File(imagePath)
-            if (!originalFile.exists()) {
-                _uiState.value = _uiState.value.copy(
-                    isUploading = false,
-                    errorMessage = "File not found: $imagePath"
-                )
-                return@launch
-            }
-
-            val file = prepareFile(originalFile)
-            val pattern = settingsRepository.getFileNamingPattern().first()
-            val resolvedName = FileNamePattern.resolve(pattern, originalFile.name)
-
-            val destination = _uiState.value.selectedDestination
-            val result = when (destination) {
-                UploadDestination.IMGUR -> {
-                    val config = settingsRepository.getImgurConfig()
-                    imgurUploader.upload(file, config, resolvedName)
-                }
-                UploadDestination.S3 -> {
-                    val config = settingsRepository.getS3Config()
-                    s3Uploader.upload(file, config, resolvedName)
-                }
-                UploadDestination.FTP -> {
-                    val config = settingsRepository.getFtpConfig()
-                    ftpUploader.upload(file, config, resolvedName)
-                }
-                UploadDestination.SFTP -> {
-                    val config = settingsRepository.getSftpConfig()
-                    sftpUploader.upload(file, config, resolvedName)
-                }
-                UploadDestination.LOCAL -> {
-                    UploadResult(
-                        success = true,
-                        url = file.absolutePath,
-                        destination = UploadDestination.LOCAL
-                    )
-                }
-            }
-
-            if (result.success) {
-                val thumbnailPath = ThumbnailGenerator.generate(context, originalFile)
-                val itemId = generateId()
-
-                val historyItem = HistoryItem(
-                    id = itemId,
-                    filePath = imagePath,
-                    thumbnailPath = thumbnailPath,
-                    url = result.url,
-                    deleteUrl = result.deleteUrl,
-                    uploadDestination = destination,
-                    timestamp = generateTimestamp(),
-                    fileName = resolvedName,
-                    fileSize = originalFile.length(),
-                    albumId = _uiState.value.selectedAlbumId
-                )
-                historyRepository.insertHistoryItem(historyItem)
-
-                // Assign tags
-                for (tagId in _uiState.value.selectedTagIds) {
-                    tagRepository.addTagToHistory(itemId, tagId)
-                }
-            }
-
-            // Clean up temp file
-            if (file != originalFile) {
-                file.delete()
-            }
-
-            _uiState.value = _uiState.value.copy(
-                isUploading = false,
-                result = result,
-                errorMessage = if (!result.success) result.errorMessage else null,
-                autoCopiableUrl = if (result.success && _uiState.value.autoCopyUrl) result.url else null
-            )
-        }
+        enqueueUpload(listOf(imagePath))
     }
 
     fun uploadBatch(imagePaths: List<String>) {
+        enqueueUpload(imagePaths)
+    }
+
+    private fun enqueueUpload(imagePaths: List<String>) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isUploading = true, errorMessage = null, result = null,
-                batchProgress = Pair(0, imagePaths.size),
+                batchProgress = if (imagePaths.size > 1) Pair(0, imagePaths.size) else null,
                 batchUrls = emptyList()
             )
 
-            val collectedUrls = mutableListOf<String>()
-            var lastResult: UploadResult? = null
-            for ((index, path) in imagePaths.withIndex()) {
-                _uiState.value = _uiState.value.copy(
-                    batchProgress = Pair(index + 1, imagePaths.size)
-                )
+            val destination = _uiState.value.selectedDestination
+            val tagIdsString = _uiState.value.selectedTagIds.joinToString("|")
 
-                val originalFile = File(path)
-                if (!originalFile.exists()) continue
+            val inputDataBuilder = Data.Builder()
+                .putString(UploadWorker.KEY_DESTINATION, destination.name)
 
-                val file = prepareFile(originalFile)
-                val pattern = settingsRepository.getFileNamingPattern().first()
-                val resolvedName = FileNamePattern.resolve(pattern, originalFile.name)
-
-                val destination = _uiState.value.selectedDestination
-                val result = when (destination) {
-                    UploadDestination.IMGUR -> {
-                        val config = settingsRepository.getImgurConfig()
-                        imgurUploader.upload(file, config, resolvedName)
-                    }
-                    UploadDestination.S3 -> {
-                        val config = settingsRepository.getS3Config()
-                        s3Uploader.upload(file, config, resolvedName)
-                    }
-                    UploadDestination.FTP -> {
-                        val config = settingsRepository.getFtpConfig()
-                        ftpUploader.upload(file, config, resolvedName)
-                    }
-                    UploadDestination.SFTP -> {
-                        val config = settingsRepository.getSftpConfig()
-                        sftpUploader.upload(file, config, resolvedName)
-                    }
-                    UploadDestination.LOCAL -> {
-                        UploadResult(
-                            success = true,
-                            url = file.absolutePath,
-                            destination = UploadDestination.LOCAL
-                        )
-                    }
-                }
-
-                if (result.success) {
-                    val thumbnailPath = ThumbnailGenerator.generate(context, originalFile)
-                    val itemId = generateId()
-                    val historyItem = HistoryItem(
-                        id = itemId,
-                        filePath = path,
-                        thumbnailPath = thumbnailPath,
-                        url = result.url,
-                        deleteUrl = result.deleteUrl,
-                        uploadDestination = destination,
-                        timestamp = generateTimestamp(),
-                        fileName = resolvedName,
-                        fileSize = originalFile.length(),
-                        albumId = _uiState.value.selectedAlbumId
-                    )
-                    historyRepository.insertHistoryItem(historyItem)
-
-                    // Assign tags
-                    for (tagId in _uiState.value.selectedTagIds) {
-                        tagRepository.addTagToHistory(itemId, tagId)
-                    }
-                }
-
-                // Clean up temp file
-                if (file != originalFile) {
-                    file.delete()
-                }
-
-                if (result.success && result.url != null) {
-                    collectedUrls.add(result.url!!)
-                }
-                lastResult = result
-                if (!result.success) break
+            if (_uiState.value.selectedAlbumId != null) {
+                inputDataBuilder.putString(UploadWorker.KEY_ALBUM_ID, _uiState.value.selectedAlbumId)
+            }
+            if (tagIdsString.isNotEmpty()) {
+                inputDataBuilder.putString(UploadWorker.KEY_TAG_IDS, tagIdsString)
             }
 
-            _uiState.value = _uiState.value.copy(
-                isUploading = false,
-                result = lastResult,
-                batchProgress = null,
-                errorMessage = if (lastResult?.success == false) lastResult.errorMessage else null,
-                batchUrls = collectedUrls
-            )
+            if (imagePaths.size == 1) {
+                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATH, imagePaths.first())
+            } else {
+                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATHS, imagePaths.joinToString("|"))
+            }
+
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(
+                    if (destination == UploadDestination.LOCAL) NetworkType.NOT_REQUIRED
+                    else NetworkType.CONNECTED
+                )
+                .build()
+
+            val workRequest = OneTimeWorkRequestBuilder<UploadWorker>()
+                .setInputData(inputDataBuilder.build())
+                .setConstraints(constraints)
+                .build()
+
+            val workManager = WorkManager.getInstance(context)
+            workManager.enqueue(workRequest)
+
+            // Observe work status
+            workManager.getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+                when (workInfo?.state) {
+                    WorkInfo.State.SUCCEEDED -> {
+                        val resultUrl = workInfo.outputData.getString(UploadWorker.KEY_RESULT_URL)
+                        val urls = resultUrl?.lines()?.filter { it.isNotBlank() } ?: emptyList()
+                        _uiState.value = _uiState.value.copy(
+                            isUploading = false,
+                            result = UploadResult(
+                                success = true,
+                                url = urls.firstOrNull(),
+                                destination = destination
+                            ),
+                            batchProgress = null,
+                            batchUrls = urls,
+                            autoCopiableUrl = if (_uiState.value.autoCopyUrl && urls.size == 1) urls.first() else null
+                        )
+                    }
+                    WorkInfo.State.FAILED -> {
+                        _uiState.value = _uiState.value.copy(
+                            isUploading = false,
+                            result = UploadResult(
+                                success = false,
+                                errorMessage = "Upload failed",
+                                destination = destination
+                            ),
+                            batchProgress = null,
+                            errorMessage = "Upload failed"
+                        )
+                    }
+                    WorkInfo.State.RUNNING -> {
+                        // Keep showing uploading state
+                    }
+                    else -> { }
+                }
+            }
         }
     }
 

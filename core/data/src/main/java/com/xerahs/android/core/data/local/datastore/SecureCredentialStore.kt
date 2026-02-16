@@ -123,4 +123,35 @@ class SecureCredentialStore @Inject constructor(
             apply()
         }
     }
+
+    // Custom HTTP
+    fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig {
+        val headersJson = prefs.getString("custom_http_headers", "") ?: ""
+        val headers = if (headersJson.isNotEmpty()) {
+            headersJson.split("\n").filter { it.contains("=") }.associate { line ->
+                val (key, value) = line.split("=", limit = 2)
+                key to value
+            }
+        } else emptyMap()
+
+        return UploadConfig.CustomHttpConfig(
+            url = prefs.getString("custom_http_url", "") ?: "",
+            method = prefs.getString("custom_http_method", "POST") ?: "POST",
+            headers = headers,
+            responseUrlJsonPath = prefs.getString("custom_http_json_path", "url") ?: "url",
+            formFieldName = prefs.getString("custom_http_form_field", "file") ?: "file"
+        )
+    }
+
+    fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig) {
+        val headersString = config.headers.entries.joinToString("\n") { "${it.key}=${it.value}" }
+        prefs.edit().apply {
+            putString("custom_http_url", config.url)
+            putString("custom_http_method", config.method)
+            putString("custom_http_headers", headersString)
+            putString("custom_http_json_path", config.responseUrlJsonPath)
+            putString("custom_http_form_field", config.formFieldName)
+            apply()
+        }
+    }
 }

@@ -24,11 +24,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +53,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import com.xerahs.android.core.domain.model.UploadDestination
 import kotlinx.coroutines.launch
 
 private data class OnboardingPage(
@@ -69,19 +79,40 @@ private val pages = listOf(
         icon = Icons.Default.CloudUpload,
         title = "Upload & Share",
         description = "Upload to S3, Imgur, FTP, or SFTP and share the link instantly."
+    ),
+    OnboardingPage(
+        icon = Icons.Default.Settings,
+        title = "Set Up Your Destination",
+        description = "Choose where your images are uploaded by default. You can change this later in Settings."
     )
+)
+
+private data class DestinationOption(
+    val name: String,
+    val icon: ImageVector,
+    val key: String
+)
+
+private val destinationOptions = listOf(
+    DestinationOption("Imgur", Icons.Default.Public, "IMGUR"),
+    DestinationOption("S3 / R2", Icons.Default.Storage, "S3"),
+    DestinationOption("FTP / SFTP", Icons.Default.Save, "FTP"),
+    DestinationOption("Custom HTTP", Icons.Default.Http, "CUSTOM_HTTP"),
 )
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onSelectDestination: (UploadDestination) -> Unit = {}
 ) {
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
 
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Progress indicator at top
         LinearProgressIndicator(
@@ -112,7 +143,17 @@ fun OnboardingScreen(
             state = pagerState,
             modifier = Modifier.weight(1f)
         ) { page ->
-            OnboardingPageContent(pages[page])
+            if (page == pages.size - 1) {
+                DestinationSetupPage(
+                    page = pages[page],
+                    onSelectDestination = { dest ->
+                        onSelectDestination(dest)
+                        onComplete()
+                    }
+                )
+            } else {
+                OnboardingPageContent(pages[page])
+            }
         }
 
         // Animated dot indicators
@@ -259,5 +300,84 @@ private fun OnboardingPageContent(page: OnboardingPage) {
                 .graphicsLayer { alpha = descAlpha.value }
                 .offset { IntOffset(0, descOffsetY.value.dp.roundToPx()) }
         )
+    }
+}
+
+@Composable
+private fun DestinationSetupPage(
+    page: OnboardingPage,
+    onSelectDestination: (UploadDestination) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = page.icon,
+            contentDescription = page.title,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = page.title,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = page.description,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        destinationOptions.forEach { option ->
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clickable {
+                        val dest = try {
+                            UploadDestination.valueOf(option.key)
+                        } catch (_: IllegalArgumentException) {
+                            UploadDestination.IMGUR
+                        }
+                        onSelectDestination(dest)
+                    },
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = option.icon,
+                        contentDescription = option.name,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = option.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
+                }
+            }
+        }
     }
 }

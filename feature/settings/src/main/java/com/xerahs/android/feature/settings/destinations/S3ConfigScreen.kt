@@ -15,9 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -29,6 +31,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -117,6 +120,63 @@ fun S3ConfigScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
+            // Presets
+            var showR2Dialog by remember { mutableStateOf(false) }
+            var r2AccountId by remember { mutableStateOf("") }
+
+            if (showR2Dialog) {
+                AlertDialog(
+                    onDismissRequest = { showR2Dialog = false },
+                    title = { Text("Cloudflare R2") },
+                    text = {
+                        Column {
+                            Text(
+                                "Enter your Cloudflare account ID to auto-fill the R2 endpoint.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            OutlinedTextField(
+                                value = r2AccountId,
+                                onValueChange = { r2AccountId = it },
+                                label = { Text("Account ID") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                endpoint = "https://${r2AccountId}.r2.cloudflarestorage.com"
+                                usePathStyle = true
+                                showR2Dialog = false
+                            },
+                            enabled = r2AccountId.isNotBlank()
+                        ) { Text("Apply") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showR2Dialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
+
+            SectionHeader("Presets")
+            SettingsGroupCard {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Quick-fill settings for S3-compatible providers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { showR2Dialog = true },
+                        label = { Text("Cloudflare R2") }
+                    )
+                }
+            }
+
             // Authentication
             SectionHeader("Authentication")
             SettingsGroupCard {
@@ -185,7 +245,7 @@ fun S3ConfigScreen(
                     OutlinedTextField(
                         value = prefix, onValueChange = { prefix = it },
                         label = { Text("Upload Path (optional)") },
-                        supportingText = { Text("Subdirectory in bucket, e.g. screenshots/2026") },
+                        supportingText = { Text("Tokens: {yyyy}, {yy}, {MM}, {dd}, {month}\ne.g. uploads/{yyyy}/{MM}") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                     OutlinedTextField(

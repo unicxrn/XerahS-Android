@@ -30,7 +30,10 @@ data class AnnotationUiState(
     val textBackgroundEnabled: Boolean = true,
     val selectedAnnotationId: String? = null,
     val nextStepNumber: Int = 1,
-    val isCropMode: Boolean = false
+    val isCropMode: Boolean = false,
+    val fillEnabled: Boolean = false,
+    val fillColor: Int? = null,
+    val editingAnnotationId: String? = null
 )
 
 @HiltViewModel
@@ -93,6 +96,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                 strokeColor = state.strokeColor,
                 strokeWidth = state.strokeWidth,
                 opacity = state.opacity,
+                fillColor = if (state.fillEnabled) state.fillColor else null,
                 startX = startX, startY = startY,
                 endX = endX, endY = endY
             )
@@ -129,6 +133,7 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
                     strokeColor = state.strokeColor,
                     strokeWidth = state.strokeWidth,
                     opacity = state.opacity,
+                    fillColor = if (state.fillEnabled) state.fillColor else null,
                     centerX = centerX,
                     centerY = centerY,
                     radius = radius
@@ -194,6 +199,49 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
 
     fun setTextBackgroundEnabled(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(textBackgroundEnabled = enabled)
+    }
+
+    fun setFillEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            fillEnabled = enabled,
+            fillColor = if (enabled) _uiState.value.strokeColor else null
+        )
+    }
+
+    fun setFillColor(color: Int) {
+        _uiState.value = _uiState.value.copy(fillColor = color)
+    }
+
+    fun startEditTextAnnotation(id: String) {
+        val annotation = _uiState.value.annotations.find { it.id == id } as? Annotation.Text ?: return
+        _uiState.value = _uiState.value.copy(
+            editingAnnotationId = id,
+            pendingTextPosition = Pair(annotation.x, annotation.y)
+        )
+    }
+
+    fun updateTextAnnotation(text: String) {
+        val state = _uiState.value
+        val editId = state.editingAnnotationId ?: return
+        pushUndo()
+        val updated = state.annotations.map { annotation ->
+            if (annotation.id == editId && annotation is Annotation.Text) {
+                annotation.copy(text = text)
+            } else annotation
+        }
+        _uiState.value = state.copy(
+            annotations = updated,
+            editingAnnotationId = null,
+            pendingTextPosition = null,
+            redoStack = emptyList()
+        )
+    }
+
+    fun cancelEditText() {
+        _uiState.value = _uiState.value.copy(
+            editingAnnotationId = null,
+            pendingTextPosition = null
+        )
     }
 
     fun addTextAnnotation(text: String) {

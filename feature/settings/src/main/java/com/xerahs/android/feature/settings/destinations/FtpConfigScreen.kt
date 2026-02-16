@@ -201,6 +201,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = ftpRemotePath, onValueChange = { ftpRemotePath = it },
                                 label = { Text("Remote Path") },
+                                supportingText = { Text("Tokens: {yyyy}, {yy}, {MM}, {dd}, {month}\ne.g. /uploads/{yyyy}/{MM}") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true
                             )
                             OutlinedTextField(
@@ -331,6 +332,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = sftpRemotePath, onValueChange = { sftpRemotePath = it },
                                 label = { Text("Remote Path") },
+                                supportingText = { Text("Tokens: {yyyy}, {yy}, {MM}, {dd}, {month}\ne.g. /uploads/{yyyy}/{MM}") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true
                             )
                             OutlinedTextField(

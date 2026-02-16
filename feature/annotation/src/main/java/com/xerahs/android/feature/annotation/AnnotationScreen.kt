@@ -74,12 +74,20 @@ fun AnnotationScreen(
     // Crop state
     var cropRect by remember { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
 
-    // Text input dialog
+    // Text input dialog (new or edit)
     if (uiState.pendingTextPosition != null) {
-        var textInput by remember { mutableStateOf("") }
+        val isEditing = uiState.editingAnnotationId != null
+        val existingText = if (isEditing) {
+            (uiState.annotations.find { it.id == uiState.editingAnnotationId } as? Annotation.Text)?.text ?: ""
+        } else ""
+        var textInput by remember(uiState.editingAnnotationId, uiState.pendingTextPosition) {
+            mutableStateOf(existingText)
+        }
         AlertDialog(
-            onDismissRequest = { viewModel.dismissTextDialog() },
-            title = { Text("Enter Text") },
+            onDismissRequest = {
+                if (isEditing) viewModel.cancelEditText() else viewModel.dismissTextDialog()
+            },
+            title = { Text(if (isEditing) "Edit Text" else "Enter Text") },
             text = {
                 OutlinedTextField(
                     value = textInput,
@@ -92,15 +100,21 @@ fun AnnotationScreen(
                 TextButton(
                     onClick = {
                         if (textInput.isNotBlank()) {
-                            viewModel.addTextAnnotation(textInput)
+                            if (isEditing) {
+                                viewModel.updateTextAnnotation(textInput)
+                            } else {
+                                viewModel.addTextAnnotation(textInput)
+                            }
                         } else {
-                            viewModel.dismissTextDialog()
+                            if (isEditing) viewModel.cancelEditText() else viewModel.dismissTextDialog()
                         }
                     }
-                ) { Text("Add") }
+                ) { Text(if (isEditing) "Update" else "Add") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissTextDialog() }) { Text("Cancel") }
+                TextButton(onClick = {
+                    if (isEditing) viewModel.cancelEditText() else viewModel.dismissTextDialog()
+                }) { Text("Cancel") }
             }
         )
     }
@@ -179,6 +193,7 @@ fun AnnotationScreen(
                     currentAnnotation = currentDragAnnotation,
                     selectedAnnotationId = uiState.selectedAnnotationId,
                     onAnnotationTapped = { id -> viewModel.selectAnnotation(id) },
+                    onTextAnnotationTapped = { id -> viewModel.startEditTextAnnotation(id) },
                     onDragStart = { offset ->
                         if (uiState.selectedTool == AnnotationTool.NUMBERED_STEP) {
                             viewModel.addNumberedStep(offset.x, offset.y)
@@ -209,7 +224,8 @@ fun AnnotationScreen(
                                     strokeColor = uiState.strokeColor,
                                     strokeWidth = uiState.strokeWidth,
                                     blurRadius = uiState.blurRadius,
-                                    opacity = uiState.opacity
+                                    opacity = uiState.opacity,
+                                    fillColor = if (uiState.fillEnabled) uiState.fillColor else null
                                 )
                             }
                         }
@@ -241,12 +257,18 @@ fun AnnotationScreen(
                     textBackgroundEnabled = uiState.textBackgroundEnabled,
                     opacity = uiState.opacity,
                     hasSelectedAnnotation = uiState.selectedAnnotationId != null,
+                    fillEnabled = uiState.fillEnabled,
+                    fillColor = uiState.fillColor,
+                    fontSize = uiState.fontSize,
                     onToolSelected = viewModel::selectTool,
                     onColorSelected = viewModel::setStrokeColor,
                     onStrokeWidthChanged = viewModel::setStrokeWidth,
                     onBlurRadiusChanged = viewModel::setBlurRadius,
                     onTextBackgroundChanged = viewModel::setTextBackgroundEnabled,
                     onOpacityChanged = viewModel::setOpacity,
+                    onFillEnabledChanged = viewModel::setFillEnabled,
+                    onFillColorChanged = viewModel::setFillColor,
+                    onFontSizeChanged = viewModel::setFontSize,
                     onDeleteSelected = viewModel::deleteSelectedAnnotation,
                     onUndo = viewModel::undo,
                     onRedo = viewModel::redo,
@@ -264,7 +286,8 @@ private fun createInProgressAnnotation(
     strokeColor: Int,
     strokeWidth: Float,
     blurRadius: Float,
-    opacity: Float
+    opacity: Float,
+    fillColor: Int? = null
 ): Annotation? {
     return when (tool) {
         AnnotationTool.RECTANGLE -> Annotation.Rectangle(
@@ -272,6 +295,7 @@ private fun createInProgressAnnotation(
             strokeColor = strokeColor,
             strokeWidth = strokeWidth,
             opacity = opacity,
+            fillColor = fillColor,
             startX = start.x, startY = start.y,
             endX = current.x, endY = current.y
         )
@@ -302,6 +326,7 @@ private fun createInProgressAnnotation(
                 strokeColor = strokeColor,
                 strokeWidth = strokeWidth,
                 opacity = opacity,
+                fillColor = fillColor,
                 centerX = centerX,
                 centerY = centerY,
                 radius = radius

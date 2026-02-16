@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload.uploader
 
+import com.xerahs.android.core.common.PathPattern
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
@@ -40,7 +41,7 @@ class FtpUploader @Inject constructor() {
                 client.setFileType(FTP.BINARY_FILE_TYPE)
 
                 // Change to remote directory
-                val remotePath = config.remotePath.trimEnd('/')
+                val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     if (!client.changeWorkingDirectory(remotePath)) {
                         // Try to create directories
