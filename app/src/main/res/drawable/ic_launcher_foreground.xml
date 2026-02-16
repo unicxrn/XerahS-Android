@@ -4,15 +4,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Top-left bracket -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,36 L54,72 M36,54 L72,54"
-        android:strokeWidth="4"
-        android:strokeColor="#FFFFFF" />
+        android:pathData="M28,28 L46,28 L46,34 L34,34 L34,46 L28,46 Z" />
+
+    <!-- Top-right bracket -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M38,38 L70,38 L70,70 L38,70 Z"
-        android:strokeWidth="3"
-        android:strokeColor="#FFFFFF"
-        android:fillAlpha="0" />
+        android:pathData="M62,28 L80,28 L80,46 L74,46 L74,34 L62,34 Z" />
+
+    <!-- Bottom-left bracket -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,62 L34,62 L34,74 L46,74 L46,80 L28,80 Z" />
+
+    <!-- Bottom-right bracket -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M74,62 L80,62 L80,80 L62,80 L62,74 L74,74 Z" />
+
+    <!-- Upward arrow (share/upload) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,34 L42,48 L49,48 L49,68 L59,68 L59,48 L66,48 Z" />
+
 </vector>
