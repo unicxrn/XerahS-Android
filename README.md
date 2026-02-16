@@ -1,4 +1,4 @@
-# XerahS
+# XerahS Android
 
 > **Early Development** — This project is under active development. Expect bugs, breaking changes, and incomplete features. Feedback and bug reports are welcome.
 
