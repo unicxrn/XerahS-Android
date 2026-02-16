@@ -18,8 +18,9 @@ class GitHubReleaseChecker @Inject constructor(
 
     suspend fun fetchLatestRelease(): Result<GitHubRelease> = withContext(Dispatchers.IO) {
         runCatching {
+            // Use /releases (not /releases/latest) so pre-releases are included
             val request = Request.Builder()
-                .url("$BASE_URL/releases/latest")
+                .url("$BASE_URL/releases?per_page=1")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
 
@@ -29,7 +30,9 @@ class GitHubReleaseChecker @Inject constructor(
             }
 
             val body = response.body?.string() ?: throw Exception("Empty response body")
-            gson.fromJson(body, GitHubRelease::class.java)
+            val type = object : TypeToken<List<GitHubRelease>>() {}.type
+            val releases = gson.fromJson<List<GitHubRelease>>(body, type)
+            releases.firstOrNull() ?: throw Exception("No releases found")
         }
     }
 

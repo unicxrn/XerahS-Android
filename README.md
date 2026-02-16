@@ -1,34 +1,35 @@
 # XerahS Android
 
-> **Early Development** — This project is under active development. Expect bugs, breaking changes, and incomplete features. Feedback and bug reports are welcome.
+> **Early Development** - This project is under active development. Expect bugs, breaking changes, and incomplete features. Feedback and bug reports are welcome.
 
-> **Disclaimer** — This is an unofficial, third-party client inspired by [XerahS](https://xerahs.com/) and [ShareX](https://getsharex.com/). It is not affiliated with, endorsed by, or associated with either project or their developers. No code from XerahS or ShareX was used — this app was built entirely from scratch.
+> **Disclaimer** - This is an unofficial, third-party client inspired by [XerahS](https://xerahs.com/) and [ShareX](https://getsharex.com/). It is not affiliated with, endorsed by, or associated with either project or their developers. No code from XerahS or ShareX was used; this app was built entirely from scratch.
 
-An Android image sharing app — browse images, annotate them, and upload to your preferred destination.
+An Android image sharing app for browsing images, annotating them, and uploading to your preferred destination.
 
 ## Features
 
-- **Image Browser** — Pick images from your gallery using Android's Photo Picker
-- **Annotation Editor** — Draw freehand, circles, arrows, rectangles, text with backgrounds, blur sensitive areas, and numbered steps
-- **Crop Tool** — Crop images with draggable handles and grid overlay before or after annotating
-- **Annotation Selection** — Tap to select individual annotations, delete them, or adjust per-annotation opacity
-- **HSV Color Picker** — Full color picker with hue/saturation canvas, brightness slider, and hex input
-- **Canvas Zoom/Pan** — Pinch-to-zoom and two-finger pan while annotating
-- **Multi-Image Upload** — Pick and upload multiple images at once with batch progress
-- **Multi-Destination Upload** — Upload to Amazon S3, Imgur, FTP, SFTP, or save locally
-- **Image Quality Controls** — JPEG compression slider and max dimension resize before upload
-- **Connection Testing** — Test S3, FTP, and SFTP connections from settings
-- **Custom File Naming** — Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
-- **S3 Explorer** — Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, image thumbnails, sorting (name/size/date/type), create folders, rename, and move files
-- **Bucket Stats** — Bucket analytics with file type breakdown, age distribution, storage growth charts, and estimated monthly cost calculator with adjustable parameters
-- **Albums & Tags** — Organize uploads into albums and assign multiple tags; filter history by album or tag; manage albums and tags from the history screen
-- **Upload History** — Searchable history with thumbnails, date filters, album/tag filtering, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
-- **Auto-Copy URL** — Optionally copy the upload URL to clipboard automatically after a successful upload
-- **Biometric Lock** — Lock the entire app or just credential screens behind fingerprint/face authentication
-- **Theme Options** — System, Light, and Dark modes with multiple color themes and OLED pure black mode
-- **Settings Backup** — Export/import all settings (including credentials) as JSON
-- **Share Intent** — Receive shared images from other apps
-- **Onboarding** — 3-page walkthrough on first launch
+- **Image Browser**: Pick images from your gallery using Android's Photo Picker
+- **Annotation Editor**: Draw freehand, circles, arrows, rectangles, text with backgrounds, blur sensitive areas, and numbered steps
+- **Crop Tool**: Crop images with draggable handles and grid overlay before or after annotating
+- **Annotation Selection**: Tap to select individual annotations, delete them, or adjust per-annotation opacity
+- **HSV Color Picker**: Full color picker with hue/saturation canvas, brightness slider, and hex input
+- **Canvas Zoom/Pan**: Pinch-to-zoom and two-finger pan while annotating
+- **Multi-Image Upload**: Pick and upload multiple images at once with batch progress
+- **Multi-Destination Upload**: Upload to Amazon S3, Imgur, FTP, SFTP, or save locally
+- **Image Quality Controls**: JPEG compression slider and max dimension resize before upload
+- **Connection Testing**: Test S3, FTP, and SFTP connections from settings
+- **Custom File Naming**: Pattern-based naming with tokens: `{original}`, `{date}`, `{time}`, `{timestamp}`, `{random}`
+- **S3 Explorer**: Browse, search, preview, download, and delete files in your S3 bucket with folder navigation, breadcrumbs, list/grid views, image thumbnails, sorting (name/size/date/type), create folders, rename, and move files
+- **Bucket Stats**: Bucket analytics with file type breakdown, age distribution, storage growth charts, and estimated monthly cost calculator with adjustable parameters
+- **Albums & Tags**: Organize uploads into albums and assign multiple tags; filter history by album or tag; manage albums and tags from the history screen
+- **Upload History**: Searchable history with thumbnails, date filters, album/tag filtering, swipe-to-delete, and fullscreen image preview with pinch-to-zoom
+- **Auto-Copy URL**: Optionally copy the upload URL to clipboard automatically after a successful upload
+- **Biometric Lock**: Lock the entire app or just credential screens behind fingerprint/face authentication
+- **Theme Options**: System, Light, and Dark modes with multiple color themes and OLED pure black mode
+- **Settings Backup**: Export/import all settings (including credentials) as JSON
+- **In-App Updates**: Check for new versions, view changelog, and download updates from GitHub Releases
+- **Share Intent**: Receive shared images from other apps
+- **Onboarding**: 3-page walkthrough on first launch
 
 ## Architecture
 
