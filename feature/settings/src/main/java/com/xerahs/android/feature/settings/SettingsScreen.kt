@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,8 +51,17 @@ fun SettingsHubScreen(
     onNavigateToUploads: () -> Unit,
     onNavigateToBackup: () -> Unit,
     onNavigateToSecurity: () -> Unit,
+    onNavigateToUpdates: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val versionName = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+        } catch (_: Exception) {
+            "0.0.0"
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -107,10 +118,20 @@ fun SettingsHubScreen(
                 index = 3
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SettingsCategoryCard(
+                icon = Icons.Default.SystemUpdate,
+                title = "Updates",
+                subtitle = "Check for updates & changelog",
+                onClick = onNavigateToUpdates,
+                index = 4
+            )
+
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "XerahS v1.0.0",
+                text = "XerahS v$versionName",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier

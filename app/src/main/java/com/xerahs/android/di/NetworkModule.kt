@@ -1,6 +1,7 @@
 package com.xerahs.android.di
 
 import com.xerahs.android.core.data.remote.imgur.ImgurApi
+import com.xerahs.android.feature.settings.data.GitHubReleaseChecker
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,4 +36,9 @@ object NetworkModule {
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(ImgurApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGitHubReleaseChecker(okHttpClient: OkHttpClient): GitHubReleaseChecker =
+        GitHubReleaseChecker(okHttpClient)
 }

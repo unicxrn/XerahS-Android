@@ -18,6 +18,7 @@ import com.xerahs.android.feature.history.HistoryScreen
 import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
+import com.xerahs.android.feature.settings.AppUpdateScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
 import com.xerahs.android.feature.settings.UploadSettingsScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
@@ -71,6 +72,7 @@ sealed class Screen(val route: String) {
     data object S3Config : Screen("settings/s3")
     data object FtpConfig : Screen("settings/ftp")
     data object SecuritySettings : Screen("settings/security")
+    data object AppUpdate : Screen("settings/updates")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${java.net.URLEncoder.encode(imagePaths.joinToString("|"), "UTF-8")}"
@@ -187,6 +189,7 @@ fun XerahSNavGraph(
                 onNavigateToUploads = { navController.navigate(Screen.UploadSettings.route) },
                 onNavigateToBackup = { navController.navigate(Screen.BackupSettings.route) },
                 onNavigateToSecurity = { navController.navigate(Screen.SecuritySettings.route) },
+                onNavigateToUpdates = { navController.navigate(Screen.AppUpdate.route) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -214,6 +217,12 @@ fun XerahSNavGraph(
 
         composable(Screen.SecuritySettings.route) {
             SecuritySettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.AppUpdate.route) {
+            AppUpdateScreen(
                 onBack = { navController.popBackStack() }
             )
         }
