@@ -18,6 +18,17 @@
 
 # JSch
 -keep class com.jcraft.jsch.** { *; }
+-dontwarn org.newsclub.net.unix.**
+-dontwarn org.slf4j.**
+-dontwarn org.ietf.jgss.**
+-dontwarn com.sun.jna.**
+-dontwarn com.sun.jna.platform.**
 
 # Apache Commons Net
 -keep class org.apache.commons.net.** { *; }
+
+# Google Tink / ErrorProne annotations
+-dontwarn com.google.errorprone.annotations.**
+
+# Logging
+-dontwarn org.apache.logging.log4j.**
