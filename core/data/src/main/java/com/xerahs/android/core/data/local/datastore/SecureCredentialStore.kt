@@ -15,8 +15,21 @@ class SecureCredentialStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val prefs: SharedPreferences by lazy {
+        try {
+            createEncryptedPrefs()
+        } catch (_: Exception) {
+            // Keystore keys invalidated (e.g. after uninstall/reinstall), clear and recreate
+            context.getSharedPreferences("xerahs_secure_prefs", Context.MODE_PRIVATE)
+                .edit().clear().apply()
+            val prefsFile = java.io.File(context.filesDir.parent, "shared_prefs/xerahs_secure_prefs.xml")
+            prefsFile.delete()
+            createEncryptedPrefs()
+        }
+    }
+
+    private fun createEncryptedPrefs(): SharedPreferences {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        EncryptedSharedPreferences.create(
+        return EncryptedSharedPreferences.create(
             "xerahs_secure_prefs",
             masterKeyAlias,
             context,
