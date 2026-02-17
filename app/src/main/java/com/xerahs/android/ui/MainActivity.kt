@@ -76,12 +76,14 @@ class MainActivity : FragmentActivity() {
             val colorTheme by mainViewModel.colorTheme.collectAsState()
             val oledBlack by mainViewModel.oledBlack.collectAsState()
             val biometricLockMode by mainViewModel.biometricLockMode.collectAsState()
+            val customThemeSeedColor by mainViewModel.customThemeSeedColor.collectAsState()
 
             XerahSTheme(
                 themeMode = themeMode,
                 dynamicColor = dynamicColor,
                 colorTheme = colorTheme,
-                oledBlack = oledBlack
+                oledBlack = oledBlack,
+                customThemeSeedColor = customThemeSeedColor
             ) {
                 Crossfade(
                     targetState = onboardingCompleted,

@@ -3,6 +3,7 @@ package com.xerahs.android.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -34,7 +35,11 @@ data class SettingsUiState(
     val stripExif: Boolean = false,
     val autoLockTimeout: Long = 0L,
     val destinationConfigured: Boolean = false,
-    val exportImportMessage: String? = null
+    val exportImportMessage: String? = null,
+    val customThemeId: String? = null,
+    val customThemes: List<CustomTheme> = emptyList(),
+    val importPreview: ImportPreview? = null,
+    val pendingImportJson: String? = null
 )
 
 @HiltViewModel
@@ -122,6 +127,16 @@ class SettingsViewModel @Inject constructor(
                 settingsRepository.getDefaultDestination().collect { dest ->
                     val configured = checkDestinationConfigured(dest)
                     _uiState.value = _uiState.value.copy(destinationConfigured = configured)
+                }
+            }
+            launch {
+                settingsRepository.getCustomThemeId().collect { id ->
+                    _uiState.value = _uiState.value.copy(customThemeId = id)
+                }
+            }
+            launch {
+                settingsRepository.getAllCustomThemes().collect { themes ->
+                    _uiState.value = _uiState.value.copy(customThemes = themes)
                 }
             }
         }
@@ -225,6 +240,34 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun selectCustomTheme(themeId: String) {
+        viewModelScope.launch {
+            settingsRepository.setDynamicColor(false)
+            settingsRepository.setCustomThemeId(themeId)
+        }
+    }
+
+    fun clearCustomTheme() {
+        viewModelScope.launch {
+            settingsRepository.setCustomThemeId(null)
+        }
+    }
+
+    fun saveCustomTheme(theme: CustomTheme) {
+        viewModelScope.launch {
+            settingsRepository.saveCustomTheme(theme)
+        }
+    }
+
+    fun deleteCustomTheme(themeId: String) {
+        viewModelScope.launch {
+            if (_uiState.value.customThemeId == themeId) {
+                settingsRepository.setCustomThemeId(null)
+            }
+            settingsRepository.deleteCustomTheme(themeId)
+        }
+    }
+
     fun exportSettings(outputStream: OutputStream) {
         viewModelScope.launch {
             try {
@@ -251,6 +294,53 @@ class SettingsViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(exportImportMessage = "Import failed: ${e.message}")
             }
         }
+    }
+
+    fun previewImport(inputStream: InputStream) {
+        viewModelScope.launch {
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    inputStream.use { it.bufferedReader().readText() }
+                }
+                val preview = exportImportManager.parseImportPreview(json)
+                _uiState.value = _uiState.value.copy(
+                    importPreview = preview,
+                    pendingImportJson = json
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(exportImportMessage = "Import failed: ${e.message}")
+            }
+        }
+    }
+
+    fun applyResolvedImport() {
+        val preview = _uiState.value.importPreview ?: return
+        val json = _uiState.value.pendingImportJson ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    exportImportManager.applyResolvedImport(json, preview)
+                }
+                _uiState.value = _uiState.value.copy(
+                    importPreview = null,
+                    pendingImportJson = null,
+                    exportImportMessage = "Settings imported successfully"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    importPreview = null,
+                    pendingImportJson = null,
+                    exportImportMessage = "Import failed: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun cancelImportPreview() {
+        _uiState.value = _uiState.value.copy(
+            importPreview = null,
+            pendingImportJson = null
+        )
     }
 
     fun clearMessage() {

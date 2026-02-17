@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.xerahs.android.core.domain.model.UploadConfig
+import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -153,5 +154,129 @@ class SecureCredentialStore @Inject constructor(
             putString("custom_http_form_field", config.formFieldName)
             apply()
         }
+    }
+
+    // Profile-specific configs (keyed by profile ID)
+    fun getProfileConfig(profileId: String, destination: UploadDestination): UploadConfig {
+        val p = "profile_${profileId}_"
+        return when (destination) {
+            UploadDestination.IMGUR -> UploadConfig.ImgurConfig(
+                clientId = prefs.getString("${p}imgur_client_id", "") ?: "",
+                clientSecret = prefs.getString("${p}imgur_client_secret", "") ?: "",
+                accessToken = prefs.getString("${p}imgur_access_token", null),
+                refreshToken = prefs.getString("${p}imgur_refresh_token", null),
+                useAnonymous = prefs.getBoolean("${p}imgur_use_anonymous", true)
+            )
+            UploadDestination.S3 -> UploadConfig.S3Config(
+                accessKeyId = prefs.getString("${p}s3_access_key_id", "") ?: "",
+                secretAccessKey = prefs.getString("${p}s3_secret_access_key", "") ?: "",
+                region = prefs.getString("${p}s3_region", "us-east-1") ?: "us-east-1",
+                bucket = prefs.getString("${p}s3_bucket", "") ?: "",
+                endpoint = prefs.getString("${p}s3_endpoint", null),
+                customUrl = prefs.getString("${p}s3_custom_url", null),
+                prefix = prefs.getString("${p}s3_prefix", "") ?: "",
+                acl = prefs.getString("${p}s3_acl", "") ?: "",
+                usePathStyle = prefs.getBoolean("${p}s3_use_path_style", false)
+            )
+            UploadDestination.FTP -> UploadConfig.FtpConfig(
+                host = prefs.getString("${p}ftp_host", "") ?: "",
+                port = prefs.getInt("${p}ftp_port", 21),
+                username = prefs.getString("${p}ftp_username", "") ?: "",
+                password = prefs.getString("${p}ftp_password", "") ?: "",
+                remotePath = prefs.getString("${p}ftp_remote_path", "/") ?: "/",
+                useFtps = prefs.getBoolean("${p}ftp_use_ftps", false),
+                usePassiveMode = prefs.getBoolean("${p}ftp_use_passive", true),
+                httpUrl = prefs.getString("${p}ftp_http_url", "") ?: ""
+            )
+            UploadDestination.SFTP -> UploadConfig.SftpConfig(
+                host = prefs.getString("${p}sftp_host", "") ?: "",
+                port = prefs.getInt("${p}sftp_port", 22),
+                username = prefs.getString("${p}sftp_username", "") ?: "",
+                password = prefs.getString("${p}sftp_password", "") ?: "",
+                keyPath = prefs.getString("${p}sftp_key_path", null),
+                keyPassphrase = prefs.getString("${p}sftp_key_passphrase", null),
+                remotePath = prefs.getString("${p}sftp_remote_path", "/") ?: "/",
+                httpUrl = prefs.getString("${p}sftp_http_url", "") ?: ""
+            )
+            UploadDestination.CUSTOM_HTTP -> {
+                val headersJson = prefs.getString("${p}custom_http_headers", "") ?: ""
+                val headers = if (headersJson.isNotEmpty()) {
+                    headersJson.split("\n").filter { it.contains("=") }.associate { line ->
+                        val (key, value) = line.split("=", limit = 2)
+                        key to value
+                    }
+                } else emptyMap()
+                UploadConfig.CustomHttpConfig(
+                    url = prefs.getString("${p}custom_http_url", "") ?: "",
+                    method = prefs.getString("${p}custom_http_method", "POST") ?: "POST",
+                    headers = headers,
+                    responseUrlJsonPath = prefs.getString("${p}custom_http_json_path", "url") ?: "url",
+                    formFieldName = prefs.getString("${p}custom_http_form_field", "file") ?: "file"
+                )
+            }
+            UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
+        }
+    }
+
+    fun saveProfileConfig(profileId: String, config: UploadConfig) {
+        val p = "profile_${profileId}_"
+        prefs.edit().apply {
+            when (config) {
+                is UploadConfig.ImgurConfig -> {
+                    putString("${p}imgur_client_id", config.clientId)
+                    putString("${p}imgur_client_secret", config.clientSecret)
+                    putString("${p}imgur_access_token", config.accessToken)
+                    putString("${p}imgur_refresh_token", config.refreshToken)
+                    putBoolean("${p}imgur_use_anonymous", config.useAnonymous)
+                }
+                is UploadConfig.S3Config -> {
+                    putString("${p}s3_access_key_id", config.accessKeyId)
+                    putString("${p}s3_secret_access_key", config.secretAccessKey)
+                    putString("${p}s3_region", config.region)
+                    putString("${p}s3_bucket", config.bucket)
+                    putString("${p}s3_endpoint", config.endpoint)
+                    putString("${p}s3_custom_url", config.customUrl)
+                    putString("${p}s3_prefix", config.prefix)
+                    putString("${p}s3_acl", config.acl)
+                    putBoolean("${p}s3_use_path_style", config.usePathStyle)
+                }
+                is UploadConfig.FtpConfig -> {
+                    putString("${p}ftp_host", config.host)
+                    putInt("${p}ftp_port", config.port)
+                    putString("${p}ftp_username", config.username)
+                    putString("${p}ftp_password", config.password)
+                    putString("${p}ftp_remote_path", config.remotePath)
+                    putBoolean("${p}ftp_use_ftps", config.useFtps)
+                    putBoolean("${p}ftp_use_passive", config.usePassiveMode)
+                    putString("${p}ftp_http_url", config.httpUrl)
+                }
+                is UploadConfig.SftpConfig -> {
+                    putString("${p}sftp_host", config.host)
+                    putInt("${p}sftp_port", config.port)
+                    putString("${p}sftp_username", config.username)
+                    putString("${p}sftp_password", config.password)
+                    putString("${p}sftp_key_path", config.keyPath)
+                    putString("${p}sftp_key_passphrase", config.keyPassphrase)
+                    putString("${p}sftp_remote_path", config.remotePath)
+                    putString("${p}sftp_http_url", config.httpUrl)
+                }
+                is UploadConfig.CustomHttpConfig -> {
+                    val headersString = config.headers.entries.joinToString("\n") { "${it.key}=${it.value}" }
+                    putString("${p}custom_http_url", config.url)
+                    putString("${p}custom_http_method", config.method)
+                    putString("${p}custom_http_headers", headersString)
+                    putString("${p}custom_http_json_path", config.responseUrlJsonPath)
+                    putString("${p}custom_http_form_field", config.formFieldName)
+                }
+            }
+            apply()
+        }
+    }
+
+    fun deleteProfileConfig(profileId: String) {
+        val p = "profile_${profileId}_"
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith(p) }.forEach { editor.remove(it) }
+        editor.apply()
     }
 }

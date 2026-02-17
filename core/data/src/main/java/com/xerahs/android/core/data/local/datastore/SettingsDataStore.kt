@@ -41,6 +41,7 @@ class SettingsDataStore @Inject constructor(
         val UPLOAD_FORMAT = stringPreferencesKey("upload_format")
         val STRIP_EXIF = booleanPreferencesKey("strip_exif")
         val AUTO_LOCK_TIMEOUT = longPreferencesKey("auto_lock_timeout")
+        val CUSTOM_THEME_ID = stringPreferencesKey("custom_theme_id")
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
@@ -206,6 +207,20 @@ class SettingsDataStore @Inject constructor(
     suspend fun setAutoLockTimeout(timeout: Long) {
         context.dataStore.edit { prefs ->
             prefs[Keys.AUTO_LOCK_TIMEOUT] = timeout
+        }
+    }
+
+    fun getCustomThemeId(): Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.CUSTOM_THEME_ID]
+    }
+
+    suspend fun setCustomThemeId(id: String?) {
+        context.dataStore.edit { prefs ->
+            if (id != null) {
+                prefs[Keys.CUSTOM_THEME_ID] = id
+            } else {
+                prefs.remove(Keys.CUSTOM_THEME_ID)
+            }
         }
     }
 }

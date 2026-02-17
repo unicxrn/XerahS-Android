@@ -11,7 +11,8 @@ data class HistoryItem(
     val fileName: String,
     val fileSize: Long = 0,
     val albumId: String? = null,
-    val tags: List<Tag> = emptyList()
+    val tags: List<Tag> = emptyList(),
+    val fileHash: String? = null
 )
 
 enum class UploadDestination(val displayName: String) {

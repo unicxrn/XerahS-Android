@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,6 +68,7 @@ fun UploadSettingsScreen(
     onNavigateToS3Config: () -> Unit,
     onNavigateToFtpConfig: () -> Unit,
     onNavigateToCustomHttpConfig: () -> Unit,
+    onNavigateToProfiles: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -231,6 +233,18 @@ fun UploadSettingsScreen(
                         )
                     }
                 }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                ListItem(
+                    headlineContent = { Text("Upload Profiles") },
+                    supportingContent = { Text("Save named configurations for each destination") },
+                    leadingContent = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                    modifier = Modifier.clickable(onClick = onNavigateToProfiles)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))

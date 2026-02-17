@@ -20,8 +20,13 @@ import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
 import com.xerahs.android.feature.settings.AppUpdateScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
+import com.xerahs.android.feature.settings.StatisticsScreen
 import com.xerahs.android.feature.settings.StorageSettingsScreen
+import com.xerahs.android.feature.settings.ThemeEditorScreen
 import com.xerahs.android.feature.settings.UploadSettingsScreen
+import com.xerahs.android.feature.settings.profiles.ProfileEditorScreen
+import com.xerahs.android.feature.settings.profiles.ProfileManagementScreen
+import com.xerahs.android.feature.settings.profiles.ProfileManagementViewModel
 import com.xerahs.android.feature.settings.destinations.CustomHttpConfigScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
 import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
@@ -76,6 +81,12 @@ sealed class Screen(val route: String) {
     data object CustomHttpConfig : Screen("settings/custom-http")
     data object StorageSettings : Screen("settings/storage")
     data object SecuritySettings : Screen("settings/security")
+    data object Statistics : Screen("settings/statistics")
+    data object ThemeEditor : Screen("settings/theme-editor")
+    data object ProfileManagement : Screen("settings/profiles")
+    data object ProfileEditor : Screen("settings/profiles/edit/{profileId}") {
+        fun createRoute(profileId: String?) = "settings/profiles/edit/${profileId ?: "new"}"
+    }
     data object AppUpdate : Screen("settings/updates")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
@@ -194,6 +205,7 @@ fun XerahSNavGraph(
                 onNavigateToBackup = { navController.navigate(Screen.BackupSettings.route) },
                 onNavigateToStorage = { navController.navigate(Screen.StorageSettings.route) },
                 onNavigateToSecurity = { navController.navigate(Screen.SecuritySettings.route) },
+                onNavigateToStatistics = { navController.navigate(Screen.Statistics.route) },
                 onNavigateToUpdates = { navController.navigate(Screen.AppUpdate.route) },
                 onBack = { navController.popBackStack() }
             )
@@ -201,6 +213,19 @@ fun XerahSNavGraph(
 
         composable(Screen.AppearanceSettings.route) {
             AppearanceSettingsScreen(
+                onNavigateToThemeEditor = { navController.navigate(Screen.ThemeEditor.route) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ThemeEditor.route) {
+            val settingsViewModel: com.xerahs.android.feature.settings.SettingsViewModel = hiltViewModel()
+            ThemeEditorScreen(
+                onSave = { theme ->
+                    settingsViewModel.saveCustomTheme(theme)
+                    settingsViewModel.selectCustomTheme(theme.id)
+                    navController.popBackStack()
+                },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -211,6 +236,7 @@ fun XerahSNavGraph(
                 onNavigateToS3Config = { navController.navigate(Screen.S3Config.route) },
                 onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.route) },
                 onNavigateToCustomHttpConfig = { navController.navigate(Screen.CustomHttpConfig.route) },
+                onNavigateToProfiles = { navController.navigate(Screen.ProfileManagement.route) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -224,6 +250,45 @@ fun XerahSNavGraph(
         composable(Screen.StorageSettings.route) {
             StorageSettingsScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Statistics.route) {
+            StatisticsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ProfileManagement.route) {
+            ProfileManagementScreen(
+                onNavigateToEditor = { profileId ->
+                    navController.navigate(Screen.ProfileEditor.createRoute(profileId))
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.ProfileEditor.route,
+            arguments = listOf(navArgument("profileId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val profileId = backStackEntry.arguments?.getString("profileId")
+            val parentEntry = remember(backStackEntry) {
+                navController.getBackStackEntry(Screen.ProfileManagement.route)
+            }
+            val viewModel: ProfileManagementViewModel = hiltViewModel(parentEntry)
+
+            androidx.compose.runtime.LaunchedEffect(profileId) {
+                if (profileId == "new") {
+                    viewModel.startNewProfile()
+                } else if (profileId != null) {
+                    viewModel.startEditProfile(profileId)
+                }
+            }
+
+            ProfileEditorScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel
             )
         }
 

@@ -16,6 +16,7 @@ fun XerahSTheme(
     dynamicColor: Boolean = true,
     colorTheme: ColorTheme = ColorTheme.VIOLET,
     oledBlack: Boolean = false,
+    customThemeSeedColor: Int? = null,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -25,6 +26,9 @@ fun XerahSTheme(
     }
 
     val colorScheme = when {
+        customThemeSeedColor != null -> {
+            generateColorSchemeFromSeed(customThemeSeedColor, darkTheme, oledBlack)
+        }
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

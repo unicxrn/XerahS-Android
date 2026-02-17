@@ -13,10 +13,12 @@ import com.xerahs.android.feature.upload.worker.UploadWorker
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.model.UploadResult
 import com.xerahs.android.core.domain.repository.AlbumRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +27,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class DuplicateInfo(
+    val url: String?,
+    val fileName: String?,
+    val timestamp: Long,
+    val imagePath: String,
+    val destination: String
+)
 
 data class UploadUiState(
     val isUploading: Boolean = false,
@@ -39,7 +49,10 @@ data class UploadUiState(
     val albums: List<Album> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val selectedAlbumId: String? = null,
-    val selectedTagIds: Set<String> = emptySet()
+    val selectedTagIds: Set<String> = emptySet(),
+    val duplicateInfo: DuplicateInfo? = null,
+    val profiles: List<UploadProfile> = emptyList(),
+    val selectedProfileId: String? = null
 )
 
 @HiltViewModel
@@ -47,7 +60,8 @@ class UploadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val albumRepository: AlbumRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val profileRepository: UploadProfileRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UploadUiState())
@@ -71,6 +85,21 @@ class UploadViewModel @Inject constructor(
         viewModelScope.launch {
             tagRepository.getAllTags().collect { tags ->
                 _uiState.value = _uiState.value.copy(tags = tags)
+            }
+        }
+        viewModelScope.launch {
+            profileRepository.getAllProfiles().collect { profiles ->
+                _uiState.value = _uiState.value.copy(profiles = profiles)
+            }
+        }
+    }
+
+    fun selectProfile(profileId: String?) {
+        _uiState.value = _uiState.value.copy(selectedProfileId = profileId)
+        if (profileId != null) {
+            val profile = _uiState.value.profiles.find { it.id == profileId }
+            if (profile != null) {
+                _uiState.value = _uiState.value.copy(selectedDestination = profile.destination)
             }
         }
     }
@@ -98,7 +127,7 @@ class UploadViewModel @Inject constructor(
         enqueueUpload(imagePaths)
     }
 
-    private fun enqueueUpload(imagePaths: List<String>) {
+    private fun enqueueUpload(imagePaths: List<String>, skipDuplicateCheck: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isUploading = true, errorMessage = null, result = null,
@@ -111,6 +140,11 @@ class UploadViewModel @Inject constructor(
 
             val inputDataBuilder = Data.Builder()
                 .putString(UploadWorker.KEY_DESTINATION, destination.name)
+                .putBoolean(UploadWorker.KEY_SKIP_DUPLICATE_CHECK, skipDuplicateCheck)
+
+            _uiState.value.selectedProfileId?.let { profileId ->
+                inputDataBuilder.putString(UploadWorker.KEY_PROFILE_ID, profileId)
+            }
 
             if (_uiState.value.selectedAlbumId != null) {
                 inputDataBuilder.putString(UploadWorker.KEY_ALBUM_ID, _uiState.value.selectedAlbumId)
@@ -159,16 +193,31 @@ class UploadViewModel @Inject constructor(
                         )
                     }
                     WorkInfo.State.FAILED -> {
-                        _uiState.value = _uiState.value.copy(
-                            isUploading = false,
-                            result = UploadResult(
-                                success = false,
-                                errorMessage = "Upload failed",
-                                destination = destination
-                            ),
-                            batchProgress = null,
-                            errorMessage = "Upload failed"
-                        )
+                        val isDuplicate = workInfo.outputData.getBoolean(UploadWorker.KEY_DUPLICATE_FOUND, false)
+                        if (isDuplicate) {
+                            _uiState.value = _uiState.value.copy(
+                                isUploading = false,
+                                batchProgress = null,
+                                duplicateInfo = DuplicateInfo(
+                                    url = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_URL),
+                                    fileName = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_FILE_NAME),
+                                    timestamp = workInfo.outputData.getLong(UploadWorker.KEY_DUPLICATE_TIMESTAMP, 0L),
+                                    imagePath = workInfo.outputData.getString(UploadWorker.KEY_IMAGE_PATH) ?: "",
+                                    destination = workInfo.outputData.getString(UploadWorker.KEY_DESTINATION) ?: ""
+                                )
+                            )
+                        } else {
+                            _uiState.value = _uiState.value.copy(
+                                isUploading = false,
+                                result = UploadResult(
+                                    success = false,
+                                    errorMessage = "Upload failed",
+                                    destination = destination
+                                ),
+                                batchProgress = null,
+                                errorMessage = "Upload failed"
+                            )
+                        }
                     }
                     WorkInfo.State.RUNNING -> {
                         // Keep showing uploading state
@@ -177,6 +226,16 @@ class UploadViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun uploadAnyway() {
+        val dupInfo = _uiState.value.duplicateInfo ?: return
+        _uiState.value = _uiState.value.copy(duplicateInfo = null)
+        enqueueUpload(listOf(dupInfo.imagePath), skipDuplicateCheck = true)
+    }
+
+    fun dismissDuplicate() {
+        _uiState.value = _uiState.value.copy(duplicateInfo = null)
     }
 
     fun clearError() {

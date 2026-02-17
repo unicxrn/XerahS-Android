@@ -8,13 +8,17 @@ import androidx.room.RoomDatabase
         HistoryEntity::class,
         AlbumEntity::class,
         TagEntity::class,
-        HistoryTagCrossRef::class
+        HistoryTagCrossRef::class,
+        UploadProfileEntity::class,
+        CustomThemeEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class XerahSDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun albumDao(): AlbumDao
     abstract fun tagDao(): TagDao
+    abstract fun uploadProfileDao(): UploadProfileDao
+    abstract fun customThemeDao(): CustomThemeDao
 }

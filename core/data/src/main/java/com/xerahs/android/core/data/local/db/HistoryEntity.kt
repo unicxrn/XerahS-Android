@@ -1,7 +1,9 @@
 package com.xerahs.android.core.data.local.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -15,6 +17,9 @@ import com.xerahs.android.core.domain.model.UploadDestination
             childColumns = ["albumId"],
             onDelete = ForeignKey.SET_NULL
         )
+    ],
+    indices = [
+        Index(value = ["fileHash"])
     ]
 )
 data class HistoryEntity(
@@ -27,7 +32,8 @@ data class HistoryEntity(
     val timestamp: Long,
     val fileName: String,
     val fileSize: Long,
-    val albumId: String? = null
+    val albumId: String? = null,
+    val fileHash: String? = null
 ) {
     fun toDomain(): HistoryItem = HistoryItem(
         id = id,
@@ -39,7 +45,8 @@ data class HistoryEntity(
         timestamp = timestamp,
         fileName = fileName,
         fileSize = fileSize,
-        albumId = albumId
+        albumId = albumId,
+        fileHash = fileHash
     )
 
     companion object {
@@ -53,7 +60,8 @@ data class HistoryEntity(
             timestamp = item.timestamp,
             fileName = item.fileName,
             fileSize = item.fileSize,
-            albumId = item.albumId
+            albumId = item.albumId,
+            fileHash = item.fileHash
         )
     }
 }

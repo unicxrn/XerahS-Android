@@ -1,7 +1,6 @@
 package com.xerahs.android.feature.settings
 
-import android.content.Intent
-import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -61,7 +60,6 @@ fun AppUpdateScreen(
     viewModel: AppUpdateViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -148,12 +146,35 @@ fun AppUpdateScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
+                        AnimatedVisibility(visible = state.isDownloading) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                LinearProgressIndicator(
+                                    progress = { state.downloadProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Downloading... ${(state.downloadProgress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+
+                        if (state.downloadError != null) {
+                            Text(
+                                text = state.downloadError!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
                         Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.latestRelease!!.htmlUrl))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                            onClick = { viewModel.downloadAndInstall() },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !state.isDownloading
                         ) {
                             Icon(
                                 Icons.Default.Download,
@@ -161,7 +182,7 @@ fun AppUpdateScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Download update")
+                            Text(if (state.isDownloading) "Downloading..." else "Download & install")
                         }
                     } else if (!state.isChecking && state.latestRelease != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

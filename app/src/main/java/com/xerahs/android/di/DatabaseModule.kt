@@ -3,9 +3,12 @@ package com.xerahs.android.di
 import android.content.Context
 import androidx.room.Room
 import com.xerahs.android.core.data.local.db.AlbumDao
+import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.HistoryDao
 import com.xerahs.android.core.data.local.db.MIGRATION_1_2
+import com.xerahs.android.core.data.local.db.MIGRATION_2_3
 import com.xerahs.android.core.data.local.db.TagDao
+import com.xerahs.android.core.data.local.db.UploadProfileDao
 import com.xerahs.android.core.data.local.db.XerahSDatabase
 import dagger.Module
 import dagger.Provides
@@ -26,7 +29,7 @@ object DatabaseModule {
             XerahSDatabase::class.java,
             "xerahs_database"
         )
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides
@@ -40,4 +43,12 @@ object DatabaseModule {
     @Provides
     fun provideTagDao(database: XerahSDatabase): TagDao =
         database.tagDao()
+
+    @Provides
+    fun provideUploadProfileDao(database: XerahSDatabase): UploadProfileDao =
+        database.uploadProfileDao()
+
+    @Provides
+    fun provideCustomThemeDao(database: XerahSDatabase): CustomThemeDao =
+        database.customThemeDao()
 }

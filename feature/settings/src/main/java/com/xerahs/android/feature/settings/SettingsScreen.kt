@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Folder
@@ -53,6 +54,7 @@ fun SettingsHubScreen(
     onNavigateToBackup: () -> Unit,
     onNavigateToStorage: () -> Unit,
     onNavigateToSecurity: () -> Unit,
+    onNavigateToStatistics: () -> Unit,
     onNavigateToUpdates: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -123,11 +125,21 @@ fun SettingsHubScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             SettingsCategoryCard(
+                icon = Icons.Default.BarChart,
+                title = "Statistics",
+                subtitle = "Upload history analytics",
+                onClick = onNavigateToStatistics,
+                index = 4
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SettingsCategoryCard(
                 icon = Icons.Default.Lock,
                 title = "Security",
                 subtitle = "Biometric lock settings",
                 onClick = onNavigateToSecurity,
-                index = 4
+                index = 5
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -137,7 +149,7 @@ fun SettingsHubScreen(
                 title = "Updates",
                 subtitle = "Check for updates & changelog",
                 onClick = onNavigateToUpdates,
-                index = 5
+                index = 6
             )
 
             Spacer(modifier = Modifier.weight(1f))

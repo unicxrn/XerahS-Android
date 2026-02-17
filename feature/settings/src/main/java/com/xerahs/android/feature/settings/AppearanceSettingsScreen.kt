@@ -8,15 +8,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +60,7 @@ private fun ColorTheme.previewColor(): Color = when (this) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppearanceSettingsScreen(
+    onNavigateToThemeEditor: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -74,6 +82,7 @@ fun AppearanceSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
         ) {
             SectionHeader("Display")
 
@@ -159,13 +168,14 @@ fun AppearanceSettingsScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             ColorTheme.entries.forEach { theme ->
-                                val isSelected = uiState.colorTheme == theme
+                                val isSelected = uiState.colorTheme == theme && uiState.customThemeId == null
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.clickable(
                                         role = Role.RadioButton,
                                         onClickLabel = theme.displayName
                                     ) {
+                                        viewModel.clearCustomTheme()
                                         viewModel.setColorTheme(theme)
                                     }
                                 ) {
@@ -195,6 +205,90 @@ fun AppearanceSettingsScreen(
                                 }
                             }
                         }
+                    }
+
+                    if (uiState.customThemes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SectionHeader("Custom Themes")
+                        SettingsGroupCard {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                uiState.customThemes.forEach { custom ->
+                                    val isSelected = uiState.customThemeId == custom.id
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable(
+                                            role = Role.RadioButton,
+                                            onClickLabel = custom.name
+                                        ) {
+                                            viewModel.selectCustomTheme(custom.id)
+                                        }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(40.dp),
+                                            contentAlignment = Alignment.TopEnd
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .then(
+                                                        if (isSelected) Modifier.border(
+                                                            width = 2.dp,
+                                                            color = MaterialTheme.colorScheme.outline,
+                                                            shape = CircleShape
+                                                        ) else Modifier
+                                                    )
+                                                    .padding(2.dp)
+                                            ) {
+                                                Surface(
+                                                    modifier = Modifier.size(36.dp),
+                                                    shape = CircleShape,
+                                                    color = Color(custom.seedColor)
+                                                ) {}
+                                            }
+                                            Surface(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clickable { viewModel.deleteCustomTheme(custom.id) },
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.errorContainer
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        contentDescription = "Delete",
+                                                        modifier = Modifier.size(10.dp),
+                                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = custom.name,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsGroupCard {
+                        ListItem(
+                            headlineContent = { Text("Create Custom Theme") },
+                            supportingContent = { Text("Generate a theme from any color") },
+                            leadingContent = {
+                                FilledTonalIconButton(onClick = onNavigateToThemeEditor) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                }
+                            },
+                            modifier = Modifier.clickable(onClick = onNavigateToThemeEditor)
+                        )
                     }
                 }
             }

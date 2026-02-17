@@ -2,20 +2,25 @@ package com.xerahs.android.core.data.repository
 
 import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
 import com.xerahs.android.core.data.local.datastore.SettingsDataStore
+import com.xerahs.android.core.data.local.db.CustomThemeDao
+import com.xerahs.android.core.data.local.db.CustomThemeEntity
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
-    private val secureCredentialStore: SecureCredentialStore
+    private val secureCredentialStore: SecureCredentialStore,
+    private val customThemeDao: CustomThemeDao
 ) : SettingsRepository {
 
     override fun getDefaultDestination(): Flow<UploadDestination> =
@@ -137,4 +142,33 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setAutoLockTimeout(timeout: Long) =
         settingsDataStore.setAutoLockTimeout(timeout)
+
+    override fun getCustomThemeId(): Flow<String?> =
+        settingsDataStore.getCustomThemeId()
+
+    override suspend fun setCustomThemeId(id: String?) =
+        settingsDataStore.setCustomThemeId(id)
+
+    override fun getAllCustomThemes(): Flow<List<CustomTheme>> =
+        customThemeDao.getAllThemes().map { entities ->
+            entities.map { CustomTheme(id = it.id, name = it.name, seedColor = it.seedColor) }
+        }
+
+    override suspend fun getCustomTheme(id: String): CustomTheme? =
+        customThemeDao.getTheme(id)?.let {
+            CustomTheme(id = it.id, name = it.name, seedColor = it.seedColor)
+        }
+
+    override suspend fun saveCustomTheme(theme: CustomTheme) =
+        customThemeDao.insertTheme(
+            CustomThemeEntity(
+                id = theme.id,
+                name = theme.name,
+                seedColor = theme.seedColor,
+                createdAt = System.currentTimeMillis()
+            )
+        )
+
+    override suspend fun deleteCustomTheme(id: String) =
+        customThemeDao.deleteTheme(id)
 }

@@ -1,6 +1,7 @@
 package com.xerahs.android.core.domain.repository
 
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -67,4 +68,12 @@ interface SettingsRepository {
 
     fun getAutoLockTimeout(): Flow<Long>
     suspend fun setAutoLockTimeout(timeout: Long)
+
+    fun getCustomThemeId(): Flow<String?>
+    suspend fun setCustomThemeId(id: String?)
+
+    fun getAllCustomThemes(): Flow<List<CustomTheme>>
+    suspend fun getCustomTheme(id: String): CustomTheme?
+    suspend fun saveCustomTheme(theme: CustomTheme)
+    suspend fun deleteCustomTheme(id: String)
 }

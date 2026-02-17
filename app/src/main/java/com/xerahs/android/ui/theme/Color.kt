@@ -363,6 +363,74 @@ fun colorSchemeForTheme(colorTheme: ColorTheme, darkTheme: Boolean, oledBlack: B
     }
 }
 
+/**
+ * Generate a Material3-like ColorScheme from a single seed color using HSL derivation.
+ */
+fun generateColorSchemeFromSeed(seedColor: Int, darkTheme: Boolean, oledBlack: Boolean = false): ColorScheme {
+    val hsl = floatArrayOf(0f, 0f, 0f)
+    android.graphics.Color.colorToHSV(seedColor, hsl)
+    val hue = hsl[0]
+    val sat = hsl[1]
+
+    fun hslColor(h: Float, s: Float, l: Float): Color {
+        val clampH = ((h % 360f) + 360f) % 360f
+        val clampS = s.coerceIn(0f, 1f)
+        val clampL = l.coerceIn(0f, 1f)
+        val c = (1f - kotlin.math.abs(2f * clampL - 1f)) * clampS
+        val x = c * (1f - kotlin.math.abs((clampH / 60f) % 2f - 1f))
+        val m = clampL - c / 2f
+        val (r1, g1, b1) = when {
+            clampH < 60f -> Triple(c, x, 0f)
+            clampH < 120f -> Triple(x, c, 0f)
+            clampH < 180f -> Triple(0f, c, x)
+            clampH < 240f -> Triple(0f, x, c)
+            clampH < 300f -> Triple(x, 0f, c)
+            else -> Triple(c, 0f, x)
+        }
+        return Color(
+            red = (r1 + m).coerceIn(0f, 1f),
+            green = (g1 + m).coerceIn(0f, 1f),
+            blue = (b1 + m).coerceIn(0f, 1f)
+        )
+    }
+
+    val secondaryHue = hue + 30f
+    val tertiaryHue = hue + 60f
+
+    return if (darkTheme) {
+        darkColorScheme(
+            primary = hslColor(hue, sat * 0.6f, 0.75f),
+            onPrimary = hslColor(hue, sat * 0.8f, 0.15f),
+            primaryContainer = hslColor(hue, sat * 0.7f, 0.30f),
+            onPrimaryContainer = hslColor(hue, sat * 0.4f, 0.90f),
+            secondary = hslColor(secondaryHue, sat * 0.3f, 0.75f),
+            secondaryContainer = hslColor(secondaryHue, sat * 0.3f, 0.30f),
+            tertiary = hslColor(tertiaryHue, sat * 0.4f, 0.75f),
+            tertiaryContainer = hslColor(tertiaryHue, sat * 0.4f, 0.30f),
+            background = if (oledBlack) Color.Black else hslColor(hue, sat * 0.1f, 0.10f),
+            surface = if (oledBlack) Color.Black else hslColor(hue, sat * 0.1f, 0.10f),
+            surfaceContainerLow = if (oledBlack) Color(0xFF050505) else hslColor(hue, sat * 0.1f, 0.13f),
+            surfaceContainer = if (oledBlack) Color(0xFF0A0A0A) else hslColor(hue, sat * 0.1f, 0.16f),
+            surfaceContainerHigh = if (oledBlack) Color(0xFF121212) else hslColor(hue, sat * 0.1f, 0.20f),
+        )
+    } else {
+        lightColorScheme(
+            primary = hslColor(hue, sat * 0.8f, 0.40f),
+            onPrimary = Color.White,
+            primaryContainer = hslColor(hue, sat * 0.5f, 0.90f),
+            onPrimaryContainer = hslColor(hue, sat * 0.8f, 0.15f),
+            secondary = hslColor(secondaryHue, sat * 0.3f, 0.40f),
+            secondaryContainer = hslColor(secondaryHue, sat * 0.3f, 0.90f),
+            tertiary = hslColor(tertiaryHue, sat * 0.4f, 0.40f),
+            tertiaryContainer = hslColor(tertiaryHue, sat * 0.3f, 0.90f),
+            background = hslColor(hue, sat * 0.05f, 0.98f),
+            surface = hslColor(hue, sat * 0.05f, 0.98f),
+            surfaceContainerLow = hslColor(hue, sat * 0.05f, 0.96f),
+            surfaceContainer = hslColor(hue, sat * 0.05f, 0.94f),
+        )
+    }
+}
+
 /** Representative primary color for each theme (used in theme picker swatches). */
 fun ColorTheme.previewColor(): Color = when (this) {
     ColorTheme.VIOLET -> VioletLightPrimary

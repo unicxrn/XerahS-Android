@@ -7,8 +7,11 @@ import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -38,6 +41,22 @@ class MainViewModel @Inject constructor(
 
     val autoLockTimeout: StateFlow<Long> = settingsRepository.getAutoLockTimeout()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    private val _customThemeSeedColor = MutableStateFlow<Int?>(null)
+    val customThemeSeedColor: StateFlow<Int?> = _customThemeSeedColor.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.getCustomThemeId().collectLatest { themeId ->
+                if (themeId != null) {
+                    val theme = settingsRepository.getCustomTheme(themeId)
+                    _customThemeSeedColor.value = theme?.seedColor
+                } else {
+                    _customThemeSeedColor.value = null
+                }
+            }
+        }
+    }
 
     fun completeOnboarding() {
         viewModelScope.launch {

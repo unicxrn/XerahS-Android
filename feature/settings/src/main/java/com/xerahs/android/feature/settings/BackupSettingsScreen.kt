@@ -68,7 +68,7 @@ fun BackupSettingsScreen(
         if (uri != null) {
             val inputStream = context.contentResolver.openInputStream(uri)
             if (inputStream != null) {
-                viewModel.importSettings(inputStream)
+                viewModel.previewImport(inputStream)
             }
         }
     }
@@ -78,6 +78,16 @@ fun BackupSettingsScreen(
             snackbarHostState.showSnackbar(message)
             viewModel.clearMessage()
         }
+    }
+
+    // Show conflict resolution screen when import preview is available
+    if (uiState.importPreview != null) {
+        ConflictResolutionScreen(
+            preview = uiState.importPreview!!,
+            onApply = { viewModel.applyResolvedImport() },
+            onCancel = { viewModel.cancelImportPreview() }
+        )
+        return
     }
 
     Scaffold(

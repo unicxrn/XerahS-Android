@@ -81,6 +81,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.GradientBorderCard
 import com.xerahs.android.core.ui.StatusBanner
@@ -104,6 +107,48 @@ fun UploadScreen(
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
         }
+    }
+
+    // Duplicate detection dialog
+    uiState.duplicateInfo?.let { dupInfo ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDuplicate() },
+            title = { Text("Duplicate Detected") },
+            text = {
+                Column {
+                    Text("This image was already uploaded.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    dupInfo.fileName?.let {
+                        Text("File: $it", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (dupInfo.timestamp > 0L) {
+                        Text(
+                            "Uploaded: ${dupInfo.timestamp.toShortDate()}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    dupInfo.url?.let { url ->
+                        Text(
+                            "URL: $url",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.uploadAnyway() }) {
+                    Text("Upload Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDuplicate() }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Auto-copy URL for single uploads
@@ -276,6 +321,60 @@ fun UploadScreen(
                                     MaterialTheme.colorScheme.onPrimaryContainer
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Profile selector
+            val destProfiles = uiState.profiles.filter { it.destination == uiState.selectedDestination }
+            if (destProfiles.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Profile",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+                Box {
+                    var showProfileMenu by remember { mutableStateOf(false) }
+                    val selectedProfileName = destProfiles.find { it.id == uiState.selectedProfileId }?.name ?: "Default (Global)"
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showProfileMenu = true },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                    ) {
+                        Text(
+                            text = selectedProfileName,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showProfileMenu,
+                        onDismissRequest = { showProfileMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Default (Global)") },
+                            onClick = {
+                                viewModel.selectProfile(null)
+                                showProfileMenu = false
+                            }
+                        )
+                        destProfiles.forEach { profile ->
+                            DropdownMenuItem(
+                                text = { Text(profile.name) },
+                                onClick = {
+                                    viewModel.selectProfile(profile.id)
+                                    showProfileMenu = false
                                 }
                             )
                         }

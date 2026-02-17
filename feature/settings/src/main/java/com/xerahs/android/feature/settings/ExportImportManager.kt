@@ -204,4 +204,228 @@ class ExportImportManager @Inject constructor(
             settingsRepository.setAutoLockTimeout(it)
         }
     }
+
+    suspend fun parseImportPreview(jsonString: String): ImportPreview {
+        val json = gson.fromJson(jsonString, JsonObject::class.java)
+        val sections = mutableListOf<ImportSection>()
+
+        // General section
+        val generalFields = mutableListOf<ImportField>()
+        fun addGeneralField(key: String, label: String, currentValue: String, importedValue: String?) {
+            if (importedValue != null) {
+                generalFields.add(ImportField(key, label, currentValue, importedValue, currentValue != importedValue))
+            }
+        }
+
+        addGeneralField("defaultDestination", "Default Destination",
+            settingsRepository.getDefaultDestination().first().name,
+            json.get("defaultDestination")?.asString)
+        addGeneralField("themeMode", "Theme Mode",
+            settingsRepository.getThemeMode().first().name,
+            json.get("themeMode")?.asString)
+        addGeneralField("fileNamingPattern", "File Naming Pattern",
+            settingsRepository.getFileNamingPattern().first(),
+            json.get("fileNamingPattern")?.asString)
+        addGeneralField("uploadFormat", "Upload Format",
+            settingsRepository.getUploadFormat().first().name,
+            json.get("uploadFormat")?.asString)
+        addGeneralField("stripExif", "Strip EXIF",
+            settingsRepository.getStripExif().first().toString(),
+            json.get("stripExif")?.asBoolean?.toString())
+
+        if (generalFields.isNotEmpty()) {
+            sections.add(ImportSection("General", generalFields))
+        }
+
+        // Imgur section
+        json.getAsJsonObject("imgur")?.let { imgur ->
+            val current = settingsRepository.getImgurConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("imgur.clientId", "Client ID", current.clientId, imgur.get("clientId")?.asString)
+            addField("imgur.clientSecret", "Client Secret", maskSecret(current.clientSecret), maskSecret(imgur.get("clientSecret")?.asString ?: ""))
+            addField("imgur.useAnonymous", "Anonymous Upload", current.useAnonymous.toString(), imgur.get("useAnonymous")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Imgur", fields))
+        }
+
+        // S3 section
+        json.getAsJsonObject("s3")?.let { s3 ->
+            val current = settingsRepository.getS3Config()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("s3.accessKeyId", "Access Key ID", maskSecret(current.accessKeyId), maskSecret(s3.get("accessKeyId")?.asString ?: ""))
+            addField("s3.region", "Region", current.region, s3.get("region")?.asString)
+            addField("s3.bucket", "Bucket", current.bucket, s3.get("bucket")?.asString)
+            addField("s3.endpoint", "Endpoint", current.endpoint ?: "", s3.get("endpoint")?.asString ?: "")
+            addField("s3.prefix", "Prefix", current.prefix, s3.get("prefix")?.asString)
+            addField("s3.usePathStyle", "Path Style", current.usePathStyle.toString(), s3.get("usePathStyle")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Amazon S3", fields))
+        }
+
+        // FTP section
+        json.getAsJsonObject("ftp")?.let { ftp ->
+            val current = settingsRepository.getFtpConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("ftp.host", "Host", current.host, ftp.get("host")?.asString)
+            addField("ftp.port", "Port", current.port.toString(), ftp.get("port")?.asInt?.toString())
+            addField("ftp.username", "Username", current.username, ftp.get("username")?.asString)
+            addField("ftp.remotePath", "Remote Path", current.remotePath, ftp.get("remotePath")?.asString)
+            addField("ftp.httpUrl", "HTTP URL", current.httpUrl, ftp.get("httpUrl")?.asString)
+            if (fields.isNotEmpty()) sections.add(ImportSection("FTP", fields))
+        }
+
+        // SFTP section
+        json.getAsJsonObject("sftp")?.let { sftp ->
+            val current = settingsRepository.getSftpConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("sftp.host", "Host", current.host, sftp.get("host")?.asString)
+            addField("sftp.port", "Port", current.port.toString(), sftp.get("port")?.asInt?.toString())
+            addField("sftp.username", "Username", current.username, sftp.get("username")?.asString)
+            addField("sftp.remotePath", "Remote Path", current.remotePath, sftp.get("remotePath")?.asString)
+            addField("sftp.httpUrl", "HTTP URL", current.httpUrl, sftp.get("httpUrl")?.asString)
+            if (fields.isNotEmpty()) sections.add(ImportSection("SFTP", fields))
+        }
+
+        // Custom HTTP section
+        json.getAsJsonObject("customHttp")?.let { ch ->
+            val current = settingsRepository.getCustomHttpConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("customHttp.url", "URL", current.url, ch.get("url")?.asString)
+            addField("customHttp.method", "Method", current.method, ch.get("method")?.asString)
+            addField("customHttp.responseUrlJsonPath", "JSON Path", current.responseUrlJsonPath, ch.get("responseUrlJsonPath")?.asString)
+            addField("customHttp.formFieldName", "Form Field", current.formFieldName, ch.get("formFieldName")?.asString)
+            if (fields.isNotEmpty()) sections.add(ImportSection("Custom HTTP", fields))
+        }
+
+        return ImportPreview(sections)
+    }
+
+    suspend fun applyResolvedImport(jsonString: String, preview: ImportPreview) {
+        val json = gson.fromJson(jsonString, JsonObject::class.java)
+        val accepted = preview.sections.flatMap { it.fields }
+            .filter { it.resolution == FieldResolution.USE_IMPORTED }
+            .map { it.key }
+            .toSet()
+
+        if (accepted.isEmpty()) return
+
+        // General
+        if ("defaultDestination" in accepted) {
+            json.get("defaultDestination")?.asString?.let { name ->
+                try { settingsRepository.setDefaultDestination(UploadDestination.valueOf(name)) } catch (_: Exception) {}
+            }
+        }
+        if ("themeMode" in accepted) {
+            json.get("themeMode")?.asString?.let { name ->
+                try { settingsRepository.setThemeMode(ThemeMode.valueOf(name)) } catch (_: Exception) {}
+            }
+        }
+        if ("fileNamingPattern" in accepted) {
+            json.get("fileNamingPattern")?.asString?.let { settingsRepository.setFileNamingPattern(it) }
+        }
+        if ("uploadFormat" in accepted) {
+            json.get("uploadFormat")?.asString?.let { name ->
+                try { settingsRepository.setUploadFormat(ImageFormat.valueOf(name)) } catch (_: Exception) {}
+            }
+        }
+        if ("stripExif" in accepted) {
+            json.get("stripExif")?.asBoolean?.let { settingsRepository.setStripExif(it) }
+        }
+
+        // Imgur
+        val imgurKeys = accepted.filter { it.startsWith("imgur.") }
+        if (imgurKeys.isNotEmpty()) {
+            json.getAsJsonObject("imgur")?.let { imgur ->
+                val current = settingsRepository.getImgurConfig()
+                settingsRepository.saveImgurConfig(current.copy(
+                    clientId = if ("imgur.clientId" in accepted) imgur.get("clientId")?.asString ?: current.clientId else current.clientId,
+                    clientSecret = if ("imgur.clientSecret" in accepted) imgur.get("clientSecret")?.asString ?: current.clientSecret else current.clientSecret,
+                    useAnonymous = if ("imgur.useAnonymous" in accepted) imgur.get("useAnonymous")?.asBoolean ?: current.useAnonymous else current.useAnonymous
+                ))
+            }
+        }
+
+        // S3
+        val s3Keys = accepted.filter { it.startsWith("s3.") }
+        if (s3Keys.isNotEmpty()) {
+            json.getAsJsonObject("s3")?.let { s3 ->
+                val current = settingsRepository.getS3Config()
+                settingsRepository.saveS3Config(current.copy(
+                    accessKeyId = if ("s3.accessKeyId" in accepted) s3.get("accessKeyId")?.asString ?: current.accessKeyId else current.accessKeyId,
+                    secretAccessKey = if ("s3.secretAccessKey" in accepted) s3.get("secretAccessKey")?.asString ?: current.secretAccessKey else current.secretAccessKey,
+                    region = if ("s3.region" in accepted) s3.get("region")?.asString ?: current.region else current.region,
+                    bucket = if ("s3.bucket" in accepted) s3.get("bucket")?.asString ?: current.bucket else current.bucket,
+                    endpoint = if ("s3.endpoint" in accepted) s3.get("endpoint")?.asString else current.endpoint,
+                    prefix = if ("s3.prefix" in accepted) s3.get("prefix")?.asString ?: current.prefix else current.prefix,
+                    usePathStyle = if ("s3.usePathStyle" in accepted) s3.get("usePathStyle")?.asBoolean ?: current.usePathStyle else current.usePathStyle
+                ))
+            }
+        }
+
+        // FTP
+        val ftpKeys = accepted.filter { it.startsWith("ftp.") }
+        if (ftpKeys.isNotEmpty()) {
+            json.getAsJsonObject("ftp")?.let { ftp ->
+                val current = settingsRepository.getFtpConfig()
+                settingsRepository.saveFtpConfig(current.copy(
+                    host = if ("ftp.host" in accepted) ftp.get("host")?.asString ?: current.host else current.host,
+                    port = if ("ftp.port" in accepted) ftp.get("port")?.asInt ?: current.port else current.port,
+                    username = if ("ftp.username" in accepted) ftp.get("username")?.asString ?: current.username else current.username,
+                    password = if ("ftp.password" in accepted) ftp.get("password")?.asString ?: current.password else current.password,
+                    remotePath = if ("ftp.remotePath" in accepted) ftp.get("remotePath")?.asString ?: current.remotePath else current.remotePath,
+                    httpUrl = if ("ftp.httpUrl" in accepted) ftp.get("httpUrl")?.asString ?: current.httpUrl else current.httpUrl
+                ))
+            }
+        }
+
+        // SFTP
+        val sftpKeys = accepted.filter { it.startsWith("sftp.") }
+        if (sftpKeys.isNotEmpty()) {
+            json.getAsJsonObject("sftp")?.let { sftp ->
+                val current = settingsRepository.getSftpConfig()
+                settingsRepository.saveSftpConfig(current.copy(
+                    host = if ("sftp.host" in accepted) sftp.get("host")?.asString ?: current.host else current.host,
+                    port = if ("sftp.port" in accepted) sftp.get("port")?.asInt ?: current.port else current.port,
+                    username = if ("sftp.username" in accepted) sftp.get("username")?.asString ?: current.username else current.username,
+                    password = if ("sftp.password" in accepted) sftp.get("password")?.asString ?: current.password else current.password,
+                    remotePath = if ("sftp.remotePath" in accepted) sftp.get("remotePath")?.asString ?: current.remotePath else current.remotePath,
+                    httpUrl = if ("sftp.httpUrl" in accepted) sftp.get("httpUrl")?.asString ?: current.httpUrl else current.httpUrl
+                ))
+            }
+        }
+
+        // Custom HTTP
+        val chKeys = accepted.filter { it.startsWith("customHttp.") }
+        if (chKeys.isNotEmpty()) {
+            json.getAsJsonObject("customHttp")?.let { ch ->
+                val current = settingsRepository.getCustomHttpConfig()
+                val headers = mutableMapOf<String, String>()
+                ch.getAsJsonObject("headers")?.entrySet()?.forEach { (k, v) -> headers[k] = v.asString }
+                settingsRepository.saveCustomHttpConfig(current.copy(
+                    url = if ("customHttp.url" in accepted) ch.get("url")?.asString ?: current.url else current.url,
+                    method = if ("customHttp.method" in accepted) ch.get("method")?.asString ?: current.method else current.method,
+                    responseUrlJsonPath = if ("customHttp.responseUrlJsonPath" in accepted) ch.get("responseUrlJsonPath")?.asString ?: current.responseUrlJsonPath else current.responseUrlJsonPath,
+                    formFieldName = if ("customHttp.formFieldName" in accepted) ch.get("formFieldName")?.asString ?: current.formFieldName else current.formFieldName,
+                    headers = if (headers.isNotEmpty()) headers else current.headers
+                ))
+            }
+        }
+    }
+
+    private fun maskSecret(value: String): String {
+        return if (value.length > 4) "${"*".repeat(value.length - 4)}${value.takeLast(4)}" else value
+    }
 }
