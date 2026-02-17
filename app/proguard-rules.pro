@@ -11,6 +11,13 @@
 # Gson
 -keep class com.google.gson.** { *; }
 -keepattributes *Annotation*
+-keepattributes Signature
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+
+# Keep data classes used for Gson deserialization
+-keep class com.xerahs.android.feature.settings.data.GitHubRelease { *; }
+-keep class com.xerahs.android.feature.settings.data.GitHubAsset { *; }
 
 # Room
 -keep class * extends androidx.room.RoomDatabase
