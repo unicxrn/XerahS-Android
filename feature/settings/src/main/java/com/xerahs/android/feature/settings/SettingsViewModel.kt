@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -26,7 +27,7 @@ data class SettingsUiState(
     val fileNamingPattern: String = "{original}",
     val dynamicColor: Boolean = false,
     val colorTheme: ColorTheme = ColorTheme.VIOLET,
-    val oledBlack: Boolean = false,
+    val oledBlack: Boolean = true,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
     val autoCopyUrl: Boolean = false,
@@ -131,12 +132,15 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
-                settingsRepository.getCustomThemeId().collect { id ->
-                    val seed = if (id != null) {
-                        settingsRepository.getCustomTheme(id)?.seedColor
-                    } else {
-                        null
-                    }
+                // Combine the selected id with the themes table so the selected-swatch
+                // indicator updates when the reusable accent entity's seed changes (same id).
+                combine(
+                    settingsRepository.getCustomThemeId(),
+                    settingsRepository.getAllCustomThemes()
+                ) { id, themes ->
+                    val seed = if (id != null) themes.firstOrNull { it.id == id }?.seedColor else null
+                    id to seed
+                }.collect { (id, seed) ->
                     _uiState.value = _uiState.value.copy(
                         customThemeId = id,
                         currentAccentSeed = seed

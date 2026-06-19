@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -34,7 +34,7 @@ class MainViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ColorTheme.VIOLET)
 
     val oledBlack: StateFlow<Boolean> = settingsRepository.getOledBlack()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val biometricLockMode: StateFlow<String> = settingsRepository.getBiometricLockMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "OFF")
@@ -55,14 +55,16 @@ class MainViewModel @Inject constructor(
                 config.secretAccessKey.isNotEmpty() &&
                 config.bucket.isNotEmpty()
         }
+        // Derive the active accent seed from both the selected id AND the themes table, so
+        // that changing the seed of the reusable accent entity (same id) still re-emits.
         viewModelScope.launch {
-            settingsRepository.getCustomThemeId().collectLatest { themeId ->
-                if (themeId != null) {
-                    val theme = settingsRepository.getCustomTheme(themeId)
-                    _customThemeSeedColor.value = theme?.seedColor
-                } else {
-                    _customThemeSeedColor.value = null
-                }
+            combine(
+                settingsRepository.getCustomThemeId(),
+                settingsRepository.getAllCustomThemes()
+            ) { themeId, themes ->
+                if (themeId != null) themes.firstOrNull { it.id == themeId }?.seedColor else null
+            }.collect { seed ->
+                _customThemeSeedColor.value = seed
             }
         }
     }

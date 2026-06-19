@@ -126,7 +126,9 @@ class SettingsDataStore @Inject constructor(
     }
 
     fun getOledBlack(): Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[Keys.OLED_BLACK] ?: false
+        // Default on so a fresh install matches the pure-black brand look. Users can
+        // turn it off for a softer dim dark theme.
+        prefs[Keys.OLED_BLACK] ?: true
     }
 
     suspend fun setOledBlack(enabled: Boolean) {

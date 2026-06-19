@@ -18,7 +18,6 @@ fun XerahSTheme(
     oledBlack: Boolean = false,
     customThemeSeedColor: Int? = null,
     accentSeed: Int = SIGNAL_LIME,
-    trueBlack: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -27,13 +26,16 @@ fun XerahSTheme(
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
 
+    // Dynamic color (Material You) wins when enabled, even if a custom accent is stored.
+    // Otherwise use the custom accent if set, else the default accent. The True black
+    // toggle (oledBlack) controls whether dark surfaces are pure black or a soft dim.
     val colorScheme = when {
-        customThemeSeedColor != null -> colorSchemeForAccent(customThemeSeedColor, darkTheme, trueBlack)
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        else -> colorSchemeForAccent(accentSeed, darkTheme, trueBlack)
+        customThemeSeedColor != null -> colorSchemeForAccent(customThemeSeedColor, darkTheme, oledBlack)
+        else -> colorSchemeForAccent(accentSeed, darkTheme, oledBlack)
     }
 
     MaterialTheme(
