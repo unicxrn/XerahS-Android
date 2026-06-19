@@ -54,9 +54,14 @@ import java.io.FileOutputStream
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+    }
+
     private val mainViewModel: MainViewModel by viewModels()
     private var pendingSharedImagePath by mutableStateOf<String?>(null)
     private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
+    private var pendingLaunchCapture by mutableStateOf(false)
     private var isUnlocked by mutableStateOf(false)
     private var lastBackgroundTime: Long = 0L
 
@@ -127,7 +132,9 @@ class MainActivity : FragmentActivity() {
                             onSharedImageHandled = {
                                 pendingSharedImagePath = null
                                 pendingSharedImagePaths = null
-                            }
+                            },
+                            launchCapture = pendingLaunchCapture,
+                            onLaunchCaptureHandled = { pendingLaunchCapture = false }
                         )
                     }
                 }
@@ -191,6 +198,8 @@ class MainActivity : FragmentActivity() {
                 pendingSharedImagePaths = paths
                 pendingSharedImagePath = null
             }
+        } else if (intent.action == ACTION_CAPTURE) {
+            pendingLaunchCapture = true
         }
     }
 
@@ -215,7 +224,9 @@ class MainActivity : FragmentActivity() {
 fun MainScreen(
     sharedImagePath: String? = null,
     sharedImagePaths: List<String>? = null,
-    onSharedImageHandled: () -> Unit = {}
+    onSharedImageHandled: () -> Unit = {},
+    launchCapture: Boolean = false,
+    onLaunchCaptureHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
@@ -232,6 +243,13 @@ fun MainScreen(
         if (sharedImagePaths != null && sharedImagePaths.isNotEmpty()) {
             navController.navigate(Screen.UploadBatch.createRoute(sharedImagePaths))
             onSharedImageHandled()
+        }
+    }
+
+    LaunchedEffect(launchCapture) {
+        if (launchCapture) {
+            navController.navigate(Screen.Capture.route)
+            onLaunchCaptureHandled()
         }
     }
 
