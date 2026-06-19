@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_share"
+        android:enabled="true"
+        android:icon="@drawable/ic_tile_capture"
+        android:shortcutShortLabel="@string/shortcut_new_share_short"
+        android:shortcutLongLabel="@string/shortcut_new_share_long">
+        <intent
+            android:action="com.xerahs.android.action.CAPTURE"
+            android:targetPackage="com.xerahs.android"
+            android:targetClass="com.xerahs.android.ui.MainActivity" />
+    </shortcut>
+</shortcuts>
