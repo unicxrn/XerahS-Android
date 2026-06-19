@@ -212,7 +212,8 @@ fun XerahSNavGraph(
                 },
                 onMultiImageCaptured = { imagePaths ->
                     navController.navigate(Screen.UploadBatch.createRoute(imagePaths))
-                }
+                },
+                onCancel = { navController.popBackStack() }
             )
         }
 
