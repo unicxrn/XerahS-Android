@@ -25,4 +25,7 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+    implementation(libs.zxing.core)
+    implementation(libs.gson)
+    testImplementation(libs.junit)
 }

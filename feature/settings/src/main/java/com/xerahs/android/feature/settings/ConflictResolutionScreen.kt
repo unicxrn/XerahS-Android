@@ -229,7 +229,7 @@ private fun ConflictFieldCard(
                     )
                 }
             } else {
-                // No conflict — values match, will be imported
+                // No conflict - values match, will be imported
                 Text(
                     text = field.currentValue.ifBlank { "(empty)" },
                     style = MaterialTheme.typography.bodySmall,

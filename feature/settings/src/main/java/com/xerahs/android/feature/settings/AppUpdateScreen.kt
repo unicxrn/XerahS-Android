@@ -288,7 +288,7 @@ private fun MarkdownBody(markdown: String) {
             val trimmed = line.trim()
 
             when {
-                // Blank line — small spacer
+                // Blank line - small spacer
                 trimmed.isEmpty() -> {
                     Spacer(modifier = Modifier.height(4.dp))
                 }

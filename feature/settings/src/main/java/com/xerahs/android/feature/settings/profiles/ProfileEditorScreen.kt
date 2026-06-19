@@ -1,5 +1,7 @@
 package com.xerahs.android.feature.settings.profiles
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,17 +9,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,10 +40,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+
+// Destination data-dot color reused from management screen logic
+private fun destDotColor(dest: UploadDestination): Color = when (dest) {
+    UploadDestination.IMGUR -> Color(0xFF1BB76E)
+    UploadDestination.S3 -> Color(0xFFFF9900)
+    UploadDestination.FTP -> Color(0xFF2E86DE)
+    UploadDestination.SFTP -> Color(0xFF6B7C93)
+    UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
+    UploadDestination.LOCAL -> Color(0xFF8E8E93)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,16 +71,12 @@ fun ProfileEditorScreen(
                 title = { Text(if (state.isEditing) "Edit Profile" else "New Profile") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Navigate back"
+                        )
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { viewModel.saveProfile(onComplete = onBack) },
-                icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                text = { Text("Save") }
             )
         }
     ) { innerPadding ->
@@ -72,9 +85,9 @@ fun ProfileEditorScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // Profile name
+            // --- Profile Name ---
             OutlinedTextField(
                 value = state.name,
                 onValueChange = { viewModel.updateEditorName(it) },
@@ -83,9 +96,9 @@ fun ProfileEditorScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Destination picker
+            // --- Destination picker ---
             var destExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = destExpanded,
@@ -97,7 +110,17 @@ fun ProfileEditorScreen(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Destination") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = destExpanded) },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(destDotColor(state.destination))
+                        )
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = destExpanded)
+                    },
                     modifier = Modifier
                         .menuAnchor()
                         .fillMaxWidth(),
@@ -109,7 +132,18 @@ fun ProfileEditorScreen(
                 ) {
                     UploadDestination.entries.filter { it != UploadDestination.LOCAL }.forEach { dest ->
                         DropdownMenuItem(
-                            text = { Text(dest.displayName) },
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(destDotColor(dest))
+                                    )
+                                    Spacer(modifier = Modifier.size(8.dp))
+                                    Text(dest.displayName)
+                                }
+                            },
                             onClick = {
                                 viewModel.updateEditorDestination(dest)
                                 destExpanded = false
@@ -119,17 +153,23 @@ fun ProfileEditorScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Default toggle
+            // --- Set as Default ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Set as Default", style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Use this profile by default for ${state.destination.displayName}",
+                        text = "Set as Default",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Use this profile by default for ${state.destination.displayName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -140,18 +180,18 @@ fun ProfileEditorScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(16.dp))
 
+            // --- Section label ---
             Text(
                 text = "${state.destination.displayName} Configuration",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Destination-specific config fields
+            // --- Destination-specific fields ---
             when (state.destination) {
                 UploadDestination.IMGUR -> ImgurFields(state, viewModel)
                 UploadDestination.S3 -> S3Fields(state, viewModel)
@@ -161,7 +201,32 @@ fun ProfileEditorScreen(
                 UploadDestination.LOCAL -> {}
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- Save button (primary, full-width) ---
+            Button(
+                onClick = { viewModel.saveProfile(onComplete = onBack) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(
+                    Icons.Default.Save,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = "Save Profile",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -169,10 +234,17 @@ fun ProfileEditorScreen(
 @Composable
 private fun ImgurFields(state: ProfileEditorUiState, viewModel: ProfileManagementViewModel) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Anonymous Upload", modifier = Modifier.weight(1f))
+        Text(
+            text = "Anonymous Upload",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
         Switch(
             checked = state.imgurUseAnonymous,
             onCheckedChange = { viewModel.updateImgurUseAnonymous(it) }
@@ -265,10 +337,17 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
     )
     Spacer(modifier = Modifier.height(8.dp))
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Path-style access", modifier = Modifier.weight(1f))
+        Text(
+            text = "Path-style access",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
         Switch(
             checked = state.s3UsePathStyle,
             onCheckedChange = { viewModel.updateS3UsePathStyle(it) }
@@ -329,20 +408,34 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
     )
     Spacer(modifier = Modifier.height(8.dp))
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Use FTPS", modifier = Modifier.weight(1f))
+        Text(
+            text = "Use FTPS",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
         Switch(
             checked = state.ftpUseFtps,
             onCheckedChange = { viewModel.updateFtpUseFtps(it) }
         )
     }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Passive Mode", modifier = Modifier.weight(1f))
+        Text(
+            text = "Passive Mode",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
         Switch(
             checked = state.ftpUsePassive,
             onCheckedChange = { viewModel.updateFtpUsePassive(it) }

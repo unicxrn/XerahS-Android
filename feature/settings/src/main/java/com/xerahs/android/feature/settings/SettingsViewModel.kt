@@ -24,7 +24,7 @@ data class SettingsUiState(
     val overlayEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fileNamingPattern: String = "{original}",
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val colorTheme: ColorTheme = ColorTheme.VIOLET,
     val oledBlack: Boolean = false,
     val imageQuality: Int = 85,
@@ -38,6 +38,7 @@ data class SettingsUiState(
     val exportImportMessage: String? = null,
     val customThemeId: String? = null,
     val customThemes: List<CustomTheme> = emptyList(),
+    val currentAccentSeed: Int? = null,
     val importPreview: ImportPreview? = null,
     val pendingImportJson: String? = null
 )
@@ -131,7 +132,15 @@ class SettingsViewModel @Inject constructor(
             }
             launch {
                 settingsRepository.getCustomThemeId().collect { id ->
-                    _uiState.value = _uiState.value.copy(customThemeId = id)
+                    val seed = if (id != null) {
+                        settingsRepository.getCustomTheme(id)?.seedColor
+                    } else {
+                        null
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        customThemeId = id,
+                        currentAccentSeed = seed
+                    )
                 }
             }
             launch {
@@ -253,6 +262,29 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Sets the active accent seed color (ARGB) and applies it live across the app.
+     *
+     * The contrast-safe color engine (Phase 1) derives a legible scheme from any seed.
+     * The seed is persisted as a single reusable [CustomTheme] entity (stable id), which
+     * [com.xerahs.android.ui.MainViewModel.customThemeSeedColor] resolves and feeds into the theme.
+     */
+    fun setAccentSeed(argb: Int) {
+        viewModelScope.launch {
+            settingsRepository.setDynamicColor(false)
+            settingsRepository.saveCustomTheme(
+                CustomTheme(id = ACCENT_THEME_ID, name = "Accent", seedColor = argb)
+            )
+            settingsRepository.setCustomThemeId(ACCENT_THEME_ID)
+        }
+    }
+
+    fun clearAccentSeed() {
+        viewModelScope.launch {
+            settingsRepository.setCustomThemeId(null)
+        }
+    }
+
     fun saveCustomTheme(theme: CustomTheme) {
         viewModelScope.launch {
             settingsRepository.saveCustomTheme(theme)
@@ -345,5 +377,10 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(exportImportMessage = null)
+    }
+
+    companion object {
+        /** Stable id for the single reusable "active accent" custom theme entity. */
+        const val ACCENT_THEME_ID = "__active_accent__"
     }
 }

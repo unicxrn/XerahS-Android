@@ -28,7 +28,7 @@ class MainViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val dynamicColor: StateFlow<Boolean> = settingsRepository.getDynamicColor()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val colorTheme: StateFlow<ColorTheme> = settingsRepository.getColorTheme()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ColorTheme.VIOLET)
@@ -45,7 +45,16 @@ class MainViewModel @Inject constructor(
     private val _customThemeSeedColor = MutableStateFlow<Int?>(null)
     val customThemeSeedColor: StateFlow<Int?> = _customThemeSeedColor.asStateFlow()
 
+    private val _s3Configured = MutableStateFlow(false)
+    val s3Configured: StateFlow<Boolean> = _s3Configured.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            val config = settingsRepository.getS3Config()
+            _s3Configured.value = config.accessKeyId.isNotEmpty() &&
+                config.secretAccessKey.isNotEmpty() &&
+                config.bucket.isNotEmpty()
+        }
         viewModelScope.launch {
             settingsRepository.getCustomThemeId().collectLatest { themeId ->
                 if (themeId != null) {

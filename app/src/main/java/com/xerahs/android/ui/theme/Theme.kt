@@ -13,10 +13,12 @@ import com.xerahs.android.core.domain.model.ThemeMode
 @Composable
 fun XerahSTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     colorTheme: ColorTheme = ColorTheme.VIOLET,
     oledBlack: Boolean = false,
     customThemeSeedColor: Int? = null,
+    accentSeed: Int = SIGNAL_LIME,
+    trueBlack: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -26,25 +28,12 @@ fun XerahSTheme(
     }
 
     val colorScheme = when {
-        customThemeSeedColor != null -> {
-            generateColorSchemeFromSeed(customThemeSeedColor, darkTheme, oledBlack)
-        }
+        customThemeSeedColor != null -> colorSchemeForAccent(customThemeSeedColor, darkTheme, trueBlack)
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-            if (oledBlack && darkTheme) {
-                scheme.copy(
-                    background = androidx.compose.ui.graphics.Color.Black,
-                    surface = androidx.compose.ui.graphics.Color.Black,
-                    surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF050505),
-                    surfaceContainer = androidx.compose.ui.graphics.Color(0xFF0A0A0A),
-                    surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF121212),
-                )
-            } else {
-                scheme
-            }
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        else -> colorSchemeForTheme(colorTheme, darkTheme, oledBlack)
+        else -> colorSchemeForAccent(accentSeed, darkTheme, trueBlack)
     }
 
     MaterialTheme(

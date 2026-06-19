@@ -1,11 +1,8 @@
 package com.xerahs.android.ui.onboarding
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,371 +10,281 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Http
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.width
 import com.xerahs.android.core.domain.model.UploadDestination
-import kotlinx.coroutines.launch
-
-private data class OnboardingPage(
-    val icon: ImageVector,
-    val title: String,
-    val description: String
-)
-
-private val pages = listOf(
-    OnboardingPage(
-        icon = Icons.Default.PhotoLibrary,
-        title = "Browse & Pick Images",
-        description = "Select images from your gallery to annotate and share."
-    ),
-    OnboardingPage(
-        icon = Icons.Default.Edit,
-        title = "Annotate",
-        description = "Draw, add text, arrows, and blur sensitive areas."
-    ),
-    OnboardingPage(
-        icon = Icons.Default.CloudUpload,
-        title = "Upload & Share",
-        description = "Upload to S3, Imgur, FTP, or SFTP and share the link instantly."
-    ),
-    OnboardingPage(
-        icon = Icons.Default.Settings,
-        title = "Set Up Your Destination",
-        description = "Choose where your images are uploaded by default. You can change this later in Settings."
-    )
-)
 
 private data class DestinationOption(
-    val name: String,
+    val label: String,
+    val subtitle: String,
     val icon: ImageVector,
-    val key: String
+    val destination: UploadDestination
 )
 
 private val destinationOptions = listOf(
-    DestinationOption("Imgur", Icons.Default.Public, "IMGUR"),
-    DestinationOption("S3 / R2", Icons.Default.Storage, "S3"),
-    DestinationOption("FTP / SFTP", Icons.Default.Save, "FTP"),
-    DestinationOption("Custom HTTP", Icons.Default.Http, "CUSTOM_HTTP"),
+    DestinationOption(
+        label = "Imgur",
+        subtitle = "Quick, anonymous image hosting",
+        icon = Icons.Default.Image,
+        destination = UploadDestination.IMGUR
+    ),
+    DestinationOption(
+        label = "S3 / R2",
+        subtitle = "Your own object storage bucket",
+        icon = Icons.Default.Storage,
+        destination = UploadDestination.S3
+    ),
+    DestinationOption(
+        label = "FTP / SFTP",
+        subtitle = "Upload to your own server",
+        icon = Icons.Default.Dns,
+        destination = UploadDestination.FTP
+    ),
+    DestinationOption(
+        label = "Custom HTTP",
+        subtitle = "Any custom upload endpoint",
+        icon = Icons.Default.Code,
+        destination = UploadDestination.CUSTOM_HTTP
+    ),
+    DestinationOption(
+        label = "Local",
+        subtitle = "Save to this device only",
+        icon = Icons.Default.Folder,
+        destination = UploadDestination.LOCAL
+    ),
 )
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
     onComplete: () -> Unit,
     onSelectDestination: (UploadDestination) -> Unit = {}
 ) {
-    val pagerState = rememberPagerState(pageCount = { pages.size })
-    val scope = rememberCoroutineScope()
+    var selected by remember { mutableStateOf(UploadDestination.IMGUR) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
     ) {
-        // Progress indicator at top
-        LinearProgressIndicator(
-            progress = { (pagerState.currentPage + 1).toFloat() / pages.size },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp)),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
-
-        // Skip button
+        // Subtle Skip at the top
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             contentAlignment = Alignment.CenterEnd
         ) {
-            TextButton(onClick = onComplete) {
-                Text("Skip")
+            TextButton(
+                onClick = onComplete,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text(
+                    text = "Skip",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        // Pages
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.weight(1f)
-        ) { page ->
-            if (page == pages.size - 1) {
-                DestinationSetupPage(
-                    page = pages[page],
-                    onSelectDestination = { dest ->
-                        onSelectDestination(dest)
-                        onComplete()
+        // Scrollable content area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Wordmark
+            Text(
+                text = "XerahS",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Value proposition
+            Text(
+                text = "Turn any image into a shareable link in seconds.",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 360.dp)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Destination chooser heading
+            Text(
+                text = "Where should your images go?",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+
+            destinationOptions.forEach { option ->
+                DestinationRow(
+                    option = option,
+                    isSelected = selected == option.destination,
+                    onClick = {
+                        selected = option.destination
+                        onSelectDestination(option.destination)
                     }
                 )
-            } else {
-                OnboardingPageContent(pages[page])
+                Spacer(modifier = Modifier.height(10.dp))
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Animated dot indicators
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            repeat(pages.size) { index ->
-                val isSelected = pagerState.currentPage == index
-
-                val width by animateDpAsState(
-                    targetValue = if (isSelected) 24.dp else 8.dp,
-                    label = "indicator-width"
-                )
-
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp)
-                        .size(width = width, height = 8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            if (isSelected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                )
-            }
-        }
-
-        // Bottom button
+        // Thumb-zone primary action
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 24.dp),
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp, vertical = 20.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (pagerState.currentPage == pages.size - 1) {
-                Button(
-                    onClick = onComplete,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text("Get Started")
-                }
-            } else {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text("Next")
-                }
+            Button(
+                onClick = {
+                    onSelectDestination(selected)
+                    onComplete()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(
+                    text = "Get started",
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
         }
     }
 }
 
 @Composable
-private fun OnboardingPageContent(page: OnboardingPage) {
-    // Entrance animations
-    val iconScale = remember { Animatable(0f) }
-    val titleAlpha = remember { Animatable(0f) }
-    val titleOffsetY = remember { Animatable(20f) }
-    val descAlpha = remember { Animatable(0f) }
-    val descOffsetY = remember { Animatable(20f) }
-
-    LaunchedEffect(Unit) {
-        // Icon scale-in with spring
-        launch {
-            iconScale.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 300f))
-        }
-        // Title fade-up with slight delay
-        launch {
-            kotlinx.coroutines.delay(150)
-            launch { titleAlpha.animateTo(1f, tween(400)) }
-            launch { titleOffsetY.animateTo(0f, tween(400)) }
-        }
-        // Description fade-up with more delay
-        launch {
-            kotlinx.coroutines.delay(300)
-            launch { descAlpha.animateTo(1f, tween(400)) }
-            launch { descOffsetY.animateTo(0f, tween(400)) }
-        }
+private fun DestinationRow(
+    option: DestinationOption,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val borderColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.surface
     }
 
-    Column(
+    Row(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(containerColor)
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon circle with scale-in
         Surface(
-            modifier = Modifier
-                .size(160.dp)
-                .scale(iconScale.value),
+            modifier = Modifier.size(40.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = page.icon,
-                    contentDescription = page.title,
-                    modifier = Modifier.size(72.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    imageVector = option.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
-
-        // Title with fade-up
-        Text(
-            text = page.title,
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface,
+        Column(
             modifier = Modifier
-                .graphicsLayer { alpha = titleAlpha.value }
-                .offset { IntOffset(0, titleOffsetY.value.dp.roundToPx()) }
-        )
+                .weight(1f)
+                .padding(start = 16.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = option.label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = option.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Description with fade-up
-        Text(
-            text = page.description,
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .graphicsLayer { alpha = descAlpha.value }
-                .offset { IntOffset(0, descOffsetY.value.dp.roundToPx()) }
-        )
-    }
-}
-
-@Composable
-private fun DestinationSetupPage(
-    page: OnboardingPage,
-    onSelectDestination: (UploadDestination) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = page.icon,
-            contentDescription = page.title,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = page.title,
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = page.description,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        destinationOptions.forEach { option ->
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        val dest = try {
-                            UploadDestination.valueOf(option.key)
-                        } catch (_: IllegalArgumentException) {
-                            UploadDestination.IMGUR
-                        }
-                        onSelectDestination(dest)
-                    },
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = option.icon,
-                        contentDescription = option.name,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = option.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                }
-            }
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

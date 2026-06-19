@@ -27,9 +27,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.filled.HighlightAlt
+import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.Rectangle
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -98,7 +103,7 @@ fun AnnotationToolbar(
             .fillMaxWidth()
             .padding(8.dp)
     ) {
-        // Tool selector row — scrollable to fit 6 tools + undo/redo/clear
+        // Tool selector row - scrollable to fit 6 tools + undo/redo/clear
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -112,6 +117,11 @@ fun AnnotationToolbar(
                 Triple(Icons.Default.TextFields, "Text", AnnotationTool.TEXT),
                 Triple(Icons.Default.BlurOn, "Blur", AnnotationTool.BLUR),
                 Triple(Icons.Default.FormatListNumbered, "Steps", AnnotationTool.NUMBERED_STEP),
+                Triple(Icons.Default.HorizontalRule, "Line", AnnotationTool.LINE),
+                Triple(Icons.Default.Highlight, "Mark", AnnotationTool.HIGHLIGHT),
+                Triple(Icons.Default.GridOn, "Pixel", AnnotationTool.PIXELATE),
+                Triple(Icons.Default.HighlightAlt, "Spot", AnnotationTool.SPOTLIGHT),
+                Triple(Icons.Default.ZoomIn, "Zoom", AnnotationTool.MAGNIFY),
             )
 
             items(tools) { (icon, label, tool) ->
@@ -158,7 +168,7 @@ fun AnnotationToolbar(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Color picker row — theme-derived palette
+        // Color picker row - theme-derived palette
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -221,7 +231,7 @@ fun AnnotationToolbar(
             )
         }
 
-        // Blur radius slider — only visible when BLUR tool selected
+        // Blur radius slider - only visible when BLUR tool selected
         AnimatedVisibility(visible = selectedTool == AnnotationTool.BLUR) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -241,7 +251,7 @@ fun AnnotationToolbar(
             }
         }
 
-        // Fill toggle — visible when RECTANGLE or CIRCLE tool selected
+        // Fill toggle - visible when RECTANGLE or CIRCLE tool selected
         AnimatedVisibility(visible = selectedTool == AnnotationTool.RECTANGLE || selectedTool == AnnotationTool.CIRCLE) {
             Row(
                 modifier = Modifier
@@ -265,7 +275,7 @@ fun AnnotationToolbar(
             }
         }
 
-        // Text background toggle — only visible when TEXT tool selected
+        // Text background toggle - only visible when TEXT tool selected
         AnimatedVisibility(visible = selectedTool == AnnotationTool.TEXT) {
             Column {
                 Row(
@@ -299,7 +309,7 @@ fun AnnotationToolbar(
             }
         }
 
-        // Opacity slider — visible for all tools except blur
+        // Opacity slider - visible for all tools except blur
         AnimatedVisibility(visible = selectedTool != AnnotationTool.BLUR) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

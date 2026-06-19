@@ -48,4 +48,8 @@ dependencies {
 
     implementation(libs.commons.net)
     implementation(libs.jsch)
+
+    implementation(libs.mlkit.text)
+
+    testImplementation(libs.junit)
 }

@@ -101,7 +101,7 @@ class SettingsDataStore @Inject constructor(
     }
 
     fun getDynamicColor(): Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[Keys.DYNAMIC_COLOR] ?: true
+        prefs[Keys.DYNAMIC_COLOR] ?: false
     }
 
     suspend fun setDynamicColor(enabled: Boolean) {

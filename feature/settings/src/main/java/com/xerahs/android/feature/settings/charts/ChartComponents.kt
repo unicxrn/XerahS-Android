@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,6 +22,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -34,7 +37,7 @@ fun HorizontalBarChart(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         data.forEachIndexed { index, (label, value) ->
             val fraction = value.toFloat() / maxValue
@@ -44,32 +47,43 @@ fun HorizontalBarChart(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Destination data-dot
+                Surface(
+                    modifier = Modifier.size(8.dp),
+                    shape = CircleShape,
+                    color = color
+                ) {}
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(72.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.width(68.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
+                // Bar track
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .height(20.dp),
-                    shape = RoundedCornerShape(4.dp),
+                        .height(16.dp),
+                    shape = RoundedCornerShape(3.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth(fraction.coerceIn(0.02f, 1f))
-                            .height(20.dp),
-                        shape = RoundedCornerShape(4.dp),
-                        color = color
+                            .height(16.dp),
+                        shape = RoundedCornerShape(3.dp),
+                        color = color.copy(alpha = 0.85f)
                     ) {}
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = value.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(40.dp),
+                    text = value.toInt().toString(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    modifier = Modifier.width(32.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

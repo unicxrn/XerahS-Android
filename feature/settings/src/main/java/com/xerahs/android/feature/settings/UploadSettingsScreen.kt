@@ -92,7 +92,7 @@ fun UploadSettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Destinations section — pick default + configure each service
+            // Destinations section - pick default + configure each service
             SectionHeader("Destinations")
 
             SettingsGroupCard {
@@ -249,7 +249,7 @@ fun UploadSettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Image Processing section — quality and resize settings
+            // Image Processing section - quality and resize settings
             SectionHeader("Image Processing")
 
             SettingsGroupCard {
@@ -356,7 +356,7 @@ fun UploadSettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Behavior section — naming, clipboard, and other general settings
+            // Behavior section - naming, clipboard, and other general settings
             SectionHeader("Behavior")
 
             SettingsGroupCard {
