@@ -3,16 +3,19 @@ package com.xerahs.android.feature.annotation
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.domain.model.Annotation
+import com.xerahs.android.core.domain.repository.OcrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class AnnotationTool {
-    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND, NUMBERED_STEP
+    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND, NUMBERED_STEP, LINE, HIGHLIGHT, PIXELATE, SPOTLIGHT, MAGNIFY
 }
 
 data class AnnotationUiState(
@@ -22,6 +25,7 @@ data class AnnotationUiState(
     val strokeWidth: Float = 4f,
     val fontSize: Float = 24f,
     val blurRadius: Float = 25f,
+    val magnifyZoom: Float = 2f,
     val opacity: Float = 1f,
     val undoStack: List<List<Annotation>> = emptyList(),
     val redoStack: List<List<Annotation>> = emptyList(),
@@ -33,11 +37,16 @@ data class AnnotationUiState(
     val isCropMode: Boolean = false,
     val fillEnabled: Boolean = false,
     val fillColor: Int? = null,
-    val editingAnnotationId: String? = null
+    val editingAnnotationId: String? = null,
+    val ocrText: String? = null,
+    val isRecognizing: Boolean = false,
+    val ocrError: String? = null
 )
 
 @HiltViewModel
-class AnnotationViewModel @Inject constructor() : ViewModel() {
+class AnnotationViewModel @Inject constructor(
+    private val ocrRepository: OcrRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnnotationUiState())
     val uiState: StateFlow<AnnotationUiState> = _uiState.asStateFlow()
@@ -60,6 +69,10 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
 
     fun setBlurRadius(radius: Float) {
         _uiState.value = _uiState.value.copy(blurRadius = radius)
+    }
+
+    fun setMagnifyZoom(zoom: Float) {
+        _uiState.value = _uiState.value.copy(magnifyZoom = zoom)
     }
 
     fun setOpacity(opacity: Float) {
@@ -146,6 +159,53 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
             AnnotationTool.NUMBERED_STEP -> {
                 // NumberedStep uses addNumberedStep instead
                 return
+            }
+            AnnotationTool.LINE -> Annotation.Line(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                strokeColor = state.strokeColor,
+                strokeWidth = state.strokeWidth,
+                opacity = state.opacity,
+                startX = startX, startY = startY,
+                endX = endX, endY = endY
+            )
+            AnnotationTool.HIGHLIGHT -> Annotation.Highlight(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                strokeColor = state.strokeColor,
+                opacity = state.opacity,
+                startX = startX, startY = startY,
+                endX = endX, endY = endY
+            )
+            AnnotationTool.PIXELATE -> Annotation.Pixelate(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                opacity = state.opacity,
+                startX = startX, startY = startY,
+                endX = endX, endY = endY
+            )
+            AnnotationTool.SPOTLIGHT -> Annotation.Spotlight(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                opacity = state.opacity,
+                startX = startX, startY = startY,
+                endX = endX, endY = endY
+            )
+            AnnotationTool.MAGNIFY -> {
+                val dx = endX - startX
+                val dy = endY - startY
+                val radius = kotlin.math.sqrt(dx * dx + dy * dy)
+                Annotation.Magnify(
+                    id = generateId(),
+                    zIndex = state.annotations.size,
+                    strokeColor = state.strokeColor,
+                    strokeWidth = state.strokeWidth,
+                    opacity = state.opacity,
+                    centerX = startX,
+                    centerY = startY,
+                    radius = radius,
+                    zoom = state.magnifyZoom
+                )
             }
         }
 
@@ -308,6 +368,20 @@ class AnnotationViewModel @Inject constructor() : ViewModel() {
 
     fun setExporting(exporting: Boolean) {
         _uiState.value = _uiState.value.copy(isExporting = exporting)
+    }
+
+    fun recognizeText(imagePath: String) {
+        _uiState.value = _uiState.value.copy(isRecognizing = true, ocrError = null)
+        viewModelScope.launch {
+            ocrRepository.recognizeText(imagePath).fold(
+                onSuccess = { text -> _uiState.value = _uiState.value.copy(ocrText = text, isRecognizing = false) },
+                onFailure = { _uiState.value = _uiState.value.copy(ocrError = "Couldn't read text", isRecognizing = false) },
+            )
+        }
+    }
+
+    fun dismissOcr() {
+        _uiState.value = _uiState.value.copy(ocrText = null, ocrError = null)
     }
 
     private fun pushUndo() {

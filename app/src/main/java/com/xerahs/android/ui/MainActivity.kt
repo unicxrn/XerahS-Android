@@ -16,15 +16,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,12 +33,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.ui.navigation.Screen
 import com.xerahs.android.ui.navigation.XerahSNavGraph
 import com.xerahs.android.ui.onboarding.OnboardingScreen
@@ -57,9 +54,14 @@ import java.io.FileOutputStream
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+    }
+
     private val mainViewModel: MainViewModel by viewModels()
     private var pendingSharedImagePath by mutableStateOf<String?>(null)
     private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
+    private var pendingLaunchCapture by mutableStateOf(false)
     private var isUnlocked by mutableStateOf(false)
     private var lastBackgroundTime: Long = 0L
 
@@ -130,7 +132,9 @@ class MainActivity : FragmentActivity() {
                             onSharedImageHandled = {
                                 pendingSharedImagePath = null
                                 pendingSharedImagePaths = null
-                            }
+                            },
+                            launchCapture = pendingLaunchCapture,
+                            onLaunchCaptureHandled = { pendingLaunchCapture = false }
                         )
                     }
                 }
@@ -194,6 +198,8 @@ class MainActivity : FragmentActivity() {
                 pendingSharedImagePaths = paths
                 pendingSharedImagePath = null
             }
+        } else if (intent.action == ACTION_CAPTURE) {
+            pendingLaunchCapture = true
         }
     }
 
@@ -214,26 +220,17 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-data class BottomNavItem(
-    val label: String,
-    val icon: ImageVector,
-    val route: String
-)
-
 @Composable
 fun MainScreen(
     sharedImagePath: String? = null,
     sharedImagePaths: List<String>? = null,
-    onSharedImageHandled: () -> Unit = {}
+    onSharedImageHandled: () -> Unit = {},
+    launchCapture: Boolean = false,
+    onLaunchCaptureHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
-
-    val bottomNavItems = listOf(
-        BottomNavItem("Browse", Icons.Default.PhotoLibrary, Screen.Capture.route),
-        BottomNavItem("History", Icons.Default.History, Screen.History.route),
-        BottomNavItem("Explorer", Icons.Default.CloudQueue, Screen.S3Explorer.route),
-        BottomNavItem("Settings", Icons.Default.Settings, Screen.Settings.route)
-    )
+    val mainViewModel: MainViewModel = hiltViewModel()
+    val s3Configured by mainViewModel.s3Configured.collectAsStateWithLifecycle()
 
     LaunchedEffect(sharedImagePath) {
         if (sharedImagePath != null) {
@@ -249,57 +246,91 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(launchCapture) {
+        if (launchCapture) {
+            navController.navigate(Screen.Capture.route)
+            onLaunchCaptureHandled()
+        }
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    val showBottomBar = currentDestination?.route in listOf(
-        Screen.Capture.route,
-        Screen.History.route,
-        Screen.S3Explorer.route,
-        Screen.Settings.route
+    val currentRoute = currentDestination?.route
+    val showBottomBar = currentRoute in listOf(
+        Screen.Home.route,
+        Screen.S3Explorer.route
     )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { item ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
-                        NavigationBarItem(
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = {
-                                Text(
-                                    text = item.label,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            selected = selected,
+                BottomAppBar(
+                    actions = {
+                        val homeSelected = currentRoute == Screen.Home.route
+                        IconButton(
                             onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                if (!homeSelected) {
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(Screen.Home.route) { inclusive = false }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = "Home",
+                                tint = if (homeSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                             )
-                        )
+                        }
+                        if (s3Configured) {
+                            val cloudSelected = currentRoute == Screen.S3Explorer.route
+                            IconButton(
+                                onClick = {
+                                    if (!cloudSelected) {
+                                        navController.navigate(Screen.S3Explorer.route) {
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.CloudQueue,
+                                    contentDescription = "Cloud",
+                                    tint = if (cloudSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        }
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = { navController.navigate(Screen.Capture.route) },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Create")
+                        }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
         XerahSNavGraph(
             navController = navController,
-            startDestination = Screen.Capture.route
+            startDestination = Screen.Home.route,
+            modifier = Modifier.padding(innerPadding)
         )
     }
 }

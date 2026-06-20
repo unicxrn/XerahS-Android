@@ -22,8 +22,13 @@ import com.xerahs.android.feature.annotation.canvas.shapes.ArrowRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.BlurRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.CircleRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.FreehandRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.HighlightRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.LineRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.MagnifyRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.NumberedStepRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.PixelateRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.RectangleRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.SpotlightRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.TextRenderer
 
 @Composable
@@ -111,6 +116,12 @@ fun AnnotationCanvas(
                         // All fingers lifted
                         if (event.changes.all { it.changedToUp() }) {
                             if (isDrawing) {
+                                // Update lastPosition from the UP event so onDragEnd gets the
+                                // actual release point even when no MOVE events were delivered
+                                // (e.g. on emulators or very short taps).
+                                val upPos = event.changes.firstOrNull()?.position
+                                if (upPos != null) lastPosition = upPos
+
                                 // Check for tap on text annotation (no movement)
                                 if (!hasMoved && onTextAnnotationTapped != null) {
                                     val imgCoords = toImageCoords(lastPosition)
@@ -183,6 +194,11 @@ private fun drawAnnotation(canvas: android.graphics.Canvas, annotation: Annotati
         is Annotation.Circle -> CircleRenderer.draw(canvas, annotation)
         is Annotation.Freehand -> FreehandRenderer.draw(canvas, annotation)
         is Annotation.NumberedStep -> NumberedStepRenderer.draw(canvas, annotation)
+        is Annotation.Line -> LineRenderer.draw(canvas, annotation)
+        is Annotation.Highlight -> HighlightRenderer.draw(canvas, annotation)
+        is Annotation.Pixelate -> PixelateRenderer.draw(canvas, annotation, bitmap)
+        is Annotation.Spotlight -> SpotlightRenderer.draw(canvas, annotation)
+        is Annotation.Magnify -> MagnifyRenderer.draw(canvas, annotation, bitmap)
     }
 }
 
@@ -230,6 +246,39 @@ private fun hitTest(annotations: List<Annotation>, x: Float, y: Float): String? 
                     val dx = x - px; val dy = y - py
                     dx * dx + dy * dy < 400f // ~20px radius
                 }
+            }
+            is Annotation.Line -> {
+                val l = minOf(annotation.startX, annotation.endX) - 10f
+                val t = minOf(annotation.startY, annotation.endY) - 10f
+                val r = maxOf(annotation.startX, annotation.endX) + 10f
+                val b = maxOf(annotation.startY, annotation.endY) + 10f
+                x in l..r && y in t..b
+            }
+            is Annotation.Highlight -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Pixelate -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Spotlight -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Magnify -> {
+                val dx = x - annotation.centerX
+                val dy = y - annotation.centerY
+                dx * dx + dy * dy <= annotation.radius * annotation.radius
             }
         }
         if (hit) return annotation.id

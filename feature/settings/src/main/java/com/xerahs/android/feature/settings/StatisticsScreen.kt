@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,10 +34,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.formatSize
-import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.StatCard
 import com.xerahs.android.feature.settings.charts.HorizontalBarChart
@@ -45,14 +46,21 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val destinationColors = listOf(
-    Color(0xFF1BB76E), // Imgur
-    Color(0xFFFF9900), // S3
-    Color(0xFF2196F3), // FTP
-    Color(0xFF607D8B), // SFTP
-    Color(0xFFFF9800), // Custom HTTP
-    Color(0xFF9E9E9E), // Local
+/** Signal-on-Black destination data-dot colors, keyed by upload destination name. */
+private val destinationDotColors: Map<String, Color> = mapOf(
+    "IMGUR" to Color(0xFF1BB76E),
+    "S3" to Color(0xFFFF9900),
+    "FTP" to Color(0xFF2E86DE),
+    "SFTP" to Color(0xFF6B7C93),
+    "CUSTOM_HTTP" to Color(0xFFFF9800),
+    "LOCAL" to Color(0xFF9E9E9E),
 )
+
+private fun destinationColor(dest: String): Color =
+    destinationDotColors[dest.uppercase()]
+        ?: destinationDotColors.values.elementAtOrElse(
+            dest.hashCode().and(0x7FFFFFFF) % destinationDotColors.size
+        ) { Color(0xFF9E9E9E) }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -154,11 +162,10 @@ fun StatisticsScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
                 ) {
+                    val destData = stats.countByDestination.map { (dest, count) -> dest to count }
                     HorizontalBarChart(
-                        data = stats.countByDestination.map { (dest, count) ->
-                            dest to count
-                        },
-                        colors = destinationColors,
+                        data = destData,
+                        colors = destData.map { (dest, _) -> destinationColor(dest) },
                         modifier = Modifier.padding(16.dp)
                     )
                 }
@@ -196,19 +203,21 @@ fun StatisticsScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column {
                         stats.topAlbums.forEachIndexed { index, (name, count) ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${index + 1}.",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = "${index + 1}",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    ),
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(end = 8.dp)
+                                    modifier = Modifier.padding(end = 12.dp)
                                 )
                                 Text(
                                     text = name,
@@ -216,9 +225,17 @@ fun StatisticsScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    text = "$count uploads",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    text = "$count",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (index < stats.topAlbums.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 16.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -246,8 +263,10 @@ fun StatisticsScreen(
                                 color = MaterialTheme.colorScheme.secondaryContainer
                             ) {
                                 Text(
-                                    text = "$name ($count)",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = "$name · $count",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    ),
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )

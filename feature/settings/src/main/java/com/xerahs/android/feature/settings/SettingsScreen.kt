@@ -19,18 +19,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +65,24 @@ fun SettingsHubScreen(
             "0.0.0"
         }
     }
+
+    data class SettingsEntry(
+        val icon: ImageVector,
+        val title: String,
+        val subtitle: String,
+        val onClick: () -> Unit
+    )
+
+    val entries = listOf(
+        SettingsEntry(Icons.Default.Palette, "Appearance", "Theme, display options", onNavigateToAppearance),
+        SettingsEntry(Icons.Default.CloudUpload, "Uploads", "Destinations, file naming", onNavigateToUploads),
+        SettingsEntry(Icons.Default.SettingsBackupRestore, "Backup", "Export and import settings", onNavigateToBackup),
+        SettingsEntry(Icons.Default.Folder, "Storage", "Manage app storage", onNavigateToStorage),
+        SettingsEntry(Icons.Default.BarChart, "Statistics", "Upload history analytics", onNavigateToStatistics),
+        SettingsEntry(Icons.Default.Lock, "Security", "Biometric lock settings", onNavigateToSecurity),
+        SettingsEntry(Icons.Default.SystemUpdate, "Updates", "Check for updates & changelog", onNavigateToUpdates)
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -82,75 +99,32 @@ fun SettingsHubScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            SettingsCategoryCard(
-                icon = Icons.Default.Palette,
-                title = "Appearance",
-                subtitle = "Theme, display options",
-                onClick = onNavigateToAppearance,
-                index = 0
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.CloudUpload,
-                title = "Uploads",
-                subtitle = "Destinations, file naming",
-                onClick = onNavigateToUploads,
-                index = 1
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.Backup,
-                title = "Backup",
-                subtitle = "Export and import settings",
-                onClick = onNavigateToBackup,
-                index = 2
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.Folder,
-                title = "Storage",
-                subtitle = "Manage app storage",
-                onClick = onNavigateToStorage,
-                index = 3
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.BarChart,
-                title = "Statistics",
-                subtitle = "Upload history analytics",
-                onClick = onNavigateToStatistics,
-                index = 4
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.Lock,
-                title = "Security",
-                subtitle = "Biometric lock settings",
-                onClick = onNavigateToSecurity,
-                index = 5
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsCategoryCard(
-                icon = Icons.Default.SystemUpdate,
-                title = "Updates",
-                subtitle = "Check for updates & changelog",
-                onClick = onNavigateToUpdates,
-                index = 6
-            )
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    entries.forEachIndexed { index, entry ->
+                        SettingsRow(
+                            icon = entry.icon,
+                            title = entry.title,
+                            subtitle = entry.subtitle,
+                            onClick = entry.onClick,
+                            index = index
+                        )
+                        if (index < entries.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 72.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -167,7 +141,7 @@ fun SettingsHubScreen(
 }
 
 @Composable
-private fun SettingsCategoryCard(
+private fun SettingsRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
@@ -183,67 +157,60 @@ private fun SettingsCategoryCard(
         enter = fadeIn(
             animationSpec = tween(
                 durationMillis = 300,
-                delayMillis = index * 100
+                delayMillis = index * 80
             )
         ) + slideInHorizontally(
-            initialOffsetX = { it / 3 },
+            initialOffsetX = { it / 4 },
             animationSpec = tween(
                 durationMillis = 300,
-                delayMillis = index * 100
+                delayMillis = index * 80
             )
         )
     ) {
-        Card(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = title, onClick = onClick),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            )
+                .height(72.dp)
+                .clickable(role = Role.Button, onClickLabel = title, onClick = onClick)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer
             ) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
+            }
 
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         }
     }
 }

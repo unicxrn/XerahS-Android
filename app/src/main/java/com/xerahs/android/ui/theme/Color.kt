@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import com.xerahs.android.core.common.theme.AccentDerivation
 import com.xerahs.android.core.domain.model.ColorTheme
 
 // Semantic colors
@@ -439,4 +440,60 @@ fun ColorTheme.previewColor(): Color = when (this) {
     ColorTheme.GREEN -> GreenLightPrimary
     ColorTheme.ORANGE -> OrangeLightPrimary
     ColorTheme.PINK -> PinkLightPrimary
+}
+
+// --- Signal-on-Black neutral tokens ---
+private val InkOnLight = Color(0xFF131318)
+private val VariantOnLight = Color(0xFF45464F)
+private val LightBg = Color(0xFFFBFBFD)
+private val LightSurface = Color(0xFFFFFFFF)
+private val LightLow = Color(0xFFF4F4F7)
+private val LightMed = Color(0xFFEEEEF2)
+private val LightHigh = Color(0xFFE7E7EC)
+private val LightOutline = Color(0xFFC7C7CF)
+
+private val TextOnDark = Color(0xFFF2F2F4)
+private val VariantOnDark = Color(0xFFA7A7AE)
+private val DarkOutline = Color(0xFF2A2A2E)
+
+/** The default signal accent (lime). Users can override the seed. */
+const val SIGNAL_LIME: Int = 0xFFB8F23A.toInt()
+
+/**
+ * Build a Material 3 scheme from a user accent [seedArgb], contrast-safe in both modes.
+ * Dark mode: bright accent on true-black. Light mode: ink primary fills + darkened accent.
+ */
+fun colorSchemeForAccent(seedArgb: Int, dark: Boolean, trueBlack: Boolean = true): ColorScheme {
+    val roles = AccentDerivation.deriveAccent(seedArgb, dark)
+    val accent = Color(roles.accent)
+    val onAccent = Color(roles.onAccent)
+    return if (dark) {
+        val bg = if (trueBlack) Color.Black else Color(0xFF0B0B0F)
+        val surface = if (trueBlack) Color(0xFF0A0A0C) else Color(0xFF111116)
+        darkColorScheme(
+            primary = accent, onPrimary = onAccent,
+            primaryContainer = Color(0xFF222226), onPrimaryContainer = Color(roles.accentText),
+            secondary = accent, onSecondary = onAccent,
+            background = bg, onBackground = TextOnDark,
+            surface = surface, onSurface = TextOnDark,
+            surfaceVariant = Color(0xFF1A1A1D), onSurfaceVariant = VariantOnDark,
+            surfaceContainerLow = Color(0xFF121214),
+            surfaceContainer = Color(0xFF1A1A1D),
+            surfaceContainerHigh = Color(0xFF222226),
+            outline = DarkOutline,
+        )
+    } else {
+        lightColorScheme(
+            primary = InkOnLight, onPrimary = Color.White,
+            primaryContainer = LightMed, onPrimaryContainer = InkOnLight,
+            secondary = accent, onSecondary = onAccent,
+            background = LightBg, onBackground = InkOnLight,
+            surface = LightSurface, onSurface = InkOnLight,
+            surfaceVariant = LightLow, onSurfaceVariant = VariantOnLight,
+            surfaceContainerLow = LightLow,
+            surfaceContainer = LightMed,
+            surfaceContainerHigh = LightHigh,
+            outline = LightOutline,
+        )
+    }
 }

@@ -12,9 +12,13 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import android.content.Intent
 import com.xerahs.android.feature.annotation.AnnotationScreen
 import com.xerahs.android.feature.capture.CaptureScreen
 import com.xerahs.android.feature.history.HistoryScreen
+import com.xerahs.android.feature.history.home.HomeScreen
+import com.xerahs.android.feature.history.home.ShareCard
+import com.xerahs.android.feature.history.home.ShareViewModel
 import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
@@ -43,6 +47,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,13 +59,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xerahs.android.ui.MainViewModel
+import com.xerahs.android.ui.motion.rememberReduceMotion
 import com.xerahs.android.util.BiometricHelper
 
 sealed class Screen(val route: String) {
+    data object Home : Screen("home")
+    data object ShareResult : Screen("share/{historyId}") {
+        fun createRoute(id: String) = "share/$id"
+    }
     data object Capture : Screen("capture")
     data object Annotation : Screen("annotation/{imagePath}") {
         fun createRoute(imagePath: String) = "annotation/${java.net.URLEncoder.encode(imagePath, "UTF-8")}"
@@ -97,42 +110,137 @@ sealed class Screen(val route: String) {
 @Composable
 fun XerahSNavGraph(
     navController: NavHostController,
-    startDestination: String = Screen.Capture.route
+    startDestination: String = Screen.Capture.route,
+    modifier: Modifier = Modifier
 ) {
+    val reduce = rememberReduceMotion()
+    val globalDuration = if (reduce) 0 else 300
+
     NavHost(
+        modifier = modifier,
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            fadeIn(animationSpec = tween(300)) +
-                slideInHorizontally(initialOffsetX = { 100 }, animationSpec = tween(300))
+            fadeIn(animationSpec = tween(globalDuration)) +
+                slideInHorizontally(initialOffsetX = { 100 }, animationSpec = tween(globalDuration))
         },
         exitTransition = {
-            fadeOut(animationSpec = tween(300)) +
-                slideOutHorizontally(targetOffsetX = { -100 }, animationSpec = tween(300))
+            fadeOut(animationSpec = tween(globalDuration)) +
+                slideOutHorizontally(targetOffsetX = { -100 }, animationSpec = tween(globalDuration))
         },
         popEnterTransition = {
-            fadeIn(animationSpec = tween(300)) +
-                slideInHorizontally(initialOffsetX = { -100 }, animationSpec = tween(300))
+            fadeIn(animationSpec = tween(globalDuration)) +
+                slideInHorizontally(initialOffsetX = { -100 }, animationSpec = tween(globalDuration))
         },
         popExitTransition = {
-            fadeOut(animationSpec = tween(300)) +
-                slideOutHorizontally(targetOffsetX = { 100 }, animationSpec = tween(300))
+            fadeOut(animationSpec = tween(globalDuration)) +
+                slideOutHorizontally(targetOffsetX = { 100 }, animationSpec = tween(globalDuration))
         }
     ) {
+        composable(Screen.Home.route) {
+            HomeScreen(
+                onCreate = { navController.navigate(Screen.Capture.route) },
+                onOpen = { id -> navController.navigate(Screen.ShareResult.createRoute(id)) },
+                onSettings = { navController.navigate(Screen.Settings.route) }
+            )
+        }
+
+        composable(
+            route = Screen.ShareResult.route,
+            arguments = listOf(navArgument("historyId") { type = NavType.StringType }),
+            enterTransition = {
+                slideInHorizontally(
+                    animationSpec = tween(if (reduce) 0 else 320),
+                    initialOffsetX = { it / 6 }
+                ) + fadeIn(tween(if (reduce) 100 else 320))
+            },
+            exitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            },
+            popEnterTransition = {
+                fadeIn(tween(if (reduce) 100 else 320))
+            },
+            popExitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            }
+        ) {
+            val vm: ShareViewModel = hiltViewModel()
+            val s by vm.uiState.collectAsStateWithLifecycle()
+            val item = s.item
+            val context = LocalContext.current
+            val clipboard = LocalClipboardManager.current
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (item != null) {
+                    ShareCard(
+                        item = item,
+                        reduceMotion = reduce,
+                        onShare = {
+                            val shareText = s.shortUrl ?: item.url ?: item.filePath
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                            }
+                            context.startActivity(
+                                Intent.createChooser(sendIntent, "Share link")
+                            )
+                        },
+                        onCopy = {
+                            val link = s.shortUrl ?: item.url ?: item.filePath
+                            clipboard.setText(AnnotatedString(link))
+                        },
+                        onShorten = vm::shorten,
+                        shortUrl = s.shortUrl,
+                        isShortening = s.isShortening,
+                        onDone = { navController.popBackStack() }
+                    )
+                } else {
+                    CircularProgressIndicator()
+                }
+            }
+        }
+
         composable(Screen.Capture.route) {
             CaptureScreen(
                 onImageCaptured = { imagePath ->
-                    navController.navigate(Screen.Annotation.createRoute(imagePath))
+                    // Remove the transient capture screen from the back stack so that
+                    // pressing back from the editor returns to Home, not a stuck picker.
+                    navController.navigate(Screen.Annotation.createRoute(imagePath)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
                 },
                 onMultiImageCaptured = { imagePaths ->
-                    navController.navigate(Screen.UploadBatch.createRoute(imagePaths))
-                }
+                    navController.navigate(Screen.UploadBatch.createRoute(imagePaths)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
+                },
+                onCancel = { navController.popBackStack() }
             )
         }
 
         composable(
             route = Screen.Annotation.route,
-            arguments = listOf(navArgument("imagePath") { type = NavType.StringType })
+            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }),
+            enterTransition = {
+                slideInHorizontally(
+                    animationSpec = tween(if (reduce) 0 else 320),
+                    initialOffsetX = { it / 6 }
+                ) + fadeIn(tween(if (reduce) 100 else 320))
+            },
+            exitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            },
+            popEnterTransition = {
+                fadeIn(tween(if (reduce) 100 else 320))
+            },
+            popExitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            }
         ) { backStackEntry ->
             val imagePath = java.net.URLDecoder.decode(
                 backStackEntry.arguments?.getString("imagePath") ?: "",
@@ -141,9 +249,7 @@ fun XerahSNavGraph(
             AnnotationScreen(
                 imagePath = imagePath,
                 onExportComplete = { exportedPath ->
-                    navController.navigate(Screen.Upload.createRoute(exportedPath)) {
-                        popUpTo(Screen.Capture.route) { inclusive = false }
-                    }
+                    navController.navigate(Screen.Upload.createRoute(exportedPath))
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -151,7 +257,22 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.Upload.route,
-            arguments = listOf(navArgument("imagePath") { type = NavType.StringType })
+            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }),
+            enterTransition = {
+                slideInHorizontally(
+                    animationSpec = tween(if (reduce) 0 else 320),
+                    initialOffsetX = { it / 6 }
+                ) + fadeIn(tween(if (reduce) 100 else 320))
+            },
+            exitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            },
+            popEnterTransition = {
+                fadeIn(tween(if (reduce) 100 else 320))
+            },
+            popExitTransition = {
+                fadeOut(tween(if (reduce) 100 else 320))
+            }
         ) { backStackEntry ->
             val imagePath = java.net.URLDecoder.decode(
                 backStackEntry.arguments?.getString("imagePath") ?: "",
@@ -160,16 +281,9 @@ fun XerahSNavGraph(
             UploadScreen(
                 imagePath = imagePath,
                 onUploadComplete = {
-                    // Clear the upload flow from the back stack
-                    navController.popBackStack(Screen.Capture.route, inclusive = false)
-                    // Navigate to History the same way bottom nav does
-                    navController.navigate(Screen.History.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    // Return to Home, clearing the capture, edit and upload pipeline.
+                    // The new share appears at the top of the timeline.
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -341,14 +455,7 @@ fun XerahSNavGraph(
                 imagePath = imagePaths.first(),
                 imagePaths = imagePaths,
                 onUploadComplete = {
-                    navController.popBackStack(Screen.Capture.route, inclusive = false)
-                    navController.navigate(Screen.History.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 },
                 onBack = { navController.popBackStack() }
             )

@@ -24,6 +24,9 @@ material3 = "1.2.0"
 biometric = "1.1.0"
 exifinterface = "1.3.7"
 gson = "2.10.1"
+zxing = "3.5.3"
+mlkit-text = "16.0.1"
+junit = "4.13.2"
 
 [libraries]
 # Compose BOM
@@ -87,6 +90,9 @@ exifinterface = { group = "androidx.exifinterface", name = "exifinterface", vers
 # FTP/SFTP
 commons-net = { group = "commons-net", name = "commons-net", version.ref = "commons-net" }
 jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+mlkit-text = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkit-text" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

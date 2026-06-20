@@ -412,7 +412,7 @@ private fun AgeBarRow(bucket: AgeDistributionBucket, maxCount: Int) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
             )
             Text(
-                text = if (isEmpty) "—" else "${bucket.count} files (${bucket.size.formatSize()})",
+                text = if (isEmpty) "-" else "${bucket.count} files (${bucket.size.formatSize()})",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha)
             )
@@ -484,7 +484,7 @@ private fun GrowthTab(analytics: BucketAnalytics) {
         }
     }
 
-    // Labels row — scrollable in sync when many months
+    // Labels row - scrollable in sync when many months
     Row(
         modifier = Modifier
             .fillMaxWidth()

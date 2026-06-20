@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">XerahS</string>
+    <string name="tile_new_share">New share</string>
+    <string name="shortcut_new_share_short">New share</string>
+    <string name="shortcut_new_share_long">Pick an image to share</string>
 </resources>

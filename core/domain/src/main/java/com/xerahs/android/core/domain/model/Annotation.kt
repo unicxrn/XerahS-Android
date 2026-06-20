@@ -95,4 +95,66 @@ sealed class Annotation {
         val centerY: Float,
         val radius: Float = 20f
     ) : Annotation()
+
+    data class Line(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFF0000.toInt(),
+        override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+    ) : Annotation()
+
+    data class Highlight(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFFEB3B.toInt(),
+        override val strokeWidth: Float = 0f,
+        override val opacity: Float = 0.4f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+    ) : Annotation()
+
+    data class Pixelate(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0x00000000,
+        override val strokeWidth: Float = 0f,
+        override val opacity: Float = 1f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        val blockSize: Float = 24f,
+    ) : Annotation()
+
+    data class Spotlight(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0x00000000,
+        override val strokeWidth: Float = 0f,
+        override val opacity: Float = 0.6f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        val shape: Int = 0, // 0 = ellipse, 1 = rect
+    ) : Annotation()
+
+    data class Magnify(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFFFFFF.toInt(),
+        override val strokeWidth: Float = 4f,
+        override val opacity: Float = 1f,
+        val centerX: Float,
+        val centerY: Float,
+        val radius: Float,
+        val zoom: Float = 2f,
+    ) : Annotation()
 }

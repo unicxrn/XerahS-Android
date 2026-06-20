@@ -768,7 +768,7 @@ fun HistoryScreen(
                                 text = { Text(tag.name) },
                                 onClick = {
                                     viewModel.toggleTagFilter(tag.id)
-                                    // Don't close dropdown — allow multi-select
+                                    // Don't close dropdown - allow multi-select
                                 },
                                 trailingIcon = {
                                     if (isSelected) {

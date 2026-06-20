@@ -1,5 +1,7 @@
 package com.xerahs.android.feature.settings.destinations
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,8 +48,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 import com.xerahs.android.core.ui.StatusBanner
@@ -95,6 +100,40 @@ fun CustomHttpConfigScreen(
         return map
     }
 
+    val context = LocalContext.current
+    var importMessage by remember { mutableStateOf<String?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        if (text == null) {
+            importMessage = "Couldn't read file"
+            return@rememberLauncherForActivityResult
+        }
+        SxcuParser.parse(text).fold(
+            onSuccess = { c ->
+                url = c.url
+                method = c.method
+                responseUrlJsonPath = c.responseUrlJsonPath
+                formFieldName = c.fileFormName
+                headerKeys.clear()
+                headerValues.clear()
+                c.headers.forEach { (k, v) ->
+                    headerKeys.add(k)
+                    headerValues.add(v)
+                }
+                importMessage = "Imported \"${c.name}\""
+                coroutineScope.launch {
+                    viewModel.saveConfig(url, method, headersMap(), responseUrlJsonPath, formFieldName)
+                }
+            },
+            onFailure = { importMessage = "Not a valid .sxcu file" },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -131,6 +170,31 @@ fun CustomHttpConfigScreen(
                 },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
+
+            OutlinedButton(
+                onClick = {
+                    importMessage = null
+                    importLauncher.launch(
+                        arrayOf("application/octet-stream", "application/json", "*/*")
+                    )
+                },
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .height(48.dp)
+            ) {
+                Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Import .sxcu")
+            }
+
+            importMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
 
             SectionHeader("Endpoint")
             SettingsGroupCard {
