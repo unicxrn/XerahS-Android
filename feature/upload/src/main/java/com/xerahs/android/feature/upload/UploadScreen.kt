@@ -66,6 +66,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -218,6 +219,10 @@ fun UploadScreen(
 
     val isSuccess = uiState.result?.success == true
     val isError = uiState.result != null && uiState.result?.success == false
+
+    // Once the upload has succeeded, Back finishes the flow (returns to Home) rather than
+    // stepping back into the editor. Before that, Back behaves normally so the user can re-edit.
+    BackHandler(enabled = isSuccess) { onUploadComplete() }
 
     Scaffold(
         topBar = {

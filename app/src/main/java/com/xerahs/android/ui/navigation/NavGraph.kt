@@ -208,10 +208,16 @@ fun XerahSNavGraph(
         composable(Screen.Capture.route) {
             CaptureScreen(
                 onImageCaptured = { imagePath ->
-                    navController.navigate(Screen.Annotation.createRoute(imagePath))
+                    // Remove the transient capture screen from the back stack so that
+                    // pressing back from the editor returns to Home, not a stuck picker.
+                    navController.navigate(Screen.Annotation.createRoute(imagePath)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
                 },
                 onMultiImageCaptured = { imagePaths ->
-                    navController.navigate(Screen.UploadBatch.createRoute(imagePaths))
+                    navController.navigate(Screen.UploadBatch.createRoute(imagePaths)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
                 },
                 onCancel = { navController.popBackStack() }
             )
@@ -243,9 +249,7 @@ fun XerahSNavGraph(
             AnnotationScreen(
                 imagePath = imagePath,
                 onExportComplete = { exportedPath ->
-                    navController.navigate(Screen.Upload.createRoute(exportedPath)) {
-                        popUpTo(Screen.Capture.route) { inclusive = false }
-                    }
+                    navController.navigate(Screen.Upload.createRoute(exportedPath))
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -277,16 +281,9 @@ fun XerahSNavGraph(
             UploadScreen(
                 imagePath = imagePath,
                 onUploadComplete = {
-                    // Clear the upload flow from the back stack
-                    navController.popBackStack(Screen.Capture.route, inclusive = false)
-                    // Navigate to History the same way bottom nav does
-                    navController.navigate(Screen.History.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    // Return to Home, clearing the capture, edit and upload pipeline.
+                    // The new share appears at the top of the timeline.
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -458,14 +455,7 @@ fun XerahSNavGraph(
                 imagePath = imagePaths.first(),
                 imagePaths = imagePaths,
                 onUploadComplete = {
-                    navController.popBackStack(Screen.Capture.route, inclusive = false)
-                    navController.navigate(Screen.History.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 },
                 onBack = { navController.popBackStack() }
             )
