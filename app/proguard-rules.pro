@@ -1,5 +1,13 @@
 # Add project specific ProGuard rules here.
 
+# ZXing (QR code generation)
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
+
+# ML Kit text recognition bundles its own consumer rules, this is a safety net
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
 # Retrofit
 -keepattributes Signature
 -keepattributes Exceptions
