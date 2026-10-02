@@ -19,6 +19,11 @@ class SxcuPresetsTest {
         assertEquals("t\"1", spec.arguments["token"])
     }
 
+    @Test fun xbackboneAddsHttpsSchemeWhenMissing() {
+        val spec = SxcuPresets.render("xbackbone", mapOf("host" to "x.test", "token" to "t")).getOrThrow()
+        assertEquals("https://x.test/upload", spec.requestURL)
+    }
+
     @Test fun bitlyEvaluates() {
         val spec = SxcuPresets.render("bitly", mapOf("token" to "tok")).getOrThrow()
         assertEquals("Bearer tok", spec.headers["Authorization"])

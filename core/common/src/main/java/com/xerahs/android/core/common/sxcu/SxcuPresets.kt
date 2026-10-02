@@ -24,7 +24,10 @@ object SxcuPresets {
             ?: throw IllegalStateException("Missing preset file $id")
         preset.fields.forEach { field ->
             val raw = values[field.key].orEmpty().trim()
-            val value = if (field.key == "host") raw.trimEnd('/') else raw
+            val value = if (field.key == "host") {
+                val trimmed = raw.trimEnd('/')
+                if ("://" in trimmed) trimmed else "https://$trimmed"
+            } else raw
             text = text.replace("{{${field.key}}}", jsonEscape(value))
         }
         SxcuParser.parse(text).getOrThrow()
