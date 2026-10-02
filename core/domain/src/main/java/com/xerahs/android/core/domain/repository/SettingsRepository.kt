@@ -88,6 +88,9 @@ interface SettingsRepository {
     fun getConvertHeicToPng(): Flow<Boolean>
     suspend fun setConvertHeicToPng(enabled: Boolean)
 
+    fun getRecentColors(): Flow<List<Int>>
+    suspend fun addRecentColor(color: Int)
+
     fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>>
     suspend fun setDefaultAfterUploadActions(actions: Set<AfterUploadAction>)
     fun getProfileAfterUploadActions(profileId: String): Flow<Set<AfterUploadAction>?>
