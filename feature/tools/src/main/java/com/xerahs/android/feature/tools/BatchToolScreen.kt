@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.image.Watermark
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -121,8 +122,12 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                         val done = mutableListOf<File>(); var saved = 0; var failed = 0
                         withContext(Dispatchers.Default) {
                             uris.forEachIndexed { i, uri ->
-                                runCatching { BatchImageProcessor.process(context, uri, options, outDir, i) }
-                                    .onSuccess { f -> done += f; if (BatchImageProcessor.saveToGallery(context, f)) saved++ }
+                                ensureActive()
+                                runCatching {
+                                    val f = BatchImageProcessor.process(context, uri, options, outDir, i)
+                                    val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
+                                    f to gallerySaved
+                                }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
                                     .onFailure { failed++ }
                             }
                         }

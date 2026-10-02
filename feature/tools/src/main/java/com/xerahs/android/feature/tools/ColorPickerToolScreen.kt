@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -122,7 +123,10 @@ fun ColorPickerToolScreen(onBack: () -> Unit, viewModel: ColorPickerToolViewMode
             val recent by viewModel.recent.collectAsState()
             if (recent.isNotEmpty()) {
                 Text("Recent", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
                     recent.forEach { c ->
                         Box(Modifier.size(32.dp).background(Color(c), MaterialTheme.shapes.small).clickable { picked = c })
                     }
