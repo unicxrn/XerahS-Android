@@ -69,11 +69,18 @@ object UploaderImportParsing {
         secretAccessKey = c.str("SecretAccessKey").orEmpty(),
         region = c.str("Region")?.ifBlank { null } ?: "us-east-1",
         bucket = c.str("BucketName").orEmpty(),
-        endpoint = c.str("Endpoint")?.ifBlank { null },
-        customUrl = c.str("CustomDomain")?.ifBlank { null }?.takeIf { c.bool("UseCustomDomain") },
+        endpoint = c.str("Endpoint")?.ifBlank { null }?.let(::withScheme),
+        customUrl = c.str("CustomDomain")?.ifBlank { null }?.takeIf { c.bool("UseCustomDomain") }?.let(::withScheme),
         acl = if (c.bool("SetPublicAcl")) "public-read" else "",
         usePathStyle = c.bool("UsePathStyle"),
     )
+
+    /**
+     * Upstream may export a bare host (e.g. "minio.example.com:9000") for a non-AWS
+     * endpoint or custom domain. S3Uploader needs a URI with a scheme, so default to https.
+     */
+    private fun withScheme(value: String): String =
+        if (value.contains("://")) value else "https://$value"
 
     private fun JsonObject.str(k: String): String? = get(k)?.takeIf { it.isJsonPrimitive }?.asString
     private fun JsonObject.bool(k: String): Boolean = get(k)?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false

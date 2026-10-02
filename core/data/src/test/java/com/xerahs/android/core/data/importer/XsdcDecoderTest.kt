@@ -2,6 +2,7 @@ package com.xerahs.android.core.data.importer
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -83,5 +84,21 @@ class XsdcDecoderTest {
     @Test fun rejectsNonXsdcJson() {
         val e = runCatching { XsdcDecoder.decode("""{"Format":"Other"}""".toByteArray(), "x".toCharArray()) }.exceptionOrNull()
         assertTrue(e is XsdcException)
+    }
+
+    @Test fun rejectsExcessiveIterationsWithoutAttemptingDecrypt() {
+        // Build a real envelope cheaply (1000 iterations), then tamper the declared
+        // Iterations count so a naive implementation would run PBKDF2 2 billion times.
+        val envelope = JsonParser.parseString(String(encrypt(s3Payload(), "p", iterations = 1000))).asJsonObject
+        envelope.getAsJsonObject("Encryption").addProperty("Iterations", 2_000_000_000)
+        val tampered = envelope.toString().toByteArray()
+
+        val start = System.nanoTime()
+        val e = runCatching { XsdcDecoder.decode(tampered, "p".toCharArray()) }.exceptionOrNull()
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+
+        assertTrue(e is XsdcException)
+        assertEquals("This .xsdc file has invalid encryption metadata.", e!!.message)
+        assertTrue("decode should reject oversized Iterations quickly, took ${elapsedMs}ms", elapsedMs < 2000)
     }
 }
