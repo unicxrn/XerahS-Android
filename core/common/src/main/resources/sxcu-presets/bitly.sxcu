@@ -1,0 +1,12 @@
+{
+  "Version": "17.0.0",
+  "Name": "Bitly",
+  "DestinationType": "URLShortener",
+  "RequestMethod": "POST",
+  "RequestURL": "https://api-ssl.bitly.com/v4/shorten",
+  "Headers": { "Authorization": "Bearer {{token}}" },
+  "Body": "JSON",
+  "Data": "{\"long_url\":\"{input}\"}",
+  "URL": "{json:link}",
+  "ErrorMessage": "{json:description}"
+}
