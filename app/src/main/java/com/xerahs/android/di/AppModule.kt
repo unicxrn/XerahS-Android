@@ -6,6 +6,7 @@ import com.xerahs.android.core.data.repository.OcrRepositoryImpl
 import com.xerahs.android.core.data.repository.SettingsRepositoryImpl
 import com.xerahs.android.core.data.repository.TagRepositoryImpl
 import com.xerahs.android.core.data.repository.UploadProfileRepositoryImpl
+import com.xerahs.android.core.data.repository.UploaderImportRepositoryImpl
 import com.xerahs.android.core.data.repository.UrlShortenerRepositoryImpl
 import com.xerahs.android.core.domain.repository.AlbumRepository
 import com.xerahs.android.core.domain.repository.HistoryRepository
@@ -13,6 +14,7 @@ import com.xerahs.android.core.domain.repository.OcrRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.domain.repository.UploaderImportRepository
 import com.xerahs.android.core.domain.repository.UrlShortenerRepository
 import dagger.Binds
 import dagger.Module
@@ -51,4 +53,8 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindOcrRepository(impl: OcrRepositoryImpl): OcrRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUploaderImportRepository(impl: UploaderImportRepositoryImpl): UploaderImportRepository
 }
