@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.activity.compose)
+    implementation(libs.exifinterface)
 
     testImplementation(libs.junit)
 }
