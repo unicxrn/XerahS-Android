@@ -3,17 +3,23 @@ package com.xerahs.android.core.data.remote.custom
 import com.xerahs.android.core.common.sxcu.CustomBodyType
 import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
 
 class CustomUploaderClientTest {
     @get:Rule val tmp = TemporaryFolder()
@@ -128,5 +134,37 @@ class CustomUploaderClientTest {
         val spec = CustomUploaderSpec(requestURL = server.url("/").toString(), url = "{json:url}", thumbnailURL = "{json:thumb}")
         assertEquals(CustomUploadOutcome.Success("https://i.test/1", null, null),
             client.execute(spec, CustomUploadInput(file(), "shot.png")))
+    }
+
+    @Test fun cancellingTheCallAbortsTheHttpRequestQuickly() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setHeadersDelay(3, TimeUnit.SECONDS)
+                .setBody("""{"url":"https://i.test/1"}"""),
+        )
+        val spec = CustomUploaderSpec(requestURL = server.url("/").toString())
+        val elapsed = measureTimeMillis {
+            val job = launch(Dispatchers.Default) {
+                client.execute(spec, CustomUploadInput(file(), "shot.png"))
+            }
+            delay(200)
+            job.cancel()
+            job.join()
+        }
+        assertTrue("expected cancellation to finish quickly but took ${elapsed}ms", elapsed < 1500)
+    }
+
+    @Test fun headerValidationErrorDoesNotLeakHeaderValue() = runBlocking {
+        val secret = "ok\nX-Injected: evil-leak-value"
+        val spec = CustomUploaderSpec(
+            requestURL = server.url("/").toString(),
+            headers = mapOf("X-Test" to secret),
+        )
+        val outcome = client.execute(spec, CustomUploadInput(file(), "shot.png"))
+        assertTrue(outcome is CustomUploadOutcome.Failure)
+        val message = (outcome as CustomUploadOutcome.Failure).message
+        assertTrue(message.startsWith("Invalid request:"))
+        assertFalse(message.contains("evil-leak-value"))
+        assertFalse(message.contains("X-Injected"))
     }
 }
