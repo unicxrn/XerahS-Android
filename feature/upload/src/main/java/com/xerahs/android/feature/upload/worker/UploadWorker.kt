@@ -36,6 +36,7 @@ import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import com.xerahs.android.feature.upload.uploader.CustomHttpUploader
 import com.xerahs.android.feature.upload.uploader.FtpUploader
+import com.xerahs.android.feature.upload.uploader.GistUploader
 import com.xerahs.android.feature.upload.uploader.ImgurUploader
 import com.xerahs.android.feature.upload.uploader.ImmichUploader
 import com.xerahs.android.feature.upload.uploader.NextcloudUploader
@@ -62,6 +63,7 @@ class UploadWorker @AssistedInject constructor(
     private val customHttpUploader: CustomHttpUploader,
     private val nextcloudUploader: NextcloudUploader,
     private val immichUploader: ImmichUploader,
+    private val gistUploader: GistUploader,
     private val profileRepository: UploadProfileRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -246,8 +248,11 @@ class UploadWorker @AssistedInject constructor(
                 (profileConfig as? UploadConfig.ImmichConfig) ?: settingsRepository.getImmichConfig(),
                 resolvedName
             )
-            UploadDestination.GITHUB_GIST ->
-                UploadResult(success = false, errorMessage = "${destination.displayName} isn't available yet", destination = destination)
+            UploadDestination.GITHUB_GIST -> gistUploader.upload(
+                file,
+                (profileConfig as? UploadConfig.GistConfig) ?: settingsRepository.getGistConfig(),
+                resolvedName
+            )
         }
     }
 
