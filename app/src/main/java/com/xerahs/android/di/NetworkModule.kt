@@ -1,5 +1,7 @@
 package com.xerahs.android.di
 
+import com.xerahs.android.BuildConfig
+import com.xerahs.android.core.common.net.LogRedactor
 import com.xerahs.android.core.data.remote.imgur.ImgurApi
 import com.xerahs.android.feature.settings.data.GitHubReleaseChecker
 import dagger.Module
@@ -23,8 +25,11 @@ object NetworkModule {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.HEADERS
+        .addInterceptor(HttpLoggingInterceptor { line ->
+            android.util.Log.d("OkHttp", LogRedactor.redact(line))
+        }.apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
+            redactHeader("Authorization")
         })
         .build()
 
