@@ -952,4 +952,4 @@ git add app/build.gradle.kts
 git commit -m "chore: bump version to 0.5.0"
 ```
 
-- [ ] **Step 5: Save project memory** — run the project's `/save` workflow (see `CLAUDE.md`): session log in `xerahs-android/logs/`, new/updated notes for `pipeline/custom-uploaders.md` (sxcu model, syntax engine, client, storage + legacy migration), `data/room-migrations.md` (v4 `mimeType`, schema export now on), `features/uploader-interop.md`, and update `roadmap/redesign-roadmap.md` (A done; next B: new destinations).
+- [ ] **Step 5: Save project memory** — run the project's `/save` workflow: session log in `xerahs-android/logs/`, new/updated notes for `pipeline/custom-uploaders.md` (sxcu model, syntax engine, client, storage + legacy migration), `data/room-migrations.md` (v4 `mimeType`, schema export now on), `features/uploader-interop.md`, and update `roadmap/redesign-roadmap.md` (A done; next B: new destinations).
