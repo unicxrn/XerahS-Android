@@ -423,9 +423,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun cancelPassphrase() {
+        exportPassphrase?.fill('\u0000')
         exportPassphrase = null
         pendingEncryptedBackup = null
         _uiState.value = _uiState.value.copy(backupPassphraseRequest = null)
+    }
+
+    fun reportExportError(message: String) {
+        _uiState.value = _uiState.value.copy(exportImportMessage = message)
     }
 
     fun applyResolvedImport() {

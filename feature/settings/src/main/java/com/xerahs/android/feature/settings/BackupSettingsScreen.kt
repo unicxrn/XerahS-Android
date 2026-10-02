@@ -64,6 +64,9 @@ fun BackupSettingsScreen(
             val outputStream = context.contentResolver.openOutputStream(uri)
             if (outputStream != null) {
                 viewModel.exportBackup(outputStream)
+            } else {
+                viewModel.cancelPassphrase()
+                viewModel.reportExportError("Couldn't open the file")
             }
         } else {
             viewModel.cancelPassphrase()

@@ -125,142 +125,6 @@ class ExportImportManager @Inject constructor(
         return gson.toJson(json)
     }
 
-    suspend fun importSettings(jsonString: String) {
-        val json = gson.fromJson(jsonString, JsonObject::class.java)
-
-        json.get("defaultDestination")?.asString?.let { name ->
-            try {
-                settingsRepository.setDefaultDestination(UploadDestination.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("overlayEnabled")?.asBoolean?.let {
-            settingsRepository.setOverlayEnabled(it)
-        }
-
-        json.get("themeMode")?.asString?.let { name ->
-            try {
-                settingsRepository.setThemeMode(ThemeMode.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("fileNamingPattern")?.asString?.let {
-            settingsRepository.setFileNamingPattern(it)
-        }
-
-        json.getAsJsonObject("imgur")?.let { imgur ->
-            val current = settingsRepository.getImgurConfig()
-            settingsRepository.saveImgurConfig(
-                current.copy(
-                    clientId = imgur.get("clientId")?.asString ?: current.clientId,
-                    clientSecret = imgur.get("clientSecret")?.asString ?: current.clientSecret,
-                    accessToken = imgur.get("accessToken")?.asString,
-                    refreshToken = imgur.get("refreshToken")?.asString,
-                    useAnonymous = imgur.get("useAnonymous")?.asBoolean ?: current.useAnonymous
-                )
-            )
-        }
-
-        json.getAsJsonObject("s3")?.let { s3 ->
-            val current = settingsRepository.getS3Config()
-            settingsRepository.saveS3Config(
-                current.copy(
-                    accessKeyId = s3.get("accessKeyId")?.asString ?: current.accessKeyId,
-                    secretAccessKey = s3.get("secretAccessKey")?.asString ?: current.secretAccessKey,
-                    region = s3.get("region")?.asString ?: current.region,
-                    bucket = s3.get("bucket")?.asString ?: current.bucket,
-                    endpoint = s3.get("endpoint")?.asString,
-                    customUrl = s3.get("customUrl")?.asString,
-                    prefix = s3.get("prefix")?.asString ?: current.prefix,
-                    acl = s3.get("acl")?.asString ?: current.acl,
-                    usePathStyle = s3.get("usePathStyle")?.asBoolean ?: current.usePathStyle
-                )
-            )
-        }
-
-        json.getAsJsonObject("ftp")?.let { ftp ->
-            val current = settingsRepository.getFtpConfig()
-            settingsRepository.saveFtpConfig(
-                current.copy(
-                    host = ftp.get("host")?.asString ?: current.host,
-                    port = ftp.get("port")?.asInt ?: current.port,
-                    username = ftp.get("username")?.asString ?: current.username,
-                    password = ftp.get("password")?.asString ?: current.password,
-                    remotePath = ftp.get("remotePath")?.asString ?: current.remotePath,
-                    useFtps = ftp.get("useFtps")?.asBoolean ?: current.useFtps,
-                    usePassiveMode = ftp.get("usePassiveMode")?.asBoolean ?: current.usePassiveMode,
-                    httpUrl = ftp.get("httpUrl")?.asString ?: current.httpUrl
-                )
-            )
-        }
-
-        json.getAsJsonObject("sftp")?.let { sftp ->
-            val current = settingsRepository.getSftpConfig()
-            settingsRepository.saveSftpConfig(
-                current.copy(
-                    host = sftp.get("host")?.asString ?: current.host,
-                    port = sftp.get("port")?.asInt ?: current.port,
-                    username = sftp.get("username")?.asString ?: current.username,
-                    password = sftp.get("password")?.asString ?: current.password,
-                    keyPath = sftp.get("keyPath")?.asString,
-                    keyPassphrase = sftp.get("keyPassphrase")?.asString,
-                    remotePath = sftp.get("remotePath")?.asString ?: current.remotePath,
-                    httpUrl = sftp.get("httpUrl")?.asString ?: current.httpUrl
-                )
-            )
-        }
-
-        importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
-
-        json.getAsJsonObject("nextcloud")?.let { nextcloud ->
-            val current = settingsRepository.getNextcloudConfig()
-            settingsRepository.saveNextcloudConfig(
-                current.copy(
-                    serverUrl = nextcloud.get("serverUrl")?.asString ?: current.serverUrl,
-                    username = nextcloud.get("username")?.asString ?: current.username,
-                    appPassword = nextcloud.get("appPassword")?.asString ?: current.appPassword,
-                    folder = nextcloud.get("folder")?.asString ?: current.folder,
-                    publicShare = nextcloud.get("publicShare")?.asBoolean ?: current.publicShare
-                )
-            )
-        }
-
-        json.getAsJsonObject("immich")?.let { immich ->
-            val current = settingsRepository.getImmichConfig()
-            settingsRepository.saveImmichConfig(
-                current.copy(
-                    serverUrl = immich.get("serverUrl")?.asString ?: current.serverUrl,
-                    apiKey = immich.get("apiKey")?.asString ?: current.apiKey,
-                    createShareLink = immich.get("createShareLink")?.asBoolean ?: current.createShareLink
-                )
-            )
-        }
-
-        json.getAsJsonObject("gist")?.let { gist ->
-            val current = settingsRepository.getGistConfig()
-            settingsRepository.saveGistConfig(
-                current.copy(
-                    token = gist.get("token")?.asString ?: current.token,
-                    isPublic = gist.get("isPublic")?.asBoolean ?: current.isPublic
-                )
-            )
-        }
-
-        json.get("uploadFormat")?.asString?.let { name ->
-            try {
-                settingsRepository.setUploadFormat(ImageFormat.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("stripExif")?.asBoolean?.let {
-            settingsRepository.setStripExif(it)
-        }
-
-        json.get("autoLockTimeout")?.asLong?.let {
-            settingsRepository.setAutoLockTimeout(it)
-        }
-    }
-
     suspend fun parseImportPreview(jsonString: String): ImportPreview {
         val json = gson.fromJson(jsonString, JsonObject::class.java)
         val sections = mutableListOf<ImportSection>()
@@ -578,7 +442,7 @@ class ExportImportManager @Inject constructor(
         payload.add("settings", JsonParser.parseString(exportSettings()))
         payload.addProperty("defaultAfterUploadActions", AfterUploadAction.encode(settingsRepository.getDefaultAfterUploadActions().first()))
         val profiles = JsonArray()
-        profileRepository.getAllProfiles().first().forEach { p ->
+        profileRepository.getAllProfiles().first().filter { it.destination != UploadDestination.LOCAL }.forEach { p ->
             profiles.add(JsonObject().apply {
                 addProperty("name", p.name)
                 addProperty("destination", p.destination.name)
@@ -608,6 +472,7 @@ class ExportImportManager @Inject constructor(
             val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@forEachIndexed
             val name = o.get("name")?.asString ?: return@forEachIndexed
             val dest = runCatching { UploadDestination.valueOf(o.get("destination").asString) }.getOrNull() ?: return@forEachIndexed
+            if (dest == UploadDestination.LOCAL) return@forEachIndexed
             val exists = existing.any { it.name == name && it.destination == dest }
             fields.add(ImportField("profile.$index", "$name (${dest.displayName})", if (exists) "Existing profile" else "None", "From backup", hasConflict = exists))
         }
@@ -629,11 +494,12 @@ class ExportImportManager @Inject constructor(
             val dest = UploadDestination.valueOf(o.get("destination").asString)
             val config = o.getAsJsonObject("config")?.let { ConfigJson.fromJson(dest, it) } ?: return@forEachIndexed
             val match = existing.firstOrNull { it.name == name && it.destination == dest }
+            val backupIsDefault = o.get("isDefault")?.asBoolean ?: false
             val profile = UploadProfile(
                 id = match?.id ?: generateId(),
                 name = name,
                 destination = dest,
-                isDefault = o.get("isDefault")?.asBoolean ?: false,
+                isDefault = backupIsDefault || (match?.isDefault == true),
                 createdAt = match?.createdAt ?: generateTimestamp()
             )
             if (match != null) profileRepository.updateProfile(profile, config) else profileRepository.createProfile(profile, config)
