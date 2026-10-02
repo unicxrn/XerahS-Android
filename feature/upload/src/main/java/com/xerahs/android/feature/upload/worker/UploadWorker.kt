@@ -37,6 +37,7 @@ import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import com.xerahs.android.feature.upload.uploader.CustomHttpUploader
 import com.xerahs.android.feature.upload.uploader.FtpUploader
 import com.xerahs.android.feature.upload.uploader.ImgurUploader
+import com.xerahs.android.feature.upload.uploader.ImmichUploader
 import com.xerahs.android.feature.upload.uploader.NextcloudUploader
 import com.xerahs.android.feature.upload.uploader.S3Uploader
 import com.xerahs.android.feature.upload.uploader.SftpUploader
@@ -60,6 +61,7 @@ class UploadWorker @AssistedInject constructor(
     private val sftpUploader: SftpUploader,
     private val customHttpUploader: CustomHttpUploader,
     private val nextcloudUploader: NextcloudUploader,
+    private val immichUploader: ImmichUploader,
     private val profileRepository: UploadProfileRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -239,7 +241,12 @@ class UploadWorker @AssistedInject constructor(
                 (profileConfig as? UploadConfig.NextcloudConfig) ?: settingsRepository.getNextcloudConfig(),
                 resolvedName
             )
-            UploadDestination.IMMICH, UploadDestination.GITHUB_GIST ->
+            UploadDestination.IMMICH -> immichUploader.upload(
+                file,
+                (profileConfig as? UploadConfig.ImmichConfig) ?: settingsRepository.getImmichConfig(),
+                resolvedName
+            )
+            UploadDestination.GITHUB_GIST ->
                 UploadResult(success = false, errorMessage = "${destination.displayName} isn't available yet", destination = destination)
         }
     }
