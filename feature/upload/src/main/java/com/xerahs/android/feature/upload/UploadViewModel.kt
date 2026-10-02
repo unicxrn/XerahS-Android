@@ -14,6 +14,7 @@ import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.common.sxcu.InputPrompt
 import com.xerahs.android.core.common.sxcu.ShareXSyntax
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DestinationCapabilities
 import com.xerahs.android.core.domain.model.Tag
@@ -44,6 +45,8 @@ data class DuplicateInfo(
     val destination: String
 )
 
+data class AfterUploadEvent(val urls: List<String>, val actions: Set<AfterUploadAction>)
+
 data class UploadUiState(
     val isUploading: Boolean = false,
     val uploadProgress: Float = 0f,
@@ -51,9 +54,8 @@ data class UploadUiState(
     val result: UploadResult? = null,
     val errorMessage: String? = null,
     val batchProgress: Pair<Int, Int>? = null,
-    val autoCopiableUrl: String? = null,
+    val pendingAfterUpload: AfterUploadEvent? = null,
     val batchUrls: List<String> = emptyList(),
-    val autoCopyUrl: Boolean = false,
     val albums: List<Album> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val selectedAlbumId: String? = null,
@@ -139,11 +141,6 @@ class UploadViewModel @Inject constructor(
                 globalCustomTypes = globalCustomTypes
             )
             ensureAllowedSelection()
-        }
-        viewModelScope.launch {
-            settingsRepository.getAutoCopyUrl().collect { enabled ->
-                _uiState.value = _uiState.value.copy(autoCopyUrl = enabled)
-            }
         }
         viewModelScope.launch {
             albumRepository.getAllAlbums().collect { albums ->
@@ -320,7 +317,10 @@ class UploadViewModel @Inject constructor(
                             ),
                             batchProgress = null,
                             batchUrls = urls,
-                            autoCopiableUrl = if (_uiState.value.autoCopyUrl && urls.size == 1) urls.first() else null
+                            pendingAfterUpload = AfterUploadEvent(
+                                urls,
+                                AfterUploadAction.decode(workInfo.outputData.getString(UploadWorker.KEY_ACTIONS))
+                            ).takeIf { it.urls.isNotEmpty() && it.actions.isNotEmpty() }
                         )
                     }
                     WorkInfo.State.FAILED -> {
@@ -372,5 +372,9 @@ class UploadViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    fun consumeAfterUpload() {
+        _uiState.value = _uiState.value.copy(pendingAfterUpload = null)
     }
 }
