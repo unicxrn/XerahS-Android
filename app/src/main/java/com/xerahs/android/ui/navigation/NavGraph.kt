@@ -77,10 +77,10 @@ sealed class Screen(val route: String) {
     }
     data object Capture : Screen("capture")
     data object Annotation : Screen("annotation/{imagePath}") {
-        fun createRoute(imagePath: String) = "annotation/${java.net.URLEncoder.encode(imagePath, "UTF-8")}"
+        fun createRoute(imagePath: String) = "annotation/${android.net.Uri.encode(imagePath)}"
     }
     data object Upload : Screen("upload/{imagePath}") {
-        fun createRoute(imagePath: String) = "upload/${java.net.URLEncoder.encode(imagePath, "UTF-8")}"
+        fun createRoute(imagePath: String) = "upload/${android.net.Uri.encode(imagePath)}"
     }
     data object History : Screen("history")
     data object S3Explorer : Screen("s3explorer")
@@ -109,7 +109,7 @@ sealed class Screen(val route: String) {
     data object AppUpdate : Screen("settings/updates")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
-            "upload-batch/${java.net.URLEncoder.encode(imagePaths.joinToString("|"), "UTF-8")}"
+            "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
     }
 }
 
@@ -248,10 +248,7 @@ fun XerahSNavGraph(
                 fadeOut(tween(if (reduce) 100 else 320))
             }
         ) { backStackEntry ->
-            val imagePath = java.net.URLDecoder.decode(
-                backStackEntry.arguments?.getString("imagePath") ?: "",
-                "UTF-8"
-            )
+            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
             AnnotationScreen(
                 imagePath = imagePath,
                 onExportComplete = { exportedPath ->
@@ -280,10 +277,7 @@ fun XerahSNavGraph(
                 fadeOut(tween(if (reduce) 100 else 320))
             }
         ) { backStackEntry ->
-            val imagePath = java.net.URLDecoder.decode(
-                backStackEntry.arguments?.getString("imagePath") ?: "",
-                "UTF-8"
-            )
+            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
             UploadScreen(
                 imagePath = imagePath,
                 onUploadComplete = {
@@ -472,10 +466,7 @@ fun XerahSNavGraph(
             route = Screen.UploadBatch.route,
             arguments = listOf(navArgument("imagePaths") { type = NavType.StringType })
         ) { backStackEntry ->
-            val raw = java.net.URLDecoder.decode(
-                backStackEntry.arguments?.getString("imagePaths") ?: "",
-                "UTF-8"
-            )
+            val raw = backStackEntry.arguments?.getString("imagePaths") ?: ""
             val imagePaths = raw.split("|").filter { it.isNotBlank() }
             UploadScreen(
                 imagePath = imagePaths.first(),
