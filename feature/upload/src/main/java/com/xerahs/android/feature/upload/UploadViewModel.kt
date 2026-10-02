@@ -10,9 +10,12 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.xerahs.android.feature.upload.worker.UploadWorker
+import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.common.sxcu.InputPrompt
 import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.Album
+import com.xerahs.android.core.domain.model.DestinationCapabilities
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -58,8 +61,20 @@ data class UploadUiState(
     val duplicateInfo: DuplicateInfo? = null,
     val profiles: List<UploadProfile> = emptyList(),
     val selectedProfileId: String? = null,
-    val pendingPrompts: List<InputPrompt> = emptyList()
-)
+    val pendingPrompts: List<InputPrompt> = emptyList(),
+    val fileMimeTypes: List<String> = emptyList(),
+    val globalCustomTypes: Set<CustomDestinationType>? = null,
+    val profileCustomTypes: Map<String, Set<CustomDestinationType>> = emptyMap(),
+) {
+    fun allows(destination: UploadDestination): Boolean = fileMimeTypes.isEmpty() ||
+        DestinationCapabilities.acceptsAll(
+            destination, fileMimeTypes,
+            if (destination == UploadDestination.CUSTOM_HTTP) globalCustomTypes else null
+        )
+
+    fun allows(profile: UploadProfile): Boolean = fileMimeTypes.isEmpty() ||
+        DestinationCapabilities.acceptsAll(profile.destination, fileMimeTypes, profileCustomTypes[profile.id])
+}
 
 @HiltViewModel
 class UploadViewModel @Inject constructor(
@@ -79,7 +94,14 @@ class UploadViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val defaultDest = settingsRepository.getDefaultDestination().first()
-            _uiState.value = _uiState.value.copy(selectedDestination = defaultDest)
+            val globalCustomTypes = withContext(Dispatchers.IO) {
+                settingsRepository.getCustomUploaderConfig().spec.destinationTypes
+            }
+            _uiState.value = _uiState.value.copy(
+                selectedDestination = defaultDest,
+                globalCustomTypes = globalCustomTypes
+            )
+            ensureAllowedSelection()
         }
         viewModelScope.launch {
             settingsRepository.getAutoCopyUrl().collect { enabled ->
@@ -98,7 +120,16 @@ class UploadViewModel @Inject constructor(
         }
         viewModelScope.launch {
             profileRepository.getAllProfiles().collect { profiles ->
-                _uiState.value = _uiState.value.copy(profiles = profiles)
+                val customTypes = withContext(Dispatchers.IO) {
+                    profiles
+                        .filter { it.destination == UploadDestination.CUSTOM_HTTP }
+                        .associate { p ->
+                            p.id to ((profileRepository.getProfileConfig(p.id, UploadDestination.CUSTOM_HTTP)
+                                as? UploadConfig.CustomUploaderConfig)?.spec?.destinationTypes ?: emptySet())
+                        }
+                }
+                _uiState.value = _uiState.value.copy(profiles = profiles, profileCustomTypes = customTypes)
+                ensureAllowedSelection()
             }
         }
     }
@@ -126,6 +157,24 @@ class UploadViewModel @Inject constructor(
 
     fun selectDestination(destination: UploadDestination) {
         _uiState.value = _uiState.value.copy(selectedDestination = destination)
+    }
+
+    fun setFiles(paths: List<String>) {
+        val mimes = paths.map { MimeTypes.fromFileName(it) }
+        if (mimes == _uiState.value.fileMimeTypes) return
+        _uiState.value = _uiState.value.copy(fileMimeTypes = mimes)
+        ensureAllowedSelection()
+    }
+
+    /** If the current destination/profile can't take these files, fall back to the first one that can. */
+    private fun ensureAllowedSelection() {
+        val s = _uiState.value
+        val profile = s.profiles.find { it.id == s.selectedProfileId }
+        val ok = if (profile != null) s.allows(profile) else s.allows(s.selectedDestination)
+        if (!ok) {
+            val fallback = UploadDestination.entries.firstOrNull { s.allows(it) } ?: UploadDestination.LOCAL
+            _uiState.value = s.copy(selectedProfileId = null, selectedDestination = fallback)
+        }
     }
 
     fun upload(imagePath: String) = startUpload(listOf(imagePath))
