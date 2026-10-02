@@ -41,6 +41,7 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.tools.HashScreen
 import com.xerahs.android.feature.tools.ToolId
 import com.xerahs.android.feature.tools.ToolsScreen
 import androidx.compose.foundation.background
@@ -513,6 +514,10 @@ fun XerahSNavGraph(
                     )
                 }
             )
+        }
+
+        composable(Screen.ToolsHash.route) {
+            HashScreen(onBack = { navController.popBackStack() })
         }
     }
 }
