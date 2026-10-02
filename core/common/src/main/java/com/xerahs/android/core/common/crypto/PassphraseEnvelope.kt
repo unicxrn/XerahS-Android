@@ -21,7 +21,7 @@ object PassphraseEnvelope {
     private const val TAG_BYTES = 16
 
     fun formatOf(text: String): String? = runCatching {
-        JsonParser.parseString(text.trim().removePrefix("﻿")).asJsonObject.get("Format")?.asString
+        JsonParser.parseString(text.trim().removePrefix("\uFEFF")).asJsonObject.get("Format")?.asString
     }.getOrNull()
 
     fun seal(format: String, plain: ByteArray, passphrase: CharArray, iterations: Int = DEFAULT_ITERATIONS): String {
@@ -56,7 +56,7 @@ object PassphraseEnvelope {
 
     fun open(text: String, format: String, passphrase: CharArray): ByteArray {
         val envelope = try {
-            JsonParser.parseString(text.trim().removePrefix("﻿")).asJsonObject
+            JsonParser.parseString(text.trim().removePrefix("\uFEFF")).asJsonObject
         } catch (e: Exception) {
             throw EnvelopeException(EnvelopeException.Reason.NOT_JSON, e)
         }
