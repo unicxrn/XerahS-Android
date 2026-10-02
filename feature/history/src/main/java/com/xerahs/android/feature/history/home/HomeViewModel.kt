@@ -7,6 +7,7 @@ import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.OpenInBrowserException
 import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -84,8 +85,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             remoteDelete.delete(item).fold(
                 onSuccess = {
-                    historyRepository.deleteHistoryItem(item.id)
-                    _messages.emit(HomeMessage.Toast("Deleted from ${item.uploadDestination.displayName}"))
+                    try {
+                        historyRepository.deleteHistoryItem(item.id)
+                        _messages.emit(HomeMessage.Toast("Deleted from ${item.uploadDestination.displayName}"))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        _messages.emit(HomeMessage.Toast("Deleted from host, but couldn't update history: ${e.message ?: "unknown error"}"))
+                    }
                 },
                 onFailure = { e ->
                     _messages.emit(

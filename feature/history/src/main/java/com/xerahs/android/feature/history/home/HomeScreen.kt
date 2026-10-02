@@ -61,6 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.ShimmerBox
@@ -305,7 +306,15 @@ private fun TimelineRow(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete from host?") },
-            text = { Text("This removes the file from ${item.uploadDestination.displayName} and from your history.") },
+            text = {
+                Text(
+                    if (item.uploadDestination == UploadDestination.CUSTOM_HTTP) {
+                        "Opens the host's deletion page."
+                    } else {
+                        "This removes the file from ${item.uploadDestination.displayName} and from your history."
+                    }
+                )
+            },
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
