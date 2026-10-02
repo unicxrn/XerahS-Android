@@ -368,6 +368,22 @@ fun UploadSettingsScreen(
                     }
                 )
 
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                ListItem(
+                    headlineContent = { Text("Convert HEIC to PNG") },
+                    supportingContent = { Text("Most hosts can't display HEIC photos (Android 9+)") },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.convertHeicToPng,
+                            onCheckedChange = { viewModel.setConvertHeicToPng(it) }
+                        )
+                    }
+                )
+
                 if (uiState.shortenerProfiles.isNotEmpty()) {
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),

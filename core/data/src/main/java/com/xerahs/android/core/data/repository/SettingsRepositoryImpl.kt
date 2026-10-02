@@ -177,4 +177,8 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setShortenerProfileId(id: String?) =
         settingsDataStore.setShortenerProfileId(id)
+
+    override fun getConvertHeicToPng(): Flow<Boolean> = settingsDataStore.getConvertHeicToPng()
+
+    override suspend fun setConvertHeicToPng(enabled: Boolean) = settingsDataStore.setConvertHeicToPng(enabled)
 }

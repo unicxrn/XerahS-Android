@@ -38,6 +38,7 @@ data class SettingsUiState(
     val biometricLockMode: String = "OFF",
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
+    val convertHeicToPng: Boolean = true,
     val autoLockTimeout: Long = 0L,
     val destinationConfigured: Boolean = false,
     val exportImportMessage: String? = null,
@@ -125,6 +126,11 @@ class SettingsViewModel @Inject constructor(
             launch {
                 settingsRepository.getStripExif().collect { enabled ->
                     _uiState.value = _uiState.value.copy(stripExif = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getConvertHeicToPng().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(convertHeicToPng = enabled)
                 }
             }
             launch {
@@ -268,6 +274,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setStripExif(enabled)
         }
+    }
+
+    fun setConvertHeicToPng(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setConvertHeicToPng(enabled) }
     }
 
     fun setAutoLockTimeout(timeout: Long) {

@@ -80,4 +80,7 @@ interface SettingsRepository {
     /** Custom-uploader profile used for URL shortening; null = built-in is.gd. */
     fun getShortenerProfileId(): Flow<String?>
     suspend fun setShortenerProfileId(id: String?)
+
+    fun getConvertHeicToPng(): Flow<Boolean>
+    suspend fun setConvertHeicToPng(enabled: Boolean)
 }
