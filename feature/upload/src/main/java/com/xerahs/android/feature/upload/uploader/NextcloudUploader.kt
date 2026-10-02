@@ -28,6 +28,7 @@ class NextcloudUploader @Inject constructor(
         val auth = Credentials.basic(config.username, config.appPassword)
         val folderParts = config.folder.split('/').filter { it.isNotBlank() }
         val fileUrl = davUrl(base, config.username, folderParts + remoteFileName)
+        val remoteKey = (folderParts + remoteFileName).joinToString("/")
         val body = file.asRequestBody(MimeTypes.fromFileName(remoteFileName).toMediaType())
 
         var put = okHttpClient.send(Request.Builder().url(fileUrl).header("Authorization", auth).put(body).build())
@@ -37,8 +38,8 @@ class NextcloudUploader @Inject constructor(
         }
         when {
             !put.ok -> failure(hostError("Nextcloud", put))
-            !config.publicShare -> success(fileUrl.toString())
-            else -> share(base, auth, "/" + (folderParts + remoteFileName).joinToString("/"))
+            !config.publicShare -> success(fileUrl.toString(), remoteKey)
+            else -> share(base, auth, "/$remoteKey", remoteKey)
         }
     } catch (e: CancellationException) {
         throw e
@@ -60,7 +61,7 @@ class NextcloudUploader @Inject constructor(
         }
     }
 
-    private suspend fun share(base: HttpUrl, auth: String, path: String): UploadResult {
+    private suspend fun share(base: HttpUrl, auth: String, path: String, remoteKey: String): UploadResult {
         val url = base.newBuilder().addPathSegments("ocs/v2.php/apps/files_sharing/api/v1/shares")
             .addQueryParameter("format", "json").build()
         val reply = okHttpClient.send(
@@ -75,9 +76,10 @@ class NextcloudUploader @Inject constructor(
             JsonParser.parseString(reply.body).asJsonObject
                 .getAsJsonObject("ocs").getAsJsonObject("data").get("url").asString
         }.getOrNull()
-        return if (link.isNullOrBlank()) failure("Uploaded, but Nextcloud returned no share link") else success(link)
+        return if (link.isNullOrBlank()) failure("Uploaded, but Nextcloud returned no share link") else success(link, remoteKey)
     }
 
-    private fun success(url: String) = UploadResult(success = true, url = url, destination = UploadDestination.NEXTCLOUD)
+    private fun success(url: String, remoteKey: String? = null) =
+        UploadResult(success = true, url = url, destination = UploadDestination.NEXTCLOUD, remoteKey = remoteKey)
     private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.NEXTCLOUD)
 }

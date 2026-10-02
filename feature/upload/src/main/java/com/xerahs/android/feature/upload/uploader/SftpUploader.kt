@@ -77,7 +77,8 @@ class SftpUploader @Inject constructor() {
                 UploadResult(
                     success = true,
                     url = url,
-                    destination = UploadDestination.SFTP
+                    destination = UploadDestination.SFTP,
+                    remoteKey = (if (remotePath.isEmpty() || remotePath == "/") "" else remotePath) + "/" + uploadName
                 )
             } catch (e: Exception) {
                 UploadResult(

@@ -67,7 +67,8 @@ class FtpUploader @Inject constructor() {
                     UploadResult(
                         success = true,
                         url = url,
-                        destination = UploadDestination.FTP
+                        destination = UploadDestination.FTP,
+                        remoteKey = (if (remotePath.isEmpty() || remotePath == "/") "" else remotePath) + "/" + remoteFileName
                     )
                 } else {
                     UploadResult(

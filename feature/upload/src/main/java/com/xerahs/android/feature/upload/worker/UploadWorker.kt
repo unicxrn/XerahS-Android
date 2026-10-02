@@ -163,7 +163,9 @@ class UploadWorker @AssistedInject constructor(
                         fileSize = originalFile.length(),
                         albumId = albumId,
                         fileHash = fileHash,
-                        mimeType = mimeType
+                        mimeType = mimeType,
+                        remoteKey = result.remoteKey,
+                        profileId = profileId
                     )
                     historyRepository.insertHistoryItem(historyItem)
                     for (tagId in tagIds) {

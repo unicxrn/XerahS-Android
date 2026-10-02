@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         UploadProfileEntity::class,
         CustomThemeEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class XerahSDatabase : RoomDatabase() {
