@@ -28,6 +28,10 @@ import com.xerahs.android.feature.annotation.canvas.shapes.MagnifyRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.NumberedStepRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.PixelateRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.RectangleRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.SmartEraserRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.SpeechBalloonRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.StickerRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.HighlighterPenRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.SpotlightRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.TextRenderer
 
@@ -199,6 +203,10 @@ private fun drawAnnotation(canvas: android.graphics.Canvas, annotation: Annotati
         is Annotation.Pixelate -> PixelateRenderer.draw(canvas, annotation, bitmap)
         is Annotation.Spotlight -> SpotlightRenderer.draw(canvas, annotation)
         is Annotation.Magnify -> MagnifyRenderer.draw(canvas, annotation, bitmap)
+        is Annotation.SpeechBalloon -> SpeechBalloonRenderer.draw(canvas, annotation)
+        is Annotation.Sticker -> StickerRenderer.draw(canvas, annotation)
+        is Annotation.SmartEraser -> SmartEraserRenderer.draw(canvas, annotation)
+        is Annotation.HighlighterPen -> HighlighterPenRenderer.draw(canvas, annotation)
     }
 }
 
@@ -279,6 +287,33 @@ private fun hitTest(annotations: List<Annotation>, x: Float, y: Float): String? 
                 val dx = x - annotation.centerX
                 val dy = y - annotation.centerY
                 dx * dx + dy * dy <= annotation.radius * annotation.radius
+            }
+            is Annotation.SpeechBalloon -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.Sticker -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.SmartEraser -> {
+                val l = minOf(annotation.startX, annotation.endX)
+                val t = minOf(annotation.startY, annotation.endY)
+                val r = maxOf(annotation.startX, annotation.endX)
+                val b = maxOf(annotation.startY, annotation.endY)
+                x in l..r && y in t..b
+            }
+            is Annotation.HighlighterPen -> {
+                val pad = annotation.strokeWidth
+                annotation.points.isNotEmpty() &&
+                    x in (annotation.points.minOf { it.first } - pad)..(annotation.points.maxOf { it.first } + pad) &&
+                    y in (annotation.points.minOf { it.second } - pad)..(annotation.points.maxOf { it.second } + pad)
             }
         }
         if (hit) return annotation.id

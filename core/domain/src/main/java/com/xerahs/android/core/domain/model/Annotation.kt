@@ -157,4 +157,56 @@ sealed class Annotation {
         val radius: Float,
         val zoom: Float = 2f,
     ) : Annotation()
+
+    data class SpeechBalloon(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFF000000.toInt(),
+        override val strokeWidth: Float = 3f,
+        override val opacity: Float = 1f,
+        val fillColor: Int = 0xFFFFFFFF.toInt(),
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        val tailX: Float,
+        val tailY: Float,
+        val text: String,
+        val fontSize: Float = 32f,
+    ) : Annotation()
+
+    data class Sticker(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0x00000000,
+        override val strokeWidth: Float = 0f,
+        override val opacity: Float = 1f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        val imagePath: String,
+    ) : Annotation()
+
+    data class SmartEraser(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0x00000000,
+        override val strokeWidth: Float = 0f,
+        override val opacity: Float = 1f,
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        val fillColor: Int,
+    ) : Annotation()
+
+    data class HighlighterPen(
+        override val id: String = generateId(),
+        override val zIndex: Int = 0,
+        override val strokeColor: Int = 0xFFFFEB3B.toInt(),
+        override val strokeWidth: Float = 24f,
+        override val opacity: Float = 0.4f,
+        val points: List<Pair<Float, Float>>,
+    ) : Annotation()
 }
