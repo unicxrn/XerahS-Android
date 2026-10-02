@@ -4,9 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.OpenInBrowserException
+import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -18,13 +23,22 @@ data class HomeUiState(
     val isLoading: Boolean = true
 )
 
+sealed interface HomeMessage {
+    data class Toast(val text: String) : HomeMessage
+    data class OpenUrl(val url: String) : HomeMessage
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val historyRepository: HistoryRepository
+    private val historyRepository: HistoryRepository,
+    private val remoteDelete: RemoteDeleteRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _messages = MutableSharedFlow<HomeMessage>(extraBufferCapacity = 1)
+    val messages: SharedFlow<HomeMessage> = _messages.asSharedFlow()
 
     /** All loaded items, newest-first irrelevant - grouping re-sorts. Kept for in-memory filtering. */
     private var allItems: List<HistoryItem> = emptyList()
@@ -62,5 +76,24 @@ class HomeViewModel @Inject constructor(
             sections = sections,
             itemsById = visible.associateBy { it.id }
         )
+    }
+
+    fun canDeleteFromHost(item: HistoryItem): Boolean = remoteDelete.canDelete(item)
+
+    fun deleteFromHost(item: HistoryItem) {
+        viewModelScope.launch {
+            remoteDelete.delete(item).fold(
+                onSuccess = {
+                    historyRepository.deleteHistoryItem(item.id)
+                    _messages.emit(HomeMessage.Toast("Deleted from ${item.uploadDestination.displayName}"))
+                },
+                onFailure = { e ->
+                    _messages.emit(
+                        if (e is OpenInBrowserException) HomeMessage.OpenUrl(e.url)
+                        else HomeMessage.Toast("Couldn't delete: ${e.message ?: "unknown error"}")
+                    )
+                }
+            )
+        }
     }
 }

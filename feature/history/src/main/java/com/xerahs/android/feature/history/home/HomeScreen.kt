@@ -1,5 +1,8 @@
 package com.xerahs.android.feature.history.home
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,11 +22,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -33,13 +38,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +74,15 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { msg ->
+            when (msg) {
+                is HomeMessage.Toast -> Toast.makeText(context, msg.text, Toast.LENGTH_SHORT).show()
+                is HomeMessage.OpenUrl -> runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(msg.url))) }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -161,7 +178,12 @@ fun HomeScreen(
                         items(section.ids, key = { it }) { id ->
                             val item = uiState.itemsById[id]
                             if (item != null) {
-                                TimelineRow(item = item, onOpen = { onOpen(id) })
+                                TimelineRow(
+                                    item = item,
+                                    onOpen = { onOpen(id) },
+                                    canDeleteFromHost = viewModel.canDeleteFromHost(item),
+                                    onDeleteFromHost = { viewModel.deleteFromHost(item) }
+                                )
                                 HorizontalDivider(
                                     modifier = Modifier.padding(start = 76.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant
@@ -178,8 +200,11 @@ fun HomeScreen(
 @Composable
 private fun TimelineRow(
     item: HistoryItem,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    canDeleteFromHost: Boolean = false,
+    onDeleteFromHost: () -> Unit = {}
 ) {
+    var confirmDelete by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -265,8 +290,25 @@ private fun TimelineRow(
                     onClick = { onOpen(); menuOpen = false },
                     leadingIcon = { Icon(Icons.Default.OpenInFull, contentDescription = null) }
                 )
+                if (canDeleteFromHost) {
+                    DropdownMenuItem(
+                        text = { Text("Delete from host") },
+                        onClick = { menuOpen = false; confirmDelete = true },
+                        leadingIcon = { Icon(Icons.Default.DeleteForever, contentDescription = null) }
+                    )
+                }
             }
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete from host?") },
+            text = { Text("This removes the file from ${item.uploadDestination.displayName} and from your history.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
     }
 }
 
