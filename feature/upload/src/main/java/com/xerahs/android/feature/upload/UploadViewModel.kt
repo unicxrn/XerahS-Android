@@ -200,9 +200,9 @@ class UploadViewModel @Inject constructor(
             }
 
             if (imagePaths.size == 1) {
-                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATH, imagePaths.first())
+                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATH, imagePaths.first())
             } else {
-                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATHS, imagePaths.joinToString("|"))
+                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATHS, imagePaths.joinToString("|"))
             }
 
             val constraints = Constraints.Builder()
@@ -248,20 +248,21 @@ class UploadViewModel @Inject constructor(
                                     url = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_URL),
                                     fileName = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_FILE_NAME),
                                     timestamp = workInfo.outputData.getLong(UploadWorker.KEY_DUPLICATE_TIMESTAMP, 0L),
-                                    imagePath = workInfo.outputData.getString(UploadWorker.KEY_IMAGE_PATH) ?: "",
+                                    imagePath = workInfo.outputData.getString(UploadWorker.KEY_FILE_PATH) ?: "",
                                     destination = workInfo.outputData.getString(UploadWorker.KEY_DESTINATION) ?: ""
                                 )
                             )
                         } else {
+                            val message = workInfo.outputData.getString(UploadWorker.KEY_ERROR_MESSAGE) ?: "Upload failed"
                             _uiState.value = _uiState.value.copy(
                                 isUploading = false,
                                 result = UploadResult(
                                     success = false,
-                                    errorMessage = "Upload failed",
+                                    errorMessage = message,
                                     destination = destination
                                 ),
                                 batchProgress = null,
-                                errorMessage = "Upload failed"
+                                errorMessage = message
                             )
                         }
                     }

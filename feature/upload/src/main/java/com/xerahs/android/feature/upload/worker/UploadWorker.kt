@@ -20,9 +20,11 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.xerahs.android.core.common.FileHasher
 import com.xerahs.android.core.common.FileNamePattern
+import com.xerahs.android.core.common.HeicConverter
 import com.xerahs.android.core.common.ThumbnailGenerator
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -71,8 +73,8 @@ class UploadWorker @AssistedInject constructor(
         val inputValues = decodeInputValues(inputData.getString(KEY_INPUT_VALUES))
 
         // Batch or single mode
-        val batchPaths = inputData.getString(KEY_IMAGE_PATHS)?.split("|")?.filter { it.isNotBlank() }
-        val singlePath = inputData.getString(KEY_IMAGE_PATH)
+        val batchPaths = inputData.getString(KEY_FILE_PATHS)?.split("|")?.filter { it.isNotBlank() }
+        val singlePath = inputData.getString(KEY_FILE_PATH)
         val paths = batchPaths ?: listOfNotNull(singlePath)
         if (paths.isEmpty()) return Result.failure()
 
@@ -100,24 +102,33 @@ class UploadWorker @AssistedInject constructor(
                         .putString(KEY_DUPLICATE_URL, existing.url)
                         .putString(KEY_DUPLICATE_FILE_NAME, existing.fileName)
                         .putLong(KEY_DUPLICATE_TIMESTAMP, existing.timestamp)
-                        .putString(KEY_IMAGE_PATH, path)
+                        .putString(KEY_FILE_PATH, path)
                         .putString(KEY_DESTINATION, destinationName)
                         .build()
                     return Result.failure(outputData)
                 }
             }
 
-            val file = prepareFile(originalFile)
+            val originalMime = MimeTypes.fromFileName(originalFile.name)
+            val heicPng = if (MimeTypes.isHeic(originalMime) && settingsRepository.getConvertHeicToPng().first()) {
+                HeicConverter.toPng(appContext, originalFile)
+            } else null
+            val source = heicPng ?: originalFile
+            val mimeType = if (heicPng != null) "image/png" else originalMime
+
+            val file = if (isProcessableImage(mimeType)) prepareFile(source) else source
             val pattern = settingsRepository.getFileNamingPattern().first()
-            val resolvedName = FileNamePattern.resolve(pattern, originalFile.name)
+            val resolvedName = FileNamePattern.resolve(pattern, source.name)
+            val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
+                source.readText()
+            } else ""
 
-            val uploadResult = performUpload(file, destination, resolvedName, profileId, inputValues)
-
-            // Clean up temp file
-            if (file != originalFile) file.delete()
+            val uploadResult = performUpload(file, destination, resolvedName, profileId, inputValues, textInput)
 
             if (uploadResult.success) {
-                val thumbnailPath = ThumbnailGenerator.generate(appContext, originalFile)
+                val thumbnailPath = if (MimeTypes.isRasterImage(mimeType)) {
+                    ThumbnailGenerator.generate(appContext, source)
+                } else null
                 val itemId = generateId()
                 val historyItem = HistoryItem(
                     id = itemId,
@@ -130,16 +141,25 @@ class UploadWorker @AssistedInject constructor(
                     fileName = resolvedName,
                     fileSize = originalFile.length(),
                     albumId = albumId,
-                    fileHash = fileHash
+                    fileHash = fileHash,
+                    mimeType = mimeType
                 )
                 historyRepository.insertHistoryItem(historyItem)
                 for (tagId in tagIds) {
                     tagRepository.addTagToHistory(itemId, tagId)
                 }
                 uploadResult.url?.let { urls.add(it) }
-            } else {
-                postFailureNotification(uploadResult.errorMessage ?: "Upload failed")
-                return if (runAttemptCount < 3) Result.retry() else Result.failure()
+            }
+
+            // Clean up temp files
+            if (file != source) file.delete()
+            heicPng?.parentFile?.deleteRecursively()
+
+            if (!uploadResult.success) {
+                val message = uploadResult.errorMessage ?: "Upload failed"
+                postFailureNotification(message)
+                return if (runAttemptCount < 3) Result.retry()
+                else Result.failure(Data.Builder().putString(KEY_ERROR_MESSAGE, message).build())
             }
         }
 
@@ -157,7 +177,8 @@ class UploadWorker @AssistedInject constructor(
         destination: UploadDestination,
         resolvedName: String,
         profileId: String? = null,
-        inputValues: Map<String, String> = emptyMap()
+        inputValues: Map<String, String> = emptyMap(),
+        textInput: String = ""
     ): UploadResult {
         // Load config from profile if specified, otherwise use global settings
         val profileConfig = profileId?.let {
@@ -188,7 +209,7 @@ class UploadWorker @AssistedInject constructor(
             UploadDestination.CUSTOM_HTTP -> {
                 val config = (profileConfig as? UploadConfig.CustomUploaderConfig)
                     ?: settingsRepository.getCustomUploaderConfig()
-                customHttpUploader.upload(file, config, resolvedName, inputValues = inputValues)
+                customHttpUploader.upload(file, config, resolvedName, input = textInput, inputValues = inputValues)
             }
             UploadDestination.LOCAL -> {
                 UploadResult(
@@ -199,6 +220,10 @@ class UploadWorker @AssistedInject constructor(
             }
         }
     }
+
+    /** Raster images we can safely re-encode. GIFs would lose animation; HEIC is converted separately. */
+    private fun isProcessableImage(mimeType: String): Boolean =
+        MimeTypes.isRasterImage(mimeType) && !MimeTypes.isHeic(mimeType) && mimeType != "image/gif"
 
     private suspend fun prepareFile(file: File): File {
         val quality = settingsRepository.getImageQuality().first()
@@ -329,8 +354,11 @@ class UploadWorker @AssistedInject constructor(
     }
 
     companion object {
-        const val KEY_IMAGE_PATH = "image_path"
-        const val KEY_IMAGE_PATHS = "image_paths"
+        // String values kept from the image-only era so work queued by older versions still runs.
+        const val KEY_FILE_PATH = "image_path"
+        const val KEY_FILE_PATHS = "image_paths"
+        const val KEY_ERROR_MESSAGE = "error_message"
+        private const val MAX_TEXT_INPUT_BYTES = 1_000_000L
         const val KEY_DESTINATION = "destination"
         const val KEY_ALBUM_ID = "album_id"
         const val KEY_TAG_IDS = "tag_ids"
