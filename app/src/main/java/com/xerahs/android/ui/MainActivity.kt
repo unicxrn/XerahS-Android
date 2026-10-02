@@ -62,6 +62,7 @@ class MainActivity : FragmentActivity() {
     private var pendingSharedImagePath by mutableStateOf<String?>(null)
     private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
     private var pendingLaunchCapture by mutableStateOf(false)
+    private var pendingImportUri by mutableStateOf<String?>(null)
     private var isUnlocked by mutableStateOf(false)
     private var lastBackgroundTime: Long = 0L
 
@@ -134,7 +135,9 @@ class MainActivity : FragmentActivity() {
                                 pendingSharedImagePaths = null
                             },
                             launchCapture = pendingLaunchCapture,
-                            onLaunchCaptureHandled = { pendingLaunchCapture = false }
+                            onLaunchCaptureHandled = { pendingLaunchCapture = false },
+                            importUri = pendingImportUri,
+                            onImportHandled = { pendingImportUri = null }
                         )
                     }
                 }
@@ -185,6 +188,10 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent) {
+        if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+            pendingImportUri = intent.data?.toString()
+            return
+        }
         if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
             val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return
             val path = copyUriToInternal(uri) ?: return
@@ -226,7 +233,9 @@ fun MainScreen(
     sharedImagePaths: List<String>? = null,
     onSharedImageHandled: () -> Unit = {},
     launchCapture: Boolean = false,
-    onLaunchCaptureHandled: () -> Unit = {}
+    onLaunchCaptureHandled: () -> Unit = {},
+    importUri: String? = null,
+    onImportHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
@@ -250,6 +259,13 @@ fun MainScreen(
         if (launchCapture) {
             navController.navigate(Screen.Capture.route)
             onLaunchCaptureHandled()
+        }
+    }
+
+    LaunchedEffect(importUri) {
+        if (importUri != null) {
+            navController.navigate(Screen.UploaderImport.createRoute(importUri))
+            onImportHandled()
         }
     }
 
