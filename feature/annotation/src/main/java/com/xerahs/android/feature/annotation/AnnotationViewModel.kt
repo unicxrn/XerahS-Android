@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.generateId
+import com.xerahs.android.core.common.image.EffectSettings
 import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.core.domain.repository.OcrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,7 +44,8 @@ data class AnnotationUiState(
     val isRecognizing: Boolean = false,
     val ocrError: String? = null,
     val balloonText: String = "Note",
-    val pendingStickerPath: String? = null
+    val pendingStickerPath: String? = null,
+    val effects: EffectSettings = EffectSettings()
 )
 
 @HiltViewModel
@@ -427,6 +429,14 @@ class AnnotationViewModel @Inject constructor(
 
     fun dismissOcr() {
         _uiState.value = _uiState.value.copy(ocrText = null, ocrError = null)
+    }
+
+    fun updateEffects(change: (EffectSettings) -> EffectSettings) {
+        _uiState.value = _uiState.value.copy(effects = change(_uiState.value.effects))
+    }
+
+    fun resetEffects() {
+        _uiState.value = _uiState.value.copy(effects = EffectSettings())
     }
 
     private fun pushUndo() {

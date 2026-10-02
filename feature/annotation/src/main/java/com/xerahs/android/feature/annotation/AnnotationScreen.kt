@@ -1,6 +1,7 @@
 package com.xerahs.android.feature.annotation
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AutoFixOff
 import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -71,6 +73,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,14 +92,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.common.image.ImageEffects
 import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
 import com.xerahs.android.feature.annotation.canvas.SmartEraserSampler
 import com.xerahs.android.feature.annotation.crop.CropEngine
 import com.xerahs.android.feature.annotation.crop.CropOverlay
+import com.xerahs.android.feature.annotation.effects.EffectsSheet
 import com.xerahs.android.feature.annotation.engine.AnnotationEngine
 import com.xerahs.android.feature.annotation.toolbar.ColorPickerDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -151,6 +157,21 @@ fun AnnotationScreen(
 
     // Contextual options sheet
     var showToolOptions by remember { mutableStateOf(false) }
+
+    // Effects panel state
+    var showEffects by remember { mutableStateOf(false) }
+    var showBorderColor by remember { mutableStateOf(false) }
+    val effectsThumb = remember(bitmap) {
+        val s = 512f / maxOf(bitmap.width, bitmap.height)
+        if (s >= 1f) bitmap else Bitmap.createScaledBitmap(
+            bitmap, (bitmap.width * s).toInt().coerceAtLeast(1), (bitmap.height * s).toInt().coerceAtLeast(1), true
+        )
+    }
+    var displayBitmap by remember(bitmap) { mutableStateOf(bitmap) }
+    LaunchedEffect(bitmap, uiState.effects) {
+        delay(150)
+        displayBitmap = withContext(Dispatchers.Default) { ImageEffects.applyColor(bitmap, uiState.effects) }
+    }
 
     // Text input dialog (new or edit)
     if (uiState.pendingTextPosition != null) {
@@ -309,6 +330,34 @@ fun AnnotationScreen(
         }
     }
 
+    // Effects bottom sheet
+    if (showEffects) {
+        val effectsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showEffects = false },
+            sheetState = effectsSheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ) {
+            EffectsSheet(
+                effects = uiState.effects,
+                thumbnail = effectsThumb,
+                onChange = viewModel::updateEffects,
+                onPickBorderColor = { showBorderColor = true },
+                onReset = viewModel::resetEffects
+            )
+        }
+    }
+    if (showBorderColor) {
+        ColorPickerDialog(
+            initialColor = uiState.effects.borderColor,
+            onColorSelected = { c ->
+                viewModel.updateEffects { it.copy(borderColor = c) }
+                showBorderColor = false
+            },
+            onDismiss = { showBorderColor = false }
+        )
+    }
+
     // Canvas-first layout: image fills the whole surface, overlays float on top.
     Box(
         modifier = Modifier
@@ -325,7 +374,7 @@ fun AnnotationScreen(
             )
         } else {
             AnnotationCanvas(
-                bitmap = bitmap,
+                bitmap = displayBitmap,
                 annotations = uiState.annotations,
                 currentAnnotation = currentDragAnnotation,
                 selectedAnnotationId = uiState.selectedAnnotationId,
@@ -441,6 +490,9 @@ fun AnnotationScreen(
                     IconButton(onClick = viewModel::redo, enabled = uiState.redoStack.isNotEmpty()) {
                         Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                     }
+                    IconButton(onClick = { showEffects = true }) {
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = "Effects")
+                    }
                     IconButton(onClick = { viewModel.setCropMode(true) }) {
                         Icon(Icons.Default.Crop, contentDescription = "Crop")
                     }
@@ -542,11 +594,14 @@ fun AnnotationScreen(
                                 val annotatedBitmap = AnnotationEngine.renderAnnotations(
                                     bitmap, uiState.annotations
                                 )
+                                val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
+                                    else ImageEffects.apply(annotatedBitmap, uiState.effects)
                                 val exportsDir = File(context.filesDir, "exports")
                                 if (!exportsDir.exists()) exportsDir.mkdirs()
                                 val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
-                                AnnotationEngine.exportToFile(annotatedBitmap, exportFile)
+                                AnnotationEngine.exportToFile(finalBitmap, exportFile)
                                 annotatedBitmap.recycle()
+                                if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
                                 exportFile.absolutePath
                             }
                             viewModel.setExporting(false)
