@@ -7,15 +7,18 @@ import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
 import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
+import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import com.xerahs.android.feature.settings.destinations.NativeDestinationForms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -68,13 +71,16 @@ data class ProfileEditorUiState(
     // Native destinations (Nextcloud, Immich, GitHub Gist)
     val nativeValues: Map<String, String> = emptyMap(),
     val nativeError: String? = null,
+    // After-upload actions (null = use default)
+    val afterUploadActions: Set<AfterUploadAction>? = null,
     // UI
     val isSaving: Boolean = false
 )
 
 @HiltViewModel
 class ProfileManagementViewModel @Inject constructor(
-    private val profileRepository: UploadProfileRepository
+    private val profileRepository: UploadProfileRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow(ProfileListUiState())
@@ -105,9 +111,24 @@ class ProfileManagementViewModel @Inject constructor(
                 name = profile.name,
                 destination = profile.destination,
                 isDefault = profile.isDefault,
-                isEditing = true
+                isEditing = true,
+                afterUploadActions = settingsRepository.getProfileAfterUploadActions(profileId).first()
             ).applyConfig(config)
         }
+    }
+
+    fun setUseDefaultActions(useDefault: Boolean) {
+        viewModelScope.launch {
+            val actions = if (useDefault) null else settingsRepository.getDefaultAfterUploadActions().first()
+            _editorState.value = _editorState.value.copy(afterUploadActions = actions)
+        }
+    }
+
+    fun toggleAfterUploadAction(action: AfterUploadAction) {
+        val current = _editorState.value.afterUploadActions ?: return
+        _editorState.value = _editorState.value.copy(
+            afterUploadActions = if (action in current) current - action else current + action
+        )
     }
 
     fun updateEditorName(name: String) {
@@ -204,6 +225,7 @@ class ProfileManagementViewModel @Inject constructor(
             } else {
                 profileRepository.createProfile(profile, config)
             }
+            settingsRepository.setProfileAfterUploadActions(id, state.afterUploadActions)
 
             if (state.isDefault) {
                 profileRepository.setDefault(id, state.destination)

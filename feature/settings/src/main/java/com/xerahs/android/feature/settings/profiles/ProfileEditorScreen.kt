@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.feature.settings.AfterUploadActionChips
 import com.xerahs.android.feature.settings.destinations.NativeDestinationFields
 
 // Destination data-dot color reused from management screen logic
@@ -209,6 +210,13 @@ fun ProfileEditorScreen(
                     state.nativeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Use default after-upload actions", Modifier.weight(1f))
+                Switch(checked = state.afterUploadActions == null, onCheckedChange = viewModel::setUseDefaultActions)
+            }
+            state.afterUploadActions?.let { AfterUploadActionChips(it, viewModel::toggleAfterUploadAction) }
 
             Spacer(modifier = Modifier.height(24.dp))
 

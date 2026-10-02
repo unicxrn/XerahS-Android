@@ -463,16 +463,19 @@ fun UploadSettingsScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                ListItem(
-                    headlineContent = { Text("Auto-copy URL after upload") },
-                    supportingContent = { Text("Automatically copy the URL to clipboard when a single upload completes") },
-                    trailingContent = {
-                        Switch(
-                            checked = uiState.autoCopyUrl,
-                            onCheckedChange = { viewModel.setAutoCopyUrl(it) }
-                        )
-                    }
-                )
+                Column(Modifier.padding(16.dp)) {
+                    Text("After upload", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Runs after each upload unless the profile has its own actions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    AfterUploadActionChips(
+                        selected = uiState.defaultAfterUploadActions,
+                        onToggle = viewModel::toggleDefaultAfterUploadAction,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -3,6 +3,7 @@ package com.xerahs.android.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.sxcu.CustomDestinationType
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -34,7 +35,7 @@ data class SettingsUiState(
     val oledBlack: Boolean = true,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
-    val autoCopyUrl: Boolean = false,
+    val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
     val biometricLockMode: String = "OFF",
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
@@ -109,8 +110,8 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
-                settingsRepository.getAutoCopyUrl().collect { enabled ->
-                    _uiState.value = _uiState.value.copy(autoCopyUrl = enabled)
+                settingsRepository.getDefaultAfterUploadActions().collect { actions ->
+                    _uiState.value = _uiState.value.copy(defaultAfterUploadActions = actions)
                 }
             }
             launch {
@@ -255,9 +256,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAutoCopyUrl(enabled: Boolean) {
+    fun toggleDefaultAfterUploadAction(action: AfterUploadAction) {
         viewModelScope.launch {
-            settingsRepository.setAutoCopyUrl(enabled)
+            val current = _uiState.value.defaultAfterUploadActions
+            settingsRepository.setDefaultAfterUploadActions(if (action in current) current - action else current + action)
         }
     }
 
