@@ -2,6 +2,7 @@ package com.xerahs.android.core.common.image
 
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
@@ -51,12 +52,15 @@ object ImageEffects {
         val pad = maxOf(8, minOf(src.width, src.height) / 40)
         val out = Bitmap.createBitmap(src.width + 2 * pad, src.height + 2 * pad, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
+        val alpha = src.extractAlpha()
         val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF000000.toInt()
-            setShadowLayer(pad * 0.6f, 0f, pad * 0.3f, 0x66000000)
+            this.alpha = 0x66
+            maskFilter = BlurMaskFilter(pad * 0.6f, BlurMaskFilter.Blur.NORMAL)
         }
-        canvas.drawRect(pad.toFloat(), pad.toFloat(), (pad + src.width).toFloat(), (pad + src.height).toFloat(), shadowPaint)
+        canvas.drawBitmap(alpha, pad.toFloat(), pad.toFloat() + pad * 0.3f, shadowPaint)
         canvas.drawBitmap(src, pad.toFloat(), pad.toFloat(), null)
+        alpha.recycle()
         return out
     }
 

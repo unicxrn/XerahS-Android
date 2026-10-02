@@ -9,9 +9,23 @@ import android.util.LruCache
 import com.xerahs.android.core.domain.model.Annotation
 
 object StickerRenderer {
-    private val cache = LruCache<String, Bitmap>(8)
+    private const val MAX_DIMENSION = 1024
 
-    private fun load(path: String): Bitmap? = cache.get(path) ?: BitmapFactory.decodeFile(path)?.also { cache.put(path, it) }
+    private val cache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    private fun load(path: String): Bitmap? = cache.get(path) ?: decode(path)?.also { cache.put(path, it) }
+
+    private fun decode(path: String): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sampleSize = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > MAX_DIMENSION) sampleSize *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        return BitmapFactory.decodeFile(path, opts)
+    }
 
     // Draws the sticker fit-center inside its box, keeping the aspect ratio.
     fun draw(canvas: Canvas, s: Annotation.Sticker) {
