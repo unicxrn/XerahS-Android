@@ -1,5 +1,6 @@
 package com.xerahs.android.core.data.repository
 
+import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.data.remote.custom.CustomUploadInput
 import com.xerahs.android.core.data.remote.custom.CustomUploadOutcome
 import com.xerahs.android.core.data.remote.custom.CustomUploaderClient
@@ -31,8 +32,9 @@ class UrlShortenerRepositoryImpl @Inject constructor(
             val profileId = settingsRepository.getShortenerProfileId().first()
             profileId?.let {
                 profileRepository.getProfileConfig(it, UploadDestination.CUSTOM_HTTP) as? UploadConfig.CustomUploaderConfig
-            }
+            }?.takeIf { CustomDestinationType.URL_SHORTENER in it.spec.destinationTypes }
         }
+        // Only a profile that is still a URL shortener is used (matching the settings label); else is.gd.
         return if (config != null && config.spec.requestURL.isNotBlank()) shortenCustom(config, longUrl)
         else shortenIsGd(longUrl)
     }
