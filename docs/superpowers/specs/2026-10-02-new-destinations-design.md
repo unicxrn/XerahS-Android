@@ -30,7 +30,7 @@ HTTP errors become `UploadResult(success=false)` with `"<Host> HTTP <code>: <sho
 
 ## Presets
 Bundled `.sxcu` templates in `core/common/src/main/resources/sxcu-presets/` (classpath resources, so JVM tests can read them), loaded by a `SxcuPresets` object that lists `{id, name, fields}`. Each field is a placeholder like `{{host}}` or `{{api_key}}` substituted before parsing.
-- XBackBone: `POST {{host}}/upload`, multipart `upload`, argument `token={{token}}`, URL `{json:url}`, deletion `{json:raw}`.
+- XBackBone: `POST {{host}}/upload`, multipart `upload`, argument `token={{token}}`, URL `{json:url}` (match the fields of the .sxcu that XBackBone itself exports).
 - Pastebin: `POST https://pastebin.com/api/api_post.php`, form `api_dev_key={{api_key}}`, `api_option=paste`, `api_paste_code={input}`, TextUploader, URL `{response}`.
 - Bitly: `POST https://api-ssl.bitly.com/v4/shorten`, header `Authorization: Bearer {{token}}`, JSON `{"long_url":"{input}"}`, URLShortener, URL `{json:link}`.
 
