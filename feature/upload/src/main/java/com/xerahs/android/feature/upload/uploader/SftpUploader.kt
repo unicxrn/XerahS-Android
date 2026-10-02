@@ -75,13 +75,19 @@ class SftpUploader @Inject constructor() {
                 }
 
                 // The actual directory the file landed in: when remotePath was blank
-                // and no cd happened, this is the login home dir, not "/".
-                val actualDir = channel.pwd() ?: remotePath
+                // and no cd happened, this is the login home dir, not "/". If we can't
+                // determine it, don't guess a path -- leave remoteKey null so delete
+                // isn't offered for a path we aren't sure about.
+                val actualDir = try {
+                    channel.pwd()
+                } catch (e: Exception) {
+                    null
+                }
                 UploadResult(
                     success = true,
                     url = url,
                     destination = UploadDestination.SFTP,
-                    remoteKey = actualDir.trimEnd('/') + "/" + uploadName
+                    remoteKey = actualDir?.let { it.trimEnd('/') + "/" + uploadName }
                 )
             } catch (e: Exception) {
                 UploadResult(
