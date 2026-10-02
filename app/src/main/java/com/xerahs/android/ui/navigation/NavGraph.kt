@@ -41,6 +41,7 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.tools.BatchToolScreen
 import com.xerahs.android.feature.tools.ColorPickerToolScreen
 import com.xerahs.android.feature.tools.HashScreen
 import com.xerahs.android.feature.tools.QrScreen
@@ -515,6 +516,13 @@ fun XerahSNavGraph(
                         }
                     )
                 }
+            )
+        }
+
+        composable(Screen.ToolsBatch.route) {
+            BatchToolScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { paths -> navController.navigate(Screen.UploadBatch.createRoute(paths)) }
             )
         }
 
