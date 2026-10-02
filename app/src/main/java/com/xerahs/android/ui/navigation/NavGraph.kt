@@ -96,7 +96,7 @@ sealed class Screen(val route: String) {
     data object UploaderImport : Screen("settings/import-uploader?uri={uri}") {
         fun createRoute(uri: String? = null) =
             if (uri == null) "settings/import-uploader"
-            else "settings/import-uploader?uri=${java.net.URLEncoder.encode(uri, "UTF-8")}"
+            else "settings/import-uploader?uri=${android.net.Uri.encode(uri)}"
     }
     data object StorageSettings : Screen("settings/storage")
     data object SecuritySettings : Screen("settings/security")

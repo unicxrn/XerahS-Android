@@ -129,7 +129,13 @@ class UploaderImportViewModel @Inject constructor(
         if (drafts.isEmpty()) return
         viewModelScope.launch {
             _state.value = UploaderImportState.Loading
-            _state.value = UploaderImportState.Done(repository.import(drafts))
+            _state.value = try {
+                UploaderImportState.Done(repository.import(drafts))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                UploaderImportState.Error("Couldn't save the imported profiles: ${e.message}")
+            }
         }
     }
 
