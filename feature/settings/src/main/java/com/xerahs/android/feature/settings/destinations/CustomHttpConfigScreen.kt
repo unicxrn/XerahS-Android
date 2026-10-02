@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -54,11 +55,17 @@ fun CustomHttpConfigScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
-    var sxcu by remember { mutableStateOf("") }
+    var sxcu by rememberSaveable { mutableStateOf("") }
+    var loaded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { sxcu = viewModel.loadSxcu() }
+    LaunchedEffect(Unit) {
+        if (!loaded) {
+            sxcu = viewModel.loadSxcu()
+            loaded = true
+        }
+    }
 
     fun replaceWith(text: String?) {
         val normalized = text?.let(viewModel::normalize)

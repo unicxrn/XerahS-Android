@@ -74,7 +74,10 @@ class ExportImportManager @Inject constructor(
         sftp.addProperty("httpUrl", sftpConfig.httpUrl)
         json.add("sftp", sftp)
 
-        json.addProperty("customUploader", SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec))
+        val customUploaderSpec = settingsRepository.getCustomUploaderConfig().spec
+        if (customUploaderSpec.requestURL.isNotBlank()) {
+            json.addProperty("customUploader", SxcuWriter.write(customUploaderSpec))
+        }
 
         json.addProperty("uploadFormat", settingsRepository.getUploadFormat().first().name)
         json.addProperty("stripExif", settingsRepository.getStripExif().first())
@@ -279,12 +282,14 @@ class ExportImportManager @Inject constructor(
         // Custom uploader section
         importedCustomUploader(json)?.let { imported ->
             val current = settingsRepository.getCustomUploaderConfig().spec
+            val changed = SxcuWriter.write(current) != SxcuWriter.write(imported.spec)
             val cur = "${current.name} — ${current.requestURL}"
-            val imp = "${imported.spec.name} — ${imported.spec.requestURL}"
+            var imp = "${imported.spec.name} — ${imported.spec.requestURL}"
+            if (changed && imp == cur) imp += " (settings differ)"
             sections.add(
                 ImportSection(
                     "Custom uploader",
-                    listOf(ImportField("customUploader", "Uploader", cur, imp, cur != imp))
+                    listOf(ImportField("customUploader", "Uploader", cur, imp, changed))
                 )
             )
         }

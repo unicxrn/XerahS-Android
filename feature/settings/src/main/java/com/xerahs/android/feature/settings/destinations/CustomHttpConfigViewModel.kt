@@ -20,7 +20,9 @@ class CustomHttpConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
-    suspend fun loadSxcu(): String = SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec)
+    suspend fun loadSxcu(): String = withContext(Dispatchers.IO) {
+        SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec)
+    }
 
     /** Saves [sxcu] if valid. Returns null on success, otherwise the error message. */
     suspend fun save(sxcu: String): String? = SxcuParser.parse(sxcu).fold(
