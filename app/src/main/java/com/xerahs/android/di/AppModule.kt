@@ -3,6 +3,7 @@ package com.xerahs.android.di
 import com.xerahs.android.core.data.repository.AlbumRepositoryImpl
 import com.xerahs.android.core.data.repository.HistoryRepositoryImpl
 import com.xerahs.android.core.data.repository.OcrRepositoryImpl
+import com.xerahs.android.core.data.repository.RemoteDeleteRepositoryImpl
 import com.xerahs.android.core.data.repository.SettingsRepositoryImpl
 import com.xerahs.android.core.data.repository.TagRepositoryImpl
 import com.xerahs.android.core.data.repository.UploadProfileRepositoryImpl
@@ -11,6 +12,7 @@ import com.xerahs.android.core.data.repository.UrlShortenerRepositoryImpl
 import com.xerahs.android.core.domain.repository.AlbumRepository
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.OcrRepository
+import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
@@ -57,4 +59,8 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindUploaderImportRepository(impl: UploaderImportRepositoryImpl): UploaderImportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRemoteDeleteRepository(impl: RemoteDeleteRepositoryImpl): RemoteDeleteRepository
 }
