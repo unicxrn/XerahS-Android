@@ -52,4 +52,5 @@ dependencies {
     implementation(libs.mlkit.text)
 
     testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
 }
