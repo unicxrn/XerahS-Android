@@ -115,7 +115,7 @@ class ProfileManagementViewModel @Inject constructor(
     }
 
     fun updateEditorDestination(destination: UploadDestination) {
-        _editorState.value = _editorState.value.copy(destination = destination)
+        _editorState.value = _editorState.value.copy(destination = destination, nativeValues = emptyMap(), nativeError = null)
     }
 
     fun updateEditorDefault(isDefault: Boolean) {
