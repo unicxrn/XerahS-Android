@@ -10,7 +10,7 @@ class SxcuFormatException(message: String) : Exception(message)
 object SxcuParser {
     fun parse(text: String): Result<CustomUploaderSpec> = runCatching {
         val element = try {
-            JsonParser.parseString(text.trim().removePrefix("﻿"))
+            JsonParser.parseString(text.trim().removePrefix("\uFEFF"))
         } catch (e: Exception) {
             throw SxcuFormatException("Not valid JSON")
         }

@@ -18,7 +18,7 @@ object UploaderImportParsing {
             "xsdc" -> return UploaderFileKind.XSDC
         }
         val obj = runCatching {
-            JsonParser.parseString(String(bytes, Charsets.UTF_8).trim().removePrefix("﻿")).asJsonObject
+            JsonParser.parseString(String(bytes, Charsets.UTF_8).trim().removePrefix("\uFEFF")).asJsonObject
         }.getOrNull() ?: return UploaderFileKind.UNKNOWN
         return when {
             obj.get("Format")?.takeIf { it.isJsonPrimitive }?.asString == "XerahS.DestinationConfig" -> UploaderFileKind.XSDC

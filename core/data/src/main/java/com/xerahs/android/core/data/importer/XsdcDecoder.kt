@@ -28,7 +28,7 @@ object XsdcDecoder {
 
     fun decode(bytes: ByteArray, passphrase: CharArray): List<XsdcDestination> {
         val envelope = try {
-            JsonParser.parseString(String(bytes, Charsets.UTF_8).trim().removePrefix("﻿")).asJsonObject
+            JsonParser.parseString(String(bytes, Charsets.UTF_8).trim().removePrefix("\uFEFF")).asJsonObject
         } catch (e: Exception) {
             throw XsdcException("The .xsdc file is not valid JSON.", e)
         }
