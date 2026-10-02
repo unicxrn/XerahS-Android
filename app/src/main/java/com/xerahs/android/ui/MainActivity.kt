@@ -243,8 +243,17 @@ class MainActivity : FragmentActivity() {
         File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
 
     /** Copies a shared item into app storage, keeping its real name (and so its extension). */
-    private fun copyUriToInternal(uri: Uri, displayName: String?): String? = try {
+    private fun copyUriToInternal(uri: Uri, displayName: String?): String? {
         val dir = newSharedDir()
+        return try {
+            copyInto(dir, uri, displayName)
+        } catch (e: Exception) {
+            dir.deleteRecursively() // don't leave empty share folders behind
+            null
+        }
+    }
+
+    private fun copyInto(dir: File, uri: Uri, displayName: String?): String {
         var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
         if (!name.contains('.')) {
             val ext = contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
@@ -254,9 +263,7 @@ class MainActivity : FragmentActivity() {
         contentResolver.openInputStream(uri)?.use { input ->
             FileOutputStream(file).use { out -> input.copyTo(out) }
         } ?: throw java.io.FileNotFoundException(uri.toString())
-        file.absolutePath
-    } catch (e: Exception) {
-        null
+        return file.absolutePath
     }
 
     /** Keeps the name's UTF-8 length within [MAX_NAME_BYTES] by trimming the base name, never the extension. */
