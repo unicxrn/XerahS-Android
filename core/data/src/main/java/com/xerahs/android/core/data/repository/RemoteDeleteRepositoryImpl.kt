@@ -22,21 +22,30 @@ class RemoteDeleteRepositoryImpl @Inject constructor(
 
     override fun canDelete(item: HistoryItem) = deleter.canDelete(item)
 
-    override suspend fun delete(item: HistoryItem): Result<Unit> = try {
-        deleter.delete(item, configFor(item))
-        Result.success(Unit)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Result.failure(e)
+    override suspend fun delete(item: HistoryItem): Result<Unit> {
+        return try {
+            val config = configFor(item)
+                ?: return Result.failure(IllegalStateException("The profile used for this upload was deleted"))
+            deleter.delete(item, config)
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    // The upload's profile if it still exists, otherwise the global config.
-    private suspend fun configFor(item: HistoryItem): UploadConfig = withContext(Dispatchers.IO) {
+    // The upload's profile config if it still exists, the global config if the upload
+    // wasn't tied to a profile, or null if the profile it used has since been deleted
+    // (its global config may point at a different bucket/host, so we must not fall
+    // back to it and risk deleting an unrelated file with the same key).
+    private suspend fun configFor(item: HistoryItem): UploadConfig? = withContext(Dispatchers.IO) {
         val dest = item.uploadDestination
-        item.profileId?.takeIf { profileRepository.getProfile(it) != null }
-            ?.let { profileRepository.getProfileConfig(it, dest) }
-            ?: when (dest) {
+        val profileId = item.profileId
+        if (profileId != null) {
+            profileRepository.getProfile(profileId)?.let { profileRepository.getProfileConfig(profileId, dest) }
+        } else {
+            when (dest) {
                 UploadDestination.S3 -> settingsRepository.getS3Config()
                 UploadDestination.FTP -> settingsRepository.getFtpConfig()
                 UploadDestination.SFTP -> settingsRepository.getSftpConfig()
@@ -44,5 +53,6 @@ class RemoteDeleteRepositoryImpl @Inject constructor(
                 UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig()
                 else -> throw IllegalArgumentException("Deleting from ${dest.displayName} isn't supported")
             }
+        }
     }
 }
