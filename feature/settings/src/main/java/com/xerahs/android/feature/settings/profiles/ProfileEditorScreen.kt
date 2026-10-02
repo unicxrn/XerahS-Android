@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.feature.settings.destinations.NativeDestinationFields
 
 // Destination data-dot color reused from management screen logic
 private fun destDotColor(dest: UploadDestination): Color = when (dest) {
@@ -203,7 +204,10 @@ fun ProfileEditorScreen(
                 UploadDestination.SFTP -> SftpFields(state, viewModel)
                 UploadDestination.CUSTOM_HTTP -> CustomHttpFields(state, viewModel)
                 UploadDestination.LOCAL -> {}
-                UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST -> {}
+                UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST -> {
+                    NativeDestinationFields(state.destination, state.nativeValues, viewModel::updateNativeValue)
+                    state.nativeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

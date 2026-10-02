@@ -59,4 +59,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.commons.net)
     implementation(libs.jsch)
+
+    testImplementation(libs.junit)
 }

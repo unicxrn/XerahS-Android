@@ -34,7 +34,9 @@ import com.xerahs.android.feature.settings.profiles.ProfileManagementViewModel
 import com.xerahs.android.feature.settings.destinations.CustomHttpConfigScreen
 import com.xerahs.android.feature.settings.destinations.FtpConfigScreen
 import com.xerahs.android.feature.settings.destinations.ImgurConfigScreen
+import com.xerahs.android.feature.settings.destinations.NativeDestinationConfigScreen
 import com.xerahs.android.feature.settings.destinations.S3ConfigScreen
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
@@ -93,6 +95,9 @@ sealed class Screen(val route: String) {
     data object S3Config : Screen("settings/s3")
     data object FtpConfig : Screen("settings/ftp")
     data object CustomHttpConfig : Screen("settings/custom-http")
+    data object NativeDestinationConfig : Screen("settings/destination/{destination}") {
+        fun createRoute(destination: UploadDestination) = "settings/destination/${destination.name}"
+    }
     data object UploaderImport : Screen("settings/import-uploader?uri={uri}") {
         fun createRoute(uri: String? = null) =
             if (uri == null) "settings/import-uploader"
@@ -352,6 +357,7 @@ fun XerahSNavGraph(
                 onNavigateToCustomHttpConfig = { navController.navigate(Screen.CustomHttpConfig.route) },
                 onNavigateToImportUploader = { navController.navigate(Screen.UploaderImport.createRoute()) },
                 onNavigateToProfiles = { navController.navigate(Screen.ProfileManagement.route) },
+                onNavigateToDestination = { navController.navigate(Screen.NativeDestinationConfig.createRoute(it)) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -443,6 +449,15 @@ fun XerahSNavGraph(
                     onBack = { navController.popBackStack() },
                     onImportAsProfile = { navController.navigate(Screen.UploaderImport.createRoute()) }
                 )
+            }
+        }
+
+        composable(
+            route = Screen.NativeDestinationConfig.route,
+            arguments = listOf(navArgument("destination") { type = NavType.StringType })
+        ) {
+            BiometricGate(navController) {
+                NativeDestinationConfigScreen(onBack = { navController.popBackStack() })
             }
         }
 

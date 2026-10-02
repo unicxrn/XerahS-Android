@@ -11,6 +11,7 @@ import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.feature.settings.destinations.NativeDestinationForms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +65,9 @@ data class ProfileEditorUiState(
     // Custom uploader (.sxcu JSON text)
     val customUploaderSxcu: String = SxcuWriter.write(CustomUploaderSpec()),
     val customUploaderError: String? = null,
+    // Native destinations (Nextcloud, Immich, GitHub Gist)
+    val nativeValues: Map<String, String> = emptyMap(),
+    val nativeError: String? = null,
     // UI
     val isSaving: Boolean = false
 )
@@ -158,6 +162,10 @@ class ProfileManagementViewModel @Inject constructor(
         _editorState.value = _editorState.value.copy(customUploaderSxcu = v, customUploaderError = null)
     }
 
+    fun updateNativeValue(key: String, value: String) {
+        _editorState.value = _editorState.value.copy(nativeValues = _editorState.value.nativeValues + (key to value), nativeError = null)
+    }
+
     fun saveProfile(onComplete: () -> Unit) {
         viewModelScope.launch {
             _editorState.value = _editorState.value.copy(isSaving = true)
@@ -169,6 +177,13 @@ class ProfileManagementViewModel @Inject constructor(
                         isSaving = false,
                         customUploaderError = parsed.exceptionOrNull()?.message ?: "Not a valid custom uploader"
                     )
+                    return@launch
+                }
+            }
+            if (NativeDestinationForms.supports(state.destination)) {
+                val missing = NativeDestinationForms.missingRequired(state.destination, state.nativeValues)
+                if (missing.isNotEmpty()) {
+                    _editorState.value = state.copy(isSaving = false, nativeError = "Fill in: ${missing.joinToString()}")
                     return@launch
                 }
             }
@@ -246,7 +261,8 @@ class ProfileManagementViewModel @Inject constructor(
             is UploadConfig.CustomUploaderConfig -> copy(
                 customUploaderSxcu = SxcuWriter.write(config.spec)
             )
-            is UploadConfig.NextcloudConfig, is UploadConfig.ImmichConfig, is UploadConfig.GistConfig -> this
+            is UploadConfig.NextcloudConfig, is UploadConfig.ImmichConfig, is UploadConfig.GistConfig ->
+                copy(nativeValues = NativeDestinationForms.toValues(config))
         }
     }
 
@@ -292,9 +308,8 @@ class ProfileManagementViewModel @Inject constructor(
                 SxcuParser.parse(customUploaderSxcu).getOrThrow() // validated in saveProfile
             )
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
-            UploadDestination.NEXTCLOUD -> UploadConfig.NextcloudConfig()
-            UploadDestination.IMMICH -> UploadConfig.ImmichConfig()
-            UploadDestination.GITHUB_GIST -> UploadConfig.GistConfig()
+            UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST ->
+                NativeDestinationForms.toConfig(destination, nativeValues)
         }
     }
 }
