@@ -28,18 +28,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Receive shared images -->
+            <!-- Receive shared files -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
             </intent-filter>
 
-            <!-- Receive multiple shared images -->
+            <!-- Receive multiple shared files -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
             </intent-filter>
 
             <!-- Open ShareX .sxcu / XerahS .xsdc files (file managers usually report these as octet-stream or JSON) -->

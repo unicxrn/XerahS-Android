@@ -3,6 +3,7 @@ package com.xerahs.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -48,6 +49,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.core.content.IntentCompat
+import com.xerahs.android.core.common.file.MimeTypes
 import java.io.File
 import java.io.FileOutputStream
 
@@ -59,8 +62,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private val mainViewModel: MainViewModel by viewModels()
-    private var pendingSharedImagePath by mutableStateOf<String?>(null)
-    private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
+    private var pendingSharedPaths by mutableStateOf<List<String>?>(null)
     private var pendingLaunchCapture by mutableStateOf(false)
     private var pendingImportUri by mutableStateOf<String?>(null)
     private var isUnlocked by mutableStateOf(false)
@@ -130,12 +132,8 @@ class MainActivity : FragmentActivity() {
                         }
                     } else {
                         MainScreen(
-                            sharedImagePath = pendingSharedImagePath,
-                            sharedImagePaths = pendingSharedImagePaths,
-                            onSharedImageHandled = {
-                                pendingSharedImagePath = null
-                                pendingSharedImagePaths = null
-                            },
+                            sharedPaths = pendingSharedPaths,
+                            onSharedHandled = { pendingSharedPaths = null },
                             launchCapture = pendingLaunchCapture,
                             onLaunchCaptureHandled = { pendingLaunchCapture = false },
                             importUri = pendingImportUri,
@@ -190,50 +188,68 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent) {
-        if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
-            pendingImportUri = intent.data?.toString()
-            return
-        }
-        if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return
-            val path = copyUriToInternal(uri) ?: return
-            pendingSharedImagePath = path
-            pendingSharedImagePaths = null
-        } else if (intent.action == Intent.ACTION_SEND_MULTIPLE && intent.type?.startsWith("image/") == true) {
-            @Suppress("DEPRECATION")
-            val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: return
-            val paths = uris.mapNotNull { copyUriToInternal(it) }
-            if (paths.isNotEmpty()) {
-                pendingSharedImagePaths = paths
-                pendingSharedImagePath = null
+        when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data?.let { pendingImportUri = it.toString() }
+            Intent.ACTION_SEND -> {
+                val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                if (uri != null) {
+                    val name = displayName(uri)
+                    if (isUploaderConfig(name)) {
+                        pendingImportUri = uri.toString()
+                        return
+                    }
+                    copyUriToInternal(uri, name)?.let { pendingSharedPaths = listOf(it) }
+                } else {
+                    val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+                    pendingSharedPaths = listOf(writeSharedText(text))
+                }
             }
-        } else if (intent.action == ACTION_CAPTURE) {
-            pendingLaunchCapture = true
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                    ?: return
+                val paths = uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
+                if (paths.isNotEmpty()) pendingSharedPaths = paths
+            }
+            ACTION_CAPTURE -> pendingLaunchCapture = true
         }
     }
 
-    private fun copyUriToInternal(uri: Uri): String? {
-        return try {
-            val inputStream = contentResolver.openInputStream(uri) ?: return null
-            val capturesDir = File(filesDir, "captures")
-            if (!capturesDir.exists()) capturesDir.mkdirs()
-            val file = File(capturesDir, "shared_${System.currentTimeMillis()}.png")
-            FileOutputStream(file).use { out ->
-                inputStream.copyTo(out)
-            }
-            inputStream.close()
-            file.absolutePath
-        } catch (e: Exception) {
-            null
+    private fun isUploaderConfig(name: String?): Boolean =
+        name?.substringAfterLast('.', "")?.lowercase() in setOf("sxcu", "xsdc")
+
+    private fun displayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
+
+    /** Copies a shared item into app storage, keeping its real name (and so its extension). */
+    private fun copyUriToInternal(uri: Uri, displayName: String?): String? = try {
+        val dir = File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}")
+            .apply { mkdirs() }
+        var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
+        if (!name.contains('.')) {
+            val ext = contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
+            name = "$name.$ext"
         }
+        val file = File(dir, name)
+        contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(file).use { out -> input.copyTo(out) }
+        } ?: throw java.io.FileNotFoundException(uri.toString())
+        file.absolutePath
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun writeSharedText(text: String): String {
+        val dir = File(filesDir, "captures/shared_${System.currentTimeMillis()}").apply { mkdirs() }
+        return File(dir, "shared-text.txt").apply { writeText(text) }.absolutePath
     }
 }
 
 @Composable
 fun MainScreen(
-    sharedImagePath: String? = null,
-    sharedImagePaths: List<String>? = null,
-    onSharedImageHandled: () -> Unit = {},
+    sharedPaths: List<String>? = null,
+    onSharedHandled: () -> Unit = {},
     launchCapture: Boolean = false,
     onLaunchCaptureHandled: () -> Unit = {},
     importUri: String? = null,
@@ -243,18 +259,18 @@ fun MainScreen(
     val mainViewModel: MainViewModel = hiltViewModel()
     val s3Configured by mainViewModel.s3Configured.collectAsStateWithLifecycle()
 
-    LaunchedEffect(sharedImagePath) {
-        if (sharedImagePath != null) {
-            navController.navigate(Screen.Annotation.createRoute(sharedImagePath))
-            onSharedImageHandled()
+    LaunchedEffect(sharedPaths) {
+        val paths = sharedPaths ?: return@LaunchedEffect
+        val single = paths.singleOrNull()
+        val mime = single?.let { MimeTypes.fromFileName(it) }
+        when {
+            // Editable raster image → editor (HEIC goes straight to upload; it is converted there).
+            single != null && MimeTypes.isRasterImage(mime) && !MimeTypes.isHeic(mime) ->
+                navController.navigate(Screen.Annotation.createRoute(single))
+            single != null -> navController.navigate(Screen.Upload.createRoute(single))
+            else -> navController.navigate(Screen.UploadBatch.createRoute(paths))
         }
-    }
-
-    LaunchedEffect(sharedImagePaths) {
-        if (sharedImagePaths != null && sharedImagePaths.isNotEmpty()) {
-            navController.navigate(Screen.UploadBatch.createRoute(sharedImagePaths))
-            onSharedImageHandled()
-        }
+        onSharedHandled()
     }
 
     LaunchedEffect(launchCapture) {
