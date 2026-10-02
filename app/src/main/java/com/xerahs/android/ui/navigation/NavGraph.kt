@@ -41,6 +41,8 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.tools.ToolId
+import com.xerahs.android.feature.tools.ToolsScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,6 +118,11 @@ sealed class Screen(val route: String) {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
     }
+    data object Tools : Screen("tools")
+    data object ToolsBatch : Screen("tools/batch")
+    data object ToolsHash : Screen("tools/hash")
+    data object ToolsQr : Screen("tools/qr")
+    data object ToolsColor : Screen("tools/color")
 }
 
 @Composable
@@ -490,6 +497,21 @@ fun XerahSNavGraph(
                     navController.popBackStack(Screen.Home.route, inclusive = false)
                 },
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Tools.route) {
+            ToolsScreen(
+                onOpen = { tool ->
+                    navController.navigate(
+                        when (tool) {
+                            ToolId.BATCH -> Screen.ToolsBatch.route
+                            ToolId.HASH -> Screen.ToolsHash.route
+                            ToolId.QR -> Screen.ToolsQr.route
+                            ToolId.COLOR -> Screen.ToolsColor.route
+                        }
+                    )
+                }
             )
         }
     }

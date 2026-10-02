@@ -19,3 +19,4 @@ local.properties
 /feature/history/build
 /feature/s3explorer/build
 /feature/settings/build
+/feature/tools/build
