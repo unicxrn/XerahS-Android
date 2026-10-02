@@ -254,12 +254,15 @@ fun UploadScreen(
             clipboardManager.setText(AnnotatedString(event.urls.joinToString("\n")))
             scope.launch { snackbarHostState.showSnackbar(if (event.urls.size > 1) "Links copied" else "Link copied") }
         }
-        if (AfterUploadAction.SHARE_SHEET in event.actions) {
+        val shared = AfterUploadAction.SHARE_SHEET in event.actions
+        if (shared) {
             context.startActivity(
                 Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null)
             )
         }
-        if (AfterUploadAction.OPEN_URL in event.actions && first.startsWith("http", ignoreCase = true)) {
+        // Don't also launch the browser if we just launched the share sheet -- that
+        // would pop two activities on top of the upload screen for one event.
+        if (!shared && AfterUploadAction.OPEN_URL in event.actions && first.startsWith("http", ignoreCase = true)) {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(first))) }
         }
     }
