@@ -1,0 +1,9 @@
+{
+  "Name": "Short",
+  "DestinationType": "URLShortener",
+  "RequestMethod": "POST",
+  "RequestURL": "https://s.example.com/shorten",
+  "Body": "JSON",
+  "Data": "{\"url\":\"{input}\"}",
+  "URL": "{json:short}"
+}

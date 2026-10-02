@@ -1,0 +1,15 @@
+{
+  "Version": "13.7.0",
+  "Name": "My Host",
+  "DestinationType": "ImageUploader, FileUploader",
+  "RequestMethod": "POST",
+  "RequestURL": "https://up.example.com/api/upload",
+  "Headers": { "Authorization": "Bearer abc123" },
+  "Body": "MultipartFormData",
+  "Arguments": { "album": "{inputbox:Album|main}" },
+  "FileFormName": "image",
+  "URL": "{json:data.url}",
+  "ThumbnailURL": "{json:data.thumb}",
+  "DeletionURL": "{json:data.delete}",
+  "ErrorMessage": "{json:error.message}"
+}
