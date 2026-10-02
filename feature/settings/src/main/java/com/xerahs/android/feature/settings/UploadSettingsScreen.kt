@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -69,6 +70,7 @@ fun UploadSettingsScreen(
     onNavigateToS3Config: () -> Unit,
     onNavigateToFtpConfig: () -> Unit,
     onNavigateToCustomHttpConfig: () -> Unit,
+    onNavigateToImportUploader: () -> Unit = {},
     onNavigateToProfiles: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
@@ -231,6 +233,18 @@ fun UploadSettingsScreen(
                             title = "Custom uploader",
                             subtitle = "ShareX-compatible (.sxcu) uploader",
                             onClick = onNavigateToCustomHttpConfig
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.FileDownload,
+                            title = "Import uploader",
+                            subtitle = "ShareX .sxcu or XerahS .xsdc file",
+                            onClick = onNavigateToImportUploader
                         )
                     }
                 }
