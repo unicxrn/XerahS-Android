@@ -98,7 +98,7 @@ fun BackupSettingsScreen(
         val error = when {
             exporting && first.length in 1..7 -> "Use at least 8 characters"
             exporting && second.isNotEmpty() && first != second -> "Passphrases don't match"
-            else -> null
+            else -> uiState.passphraseError
         }
         AlertDialog(
             onDismissRequest = { viewModel.cancelPassphrase() },
@@ -107,7 +107,10 @@ fun BackupSettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (exporting) Text("The backup includes passwords and keys. You need this passphrase to restore it.")
                     OutlinedTextField(first, { first = it }, label = { Text("Passphrase") }, singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = !exporting && error != null,
+                        supportingText = if (!exporting) error?.let { { Text(it) } } else null,
+                        modifier = Modifier.fillMaxWidth())
                     if (exporting) OutlinedTextField(second, { second = it }, label = { Text("Repeat passphrase") }, singleLine = true,
                         visualTransformation = PasswordVisualTransformation(), isError = error != null,
                         supportingText = error?.let { { Text(it) } }, modifier = Modifier.fillMaxWidth())

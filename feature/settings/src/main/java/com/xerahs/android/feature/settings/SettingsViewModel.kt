@@ -52,7 +52,8 @@ data class SettingsUiState(
     val shortenerProfileId: String? = null,
     val shortenerProfiles: List<UploadProfile> = emptyList(),
     val backupPassphraseRequest: BackupPassphraseRequest? = null,
-    val pendingBackupPayload: String? = null
+    val pendingBackupPayload: String? = null,
+    val passphraseError: String? = null
 )
 
 enum class BackupPassphraseRequest { EXPORT, IMPORT }
@@ -410,12 +411,13 @@ class SettingsViewModel @Inject constructor(
                 pendingEncryptedBackup = null
                 _uiState.value = _uiState.value.copy(
                     backupPassphraseRequest = null,
+                    passphraseError = null,
                     importPreview = ImportPreview(preview.sections + listOfNotNull(extras)),
                     pendingImportJson = settingsJson,
                     pendingBackupPayload = payload.toString()
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(exportImportMessage = "Wrong passphrase or damaged backup")
+                _uiState.value = _uiState.value.copy(passphraseError = "Wrong passphrase or damaged backup")
             } finally {
                 passphrase.fill('\u0000')
             }
@@ -426,7 +428,7 @@ class SettingsViewModel @Inject constructor(
         exportPassphrase?.fill('\u0000')
         exportPassphrase = null
         pendingEncryptedBackup = null
-        _uiState.value = _uiState.value.copy(backupPassphraseRequest = null)
+        _uiState.value = _uiState.value.copy(backupPassphraseRequest = null, passphraseError = null)
     }
 
     fun reportExportError(message: String) {
