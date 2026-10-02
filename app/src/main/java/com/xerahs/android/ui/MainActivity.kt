@@ -50,6 +50,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.xerahs.android.core.common.file.MimeTypes
 import java.io.File
 import java.io.FileOutputStream
@@ -59,6 +63,7 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+        private const val MAX_NAME_BYTES = 200
     }
 
     private val mainViewModel: MainViewModel by viewModels()
@@ -192,23 +197,35 @@ class MainActivity : FragmentActivity() {
             Intent.ACTION_VIEW -> intent.data?.let { pendingImportUri = it.toString() }
             Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-                if (uri != null) {
-                    val name = displayName(uri)
-                    if (isUploaderConfig(name)) {
-                        pendingImportUri = uri.toString()
-                        return
+                val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (uri == null && text == null) return
+                // Copying can take a while (e.g. large videos), so keep it off the main thread.
+                lifecycleScope.launch {
+                    if (uri != null) {
+                        val (name, path) = withContext(Dispatchers.IO) {
+                            val name = displayName(uri)
+                            name to if (isUploaderConfig(name)) null else copyUriToInternal(uri, name)
+                        }
+                        if (isUploaderConfig(name)) {
+                            pendingImportUri = uri.toString()
+                        } else if (path != null) {
+                            pendingSharedPaths = listOf(path)
+                        }
+                    } else if (text != null) {
+                        withContext(Dispatchers.IO) { writeSharedText(text) }
+                            ?.let { pendingSharedPaths = listOf(it) }
                     }
-                    copyUriToInternal(uri, name)?.let { pendingSharedPaths = listOf(it) }
-                } else {
-                    val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-                    pendingSharedPaths = listOf(writeSharedText(text))
                 }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                     ?: return
-                val paths = uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
-                if (paths.isNotEmpty()) pendingSharedPaths = paths
+                lifecycleScope.launch {
+                    val paths = withContext(Dispatchers.IO) {
+                        uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
+                    }
+                    if (paths.isNotEmpty()) pendingSharedPaths = paths
+                }
             }
             ACTION_CAPTURE -> pendingLaunchCapture = true
         }
@@ -222,16 +239,18 @@ class MainActivity : FragmentActivity() {
             ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }.getOrNull()
 
+    private fun newSharedDir(): File =
+        File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
+
     /** Copies a shared item into app storage, keeping its real name (and so its extension). */
     private fun copyUriToInternal(uri: Uri, displayName: String?): String? = try {
-        val dir = File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}")
-            .apply { mkdirs() }
+        val dir = newSharedDir()
         var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
         if (!name.contains('.')) {
             val ext = contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
             name = "$name.$ext"
         }
-        val file = File(dir, name)
+        val file = File(dir, limitFileName(name))
         contentResolver.openInputStream(uri)?.use { input ->
             FileOutputStream(file).use { out -> input.copyTo(out) }
         } ?: throw java.io.FileNotFoundException(uri.toString())
@@ -240,10 +259,24 @@ class MainActivity : FragmentActivity() {
         null
     }
 
-    private fun writeSharedText(text: String): String {
-        val dir = File(filesDir, "captures/shared_${System.currentTimeMillis()}").apply { mkdirs() }
-        return File(dir, "shared-text.txt").apply { writeText(text) }.absolutePath
+    /** Keeps the name's UTF-8 length within [MAX_NAME_BYTES] by trimming the base name, never the extension. */
+    private fun limitFileName(name: String): String {
+        val dot = name.lastIndexOf('.')
+        val ext = if (dot >= 0) name.substring(dot) else ""
+        var base = if (dot >= 0) name.substring(0, dot) else name
+        val budget = (MAX_NAME_BYTES - ext.toByteArray(Charsets.UTF_8).size).coerceAtLeast(1)
+        while (base.isNotEmpty() && base.toByteArray(Charsets.UTF_8).size > budget) {
+            base = base.dropLast(1)
+            // Don't leave a dangling high surrogate.
+            if (base.isNotEmpty() && base.last().isHighSurrogate()) base = base.dropLast(1)
+        }
+        if (base.isBlank()) base = "shared"
+        return base + ext
     }
+
+    private fun writeSharedText(text: String): String? = runCatching {
+        File(newSharedDir(), "shared-text.txt").apply { writeText(text) }.absolutePath
+    }.getOrNull()
 }
 
 @Composable

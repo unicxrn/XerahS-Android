@@ -41,6 +41,7 @@ import com.xerahs.android.feature.upload.uploader.S3Uploader
 import com.xerahs.android.feature.upload.uploader.SftpUploader
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.FileOutputStream
@@ -116,44 +117,57 @@ class UploadWorker @AssistedInject constructor(
             val source = heicPng ?: originalFile
             val mimeType = if (heicPng != null) "image/png" else originalMime
 
-            val file = if (isProcessableImage(mimeType)) prepareFile(source) else source
             val pattern = settingsRepository.getFileNamingPattern().first()
             val resolvedName = FileNamePattern.resolve(pattern, source.name)
-            val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
-                source.readText()
-            } else ""
-
-            val uploadResult = performUpload(file, destination, resolvedName, profileId, inputValues, textInput)
-
-            if (uploadResult.success) {
-                val thumbnailPath = if (MimeTypes.isRasterImage(mimeType)) {
-                    ThumbnailGenerator.generate(appContext, source)
-                } else null
-                val itemId = generateId()
-                val historyItem = HistoryItem(
-                    id = itemId,
-                    filePath = path,
-                    thumbnailPath = thumbnailPath,
-                    url = uploadResult.url,
-                    deleteUrl = uploadResult.deleteUrl,
-                    uploadDestination = destination,
-                    timestamp = generateTimestamp(),
-                    fileName = resolvedName,
-                    fileSize = originalFile.length(),
-                    albumId = albumId,
-                    fileHash = fileHash,
-                    mimeType = mimeType
-                )
-                historyRepository.insertHistoryItem(historyItem)
-                for (tagId in tagIds) {
-                    tagRepository.addTagToHistory(itemId, tagId)
+            var file = source
+            val uploadResult = try {
+                val result = try {
+                    file = if (isProcessableImage(mimeType)) prepareFile(source) else source
+                    val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
+                        source.readText()
+                    } else ""
+                    performUpload(file, destination, resolvedName, profileId, inputValues, textInput)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    UploadResult(
+                        success = false,
+                        errorMessage = "Upload error: ${e.message ?: e.javaClass.simpleName}",
+                        destination = destination
+                    )
                 }
-                uploadResult.url?.let { urls.add(it) }
-            }
 
-            // Clean up temp files
-            if (file != source) file.delete()
-            heicPng?.parentFile?.deleteRecursively()
+                if (result.success) {
+                    val thumbnailPath = if (MimeTypes.isRasterImage(mimeType)) {
+                        ThumbnailGenerator.generate(appContext, source)
+                    } else null
+                    val itemId = generateId()
+                    val historyItem = HistoryItem(
+                        id = itemId,
+                        filePath = path,
+                        thumbnailPath = thumbnailPath,
+                        url = result.url,
+                        deleteUrl = result.deleteUrl,
+                        uploadDestination = destination,
+                        timestamp = generateTimestamp(),
+                        fileName = resolvedName,
+                        fileSize = originalFile.length(),
+                        albumId = albumId,
+                        fileHash = fileHash,
+                        mimeType = mimeType
+                    )
+                    historyRepository.insertHistoryItem(historyItem)
+                    for (tagId in tagIds) {
+                        tagRepository.addTagToHistory(itemId, tagId)
+                    }
+                    result.url?.let { urls.add(it) }
+                }
+                result
+            } finally {
+                // Clean up temp files (after the thumbnail, which may read the converted HEIC)
+                if (file != source) file.delete()
+                heicPng?.parentFile?.deleteRecursively()
+            }
 
             if (!uploadResult.success) {
                 val message = uploadResult.errorMessage ?: "Upload failed"
