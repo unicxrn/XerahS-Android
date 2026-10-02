@@ -779,7 +779,7 @@ private fun DestinationSheetContent(
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        UploadDestination.entries.filter { uiState.allows(it) }.forEach { dest ->
+        uiState.selectableDestinations.forEach { dest ->
             val isSelected = uiState.selectedProfileId == null && uiState.selectedDestination == dest
             Surface(
                 modifier = Modifier
@@ -826,7 +826,7 @@ private fun DestinationSheetContent(
         }
 
         // Profiles for the currently selected destination
-        val destProfiles = uiState.profiles.filter { it.destination == uiState.selectedDestination && uiState.allows(it) }
+        val destProfiles = uiState.allowedProfiles(uiState.selectedDestination)
         if (destProfiles.isNotEmpty()) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             Text(

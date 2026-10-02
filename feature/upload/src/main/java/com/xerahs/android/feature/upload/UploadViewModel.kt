@@ -74,6 +74,43 @@ data class UploadUiState(
 
     fun allows(profile: UploadProfile): Boolean = fileMimeTypes.isEmpty() ||
         DestinationCapabilities.acceptsAll(profile.destination, fileMimeTypes, profileCustomTypes[profile.id])
+
+    /** Profiles of [destination] that can take the current files. */
+    fun allowedProfiles(destination: UploadDestination): List<UploadProfile> =
+        profiles.filter { it.destination == destination && allows(it) }
+
+    /** A destination is offered when its global config or any of its profiles can take the files. */
+    fun isSelectable(destination: UploadDestination): Boolean =
+        allows(destination) || allowedProfiles(destination).isNotEmpty()
+
+    val selectableDestinations: List<UploadDestination>
+        get() = UploadDestination.entries.filter { isSelectable(it) }
+
+    /**
+     * What picking [destination] should select: its global config when allowed, otherwise its
+     * first allowed profile. Returns (destination, profileId).
+     */
+    fun resolveDestination(destination: UploadDestination): Pair<UploadDestination, String?> =
+        if (allows(destination)) destination to null
+        else allowedProfiles(destination).firstOrNull()?.let { destination to it.id } ?: (destination to null)
+
+    /** Whether the current selection can take the files. */
+    val isSelectionAllowed: Boolean
+        get() {
+            val profile = profiles.find { it.id == selectedProfileId }
+            return if (profile != null) allows(profile) else allows(selectedDestination)
+        }
+
+    /**
+     * Replacement for a disallowed selection: an allowed profile (or the global config) of the same
+     * destination first, then the first other destination that can take the files, else LOCAL.
+     */
+    fun fallbackSelection(): Pair<UploadDestination, String?> {
+        allowedProfiles(selectedDestination).firstOrNull()?.let { return selectedDestination to it.id }
+        if (allows(selectedDestination)) return selectedDestination to null
+        val dest = UploadDestination.entries.firstOrNull { isSelectable(it) } ?: UploadDestination.LOCAL
+        return resolveDestination(dest)
+    }
 }
 
 @HiltViewModel
@@ -156,7 +193,8 @@ class UploadViewModel @Inject constructor(
     }
 
     fun selectDestination(destination: UploadDestination) {
-        _uiState.value = _uiState.value.copy(selectedDestination = destination)
+        val (dest, profileId) = _uiState.value.resolveDestination(destination)
+        _uiState.value = _uiState.value.copy(selectedDestination = dest, selectedProfileId = profileId)
     }
 
     fun setFiles(paths: List<String>) {
@@ -166,14 +204,12 @@ class UploadViewModel @Inject constructor(
         ensureAllowedSelection()
     }
 
-    /** If the current destination/profile can't take these files, fall back to the first one that can. */
+    /** If the current destination/profile can't take these files, fall back to one that can. */
     private fun ensureAllowedSelection() {
         val s = _uiState.value
-        val profile = s.profiles.find { it.id == s.selectedProfileId }
-        val ok = if (profile != null) s.allows(profile) else s.allows(s.selectedDestination)
-        if (!ok) {
-            val fallback = UploadDestination.entries.firstOrNull { s.allows(it) } ?: UploadDestination.LOCAL
-            _uiState.value = s.copy(selectedProfileId = null, selectedDestination = fallback)
+        if (!s.isSelectionAllowed) {
+            val (dest, profileId) = s.fallbackSelection()
+            _uiState.value = s.copy(selectedDestination = dest, selectedProfileId = profileId)
         }
     }
 
