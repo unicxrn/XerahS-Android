@@ -2,8 +2,12 @@ package com.xerahs.android.feature.settings
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.xerahs.android.core.common.sxcu.LegacyCustomHttp
+import com.xerahs.android.core.common.sxcu.SxcuParser
+import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
+import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
@@ -70,16 +74,7 @@ class ExportImportManager @Inject constructor(
         sftp.addProperty("httpUrl", sftpConfig.httpUrl)
         json.add("sftp", sftp)
 
-        val customHttpConfig = settingsRepository.getCustomHttpConfig()
-        val customHttp = JsonObject()
-        customHttp.addProperty("url", customHttpConfig.url)
-        customHttp.addProperty("method", customHttpConfig.method)
-        customHttp.addProperty("responseUrlJsonPath", customHttpConfig.responseUrlJsonPath)
-        customHttp.addProperty("formFieldName", customHttpConfig.formFieldName)
-        val headersObj = JsonObject()
-        customHttpConfig.headers.forEach { (k, v) -> headersObj.addProperty(k, v) }
-        customHttp.add("headers", headersObj)
-        json.add("customHttp", customHttp)
+        json.addProperty("customUploader", SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec))
 
         json.addProperty("uploadFormat", settingsRepository.getUploadFormat().first().name)
         json.addProperty("stripExif", settingsRepository.getStripExif().first())
@@ -173,22 +168,7 @@ class ExportImportManager @Inject constructor(
             )
         }
 
-        json.getAsJsonObject("customHttp")?.let { ch ->
-            val current = settingsRepository.getCustomHttpConfig()
-            val headers = mutableMapOf<String, String>()
-            ch.getAsJsonObject("headers")?.entrySet()?.forEach { (k, v) ->
-                headers[k] = v.asString
-            }
-            settingsRepository.saveCustomHttpConfig(
-                current.copy(
-                    url = ch.get("url")?.asString ?: current.url,
-                    method = ch.get("method")?.asString ?: current.method,
-                    responseUrlJsonPath = ch.get("responseUrlJsonPath")?.asString ?: current.responseUrlJsonPath,
-                    formFieldName = ch.get("formFieldName")?.asString ?: current.formFieldName,
-                    headers = if (headers.isNotEmpty()) headers else current.headers
-                )
-            )
-        }
+        importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
 
         json.get("uploadFormat")?.asString?.let { name ->
             try {
@@ -296,18 +276,17 @@ class ExportImportManager @Inject constructor(
             if (fields.isNotEmpty()) sections.add(ImportSection("SFTP", fields))
         }
 
-        // Custom HTTP section
-        json.getAsJsonObject("customHttp")?.let { ch ->
-            val current = settingsRepository.getCustomHttpConfig()
-            val fields = mutableListOf<ImportField>()
-            fun addField(key: String, label: String, cur: String, imp: String?) {
-                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
-            }
-            addField("customHttp.url", "URL", current.url, ch.get("url")?.asString)
-            addField("customHttp.method", "Method", current.method, ch.get("method")?.asString)
-            addField("customHttp.responseUrlJsonPath", "JSON Path", current.responseUrlJsonPath, ch.get("responseUrlJsonPath")?.asString)
-            addField("customHttp.formFieldName", "Form Field", current.formFieldName, ch.get("formFieldName")?.asString)
-            if (fields.isNotEmpty()) sections.add(ImportSection("Custom HTTP", fields))
+        // Custom uploader section
+        importedCustomUploader(json)?.let { imported ->
+            val current = settingsRepository.getCustomUploaderConfig().spec
+            val cur = "${current.name} — ${current.requestURL}"
+            val imp = "${imported.spec.name} — ${imported.spec.requestURL}"
+            sections.add(
+                ImportSection(
+                    "Custom uploader",
+                    listOf(ImportField("customUploader", "Uploader", cur, imp, cur != imp))
+                )
+            )
         }
 
         return ImportPreview(sections)
@@ -407,22 +386,29 @@ class ExportImportManager @Inject constructor(
             }
         }
 
-        // Custom HTTP
-        val chKeys = accepted.filter { it.startsWith("customHttp.") }
-        if (chKeys.isNotEmpty()) {
-            json.getAsJsonObject("customHttp")?.let { ch ->
-                val current = settingsRepository.getCustomHttpConfig()
-                val headers = mutableMapOf<String, String>()
-                ch.getAsJsonObject("headers")?.entrySet()?.forEach { (k, v) -> headers[k] = v.asString }
-                settingsRepository.saveCustomHttpConfig(current.copy(
-                    url = if ("customHttp.url" in accepted) ch.get("url")?.asString ?: current.url else current.url,
-                    method = if ("customHttp.method" in accepted) ch.get("method")?.asString ?: current.method else current.method,
-                    responseUrlJsonPath = if ("customHttp.responseUrlJsonPath" in accepted) ch.get("responseUrlJsonPath")?.asString ?: current.responseUrlJsonPath else current.responseUrlJsonPath,
-                    formFieldName = if ("customHttp.formFieldName" in accepted) ch.get("formFieldName")?.asString ?: current.formFieldName else current.formFieldName,
-                    headers = if (headers.isNotEmpty()) headers else current.headers
-                ))
-            }
+        // Custom uploader
+        if ("customUploader" in accepted) {
+            importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
         }
+    }
+
+    /** Reads the custom uploader from an export: new `customUploader` (.sxcu text) or legacy `customHttp` object. */
+    private fun importedCustomUploader(json: JsonObject): UploadConfig.CustomUploaderConfig? {
+        json.get("customUploader")?.takeIf { it.isJsonPrimitive }?.asString?.let { text ->
+            return SxcuParser.parse(text).getOrNull()?.let { UploadConfig.CustomUploaderConfig(it) }
+        }
+        val ch = json.getAsJsonObject("customHttp") ?: return null
+        val url = ch.get("url")?.asString.orEmpty()
+        if (url.isBlank()) return null
+        return UploadConfig.CustomUploaderConfig(
+            LegacyCustomHttp.toSpec(
+                url = url,
+                method = ch.get("method")?.asString.orEmpty(),
+                headers = ch.getAsJsonObject("headers")?.entrySet()?.associate { (k, v) -> k to v.asString }.orEmpty(),
+                responseUrlJsonPath = ch.get("responseUrlJsonPath")?.asString ?: "url",
+                formFieldName = ch.get("formFieldName")?.asString.orEmpty(),
+            )
+        )
     }
 
     private fun maskSecret(value: String): String {

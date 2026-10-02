@@ -227,8 +227,8 @@ fun UploadSettingsScreen(
 
                         DestinationItem(
                             icon = Icons.Default.Http,
-                            title = "Custom HTTP",
-                            subtitle = "Configure custom HTTP endpoint",
+                            title = "Custom uploader",
+                            subtitle = "ShareX-compatible (.sxcu) uploader",
                             onClick = onNavigateToCustomHttpConfig
                         )
                     }

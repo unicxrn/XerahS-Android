@@ -3,6 +3,9 @@ package com.xerahs.android.feature.settings.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.generateId
+import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
+import com.xerahs.android.core.common.sxcu.SxcuParser
+import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.common.generateTimestamp
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -58,12 +61,9 @@ data class ProfileEditorUiState(
     val sftpKeyPassphrase: String = "",
     val sftpRemotePath: String = "/",
     val sftpHttpUrl: String = "",
-    // Custom HTTP
-    val customHttpUrl: String = "",
-    val customHttpMethod: String = "POST",
-    val customHttpHeaders: String = "",
-    val customHttpJsonPath: String = "url",
-    val customHttpFormField: String = "file",
+    // Custom uploader (.sxcu JSON text)
+    val customUploaderSxcu: String = SxcuWriter.write(CustomUploaderSpec()),
+    val customUploaderError: String? = null,
     // UI
     val isSaving: Boolean = false
 )
@@ -154,17 +154,24 @@ class ProfileManagementViewModel @Inject constructor(
     fun updateSftpRemotePath(v: String) { _editorState.value = _editorState.value.copy(sftpRemotePath = v) }
     fun updateSftpHttpUrl(v: String) { _editorState.value = _editorState.value.copy(sftpHttpUrl = v) }
 
-    // Custom HTTP setters
-    fun updateCustomHttpUrl(v: String) { _editorState.value = _editorState.value.copy(customHttpUrl = v) }
-    fun updateCustomHttpMethod(v: String) { _editorState.value = _editorState.value.copy(customHttpMethod = v) }
-    fun updateCustomHttpHeaders(v: String) { _editorState.value = _editorState.value.copy(customHttpHeaders = v) }
-    fun updateCustomHttpJsonPath(v: String) { _editorState.value = _editorState.value.copy(customHttpJsonPath = v) }
-    fun updateCustomHttpFormField(v: String) { _editorState.value = _editorState.value.copy(customHttpFormField = v) }
+    fun updateCustomUploaderSxcu(v: String) {
+        _editorState.value = _editorState.value.copy(customUploaderSxcu = v, customUploaderError = null)
+    }
 
     fun saveProfile(onComplete: () -> Unit) {
         viewModelScope.launch {
             _editorState.value = _editorState.value.copy(isSaving = true)
             val state = _editorState.value
+            if (state.destination == UploadDestination.CUSTOM_HTTP) {
+                val parsed = SxcuParser.parse(state.customUploaderSxcu)
+                if (parsed.isFailure) {
+                    _editorState.value = state.copy(
+                        isSaving = false,
+                        customUploaderError = parsed.exceptionOrNull()?.message ?: "Not a valid custom uploader"
+                    )
+                    return@launch
+                }
+            }
             val id = state.profileId ?: generateId()
 
             val profile = UploadProfile(
@@ -236,12 +243,8 @@ class ProfileManagementViewModel @Inject constructor(
                 sftpRemotePath = config.remotePath,
                 sftpHttpUrl = config.httpUrl
             )
-            is UploadConfig.CustomHttpConfig -> copy(
-                customHttpUrl = config.url,
-                customHttpMethod = config.method,
-                customHttpHeaders = config.headers.entries.joinToString("\n") { "${it.key}=${it.value}" },
-                customHttpJsonPath = config.responseUrlJsonPath,
-                customHttpFormField = config.formFieldName
+            is UploadConfig.CustomUploaderConfig -> copy(
+                customUploaderSxcu = SxcuWriter.write(config.spec)
             )
         }
     }
@@ -284,21 +287,9 @@ class ProfileManagementViewModel @Inject constructor(
                 remotePath = sftpRemotePath,
                 httpUrl = sftpHttpUrl
             )
-            UploadDestination.CUSTOM_HTTP -> {
-                val headers = customHttpHeaders.lines()
-                    .filter { it.contains("=") }
-                    .associate { line ->
-                        val (key, value) = line.split("=", limit = 2)
-                        key to value
-                    }
-                UploadConfig.CustomHttpConfig(
-                    url = customHttpUrl,
-                    method = customHttpMethod,
-                    headers = headers,
-                    responseUrlJsonPath = customHttpJsonPath,
-                    formFieldName = customHttpFormField
-                )
-            }
+            UploadDestination.CUSTOM_HTTP -> UploadConfig.CustomUploaderConfig(
+                SxcuParser.parse(customUploaderSxcu).getOrThrow() // validated in saveProfile
+            )
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
         }
     }

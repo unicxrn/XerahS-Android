@@ -57,8 +57,8 @@ interface SettingsRepository {
     fun getBiometricLockMode(): Flow<String>
     suspend fun setBiometricLockMode(mode: String)
 
-    suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig
-    suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig)
+    suspend fun getCustomUploaderConfig(): UploadConfig.CustomUploaderConfig
+    suspend fun saveCustomUploaderConfig(config: UploadConfig.CustomUploaderConfig)
 
     fun getUploadFormat(): Flow<ImageFormat>
     suspend fun setUploadFormat(format: ImageFormat)

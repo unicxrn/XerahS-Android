@@ -183,8 +183,8 @@ class UploadWorker @AssistedInject constructor(
                 sftpUploader.upload(file, config, resolvedName)
             }
             UploadDestination.CUSTOM_HTTP -> {
-                val config = (profileConfig as? UploadConfig.CustomHttpConfig)
-                    ?: settingsRepository.getCustomHttpConfig()
+                val config = (profileConfig as? UploadConfig.CustomUploaderConfig)
+                    ?: settingsRepository.getCustomUploaderConfig()
                 customHttpUploader.upload(file, config, resolvedName)
             }
             UploadDestination.LOCAL -> {

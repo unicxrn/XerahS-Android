@@ -164,7 +164,7 @@ class SettingsViewModel @Inject constructor(
             }
             UploadDestination.FTP -> settingsRepository.getFtpConfig().host.isNotBlank()
             UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
-            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomHttpConfig().url.isNotBlank()
+            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
             UploadDestination.LOCAL -> true
         }
     }

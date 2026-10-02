@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -516,42 +517,15 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
 @Composable
 private fun CustomHttpFields(state: ProfileEditorUiState, viewModel: ProfileManagementViewModel) {
     OutlinedTextField(
-        value = state.customHttpUrl,
-        onValueChange = { viewModel.updateCustomHttpUrl(it) },
-        label = { Text("URL") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    OutlinedTextField(
-        value = state.customHttpMethod,
-        onValueChange = { viewModel.updateCustomHttpMethod(it) },
-        label = { Text("Method") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    OutlinedTextField(
-        value = state.customHttpHeaders,
-        onValueChange = { viewModel.updateCustomHttpHeaders(it) },
-        label = { Text("Headers (key=value, one per line)") },
-        minLines = 3,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    OutlinedTextField(
-        value = state.customHttpJsonPath,
-        onValueChange = { viewModel.updateCustomHttpJsonPath(it) },
-        label = { Text("Response URL JSON Path") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    OutlinedTextField(
-        value = state.customHttpFormField,
-        onValueChange = { viewModel.updateCustomHttpFormField(it) },
-        label = { Text("Form Field Name") },
-        singleLine = true,
+        value = state.customUploaderSxcu,
+        onValueChange = { viewModel.updateCustomUploaderSxcu(it) },
+        label = { Text("Custom uploader (.sxcu JSON)") },
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        isError = state.customUploaderError != null,
+        supportingText = {
+            Text(state.customUploaderError ?: "Paste or edit a ShareX custom uploader definition")
+        },
+        minLines = 10,
         modifier = Modifier.fillMaxWidth()
     )
 }

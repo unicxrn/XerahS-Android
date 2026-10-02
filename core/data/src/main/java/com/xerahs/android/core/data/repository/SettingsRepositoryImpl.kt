@@ -119,11 +119,11 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setBiometricLockMode(mode: String) =
         settingsDataStore.setBiometricLockMode(mode)
 
-    override suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig =
-        secureCredentialStore.getCustomHttpConfig()
+    override suspend fun getCustomUploaderConfig(): UploadConfig.CustomUploaderConfig =
+        secureCredentialStore.getCustomUploaderConfig()
 
-    override suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig) =
-        secureCredentialStore.saveCustomHttpConfig(config)
+    override suspend fun saveCustomUploaderConfig(config: UploadConfig.CustomUploaderConfig) =
+        secureCredentialStore.saveCustomUploaderConfig(config)
 
     override fun getUploadFormat(): Flow<ImageFormat> =
         settingsDataStore.getUploadFormat()

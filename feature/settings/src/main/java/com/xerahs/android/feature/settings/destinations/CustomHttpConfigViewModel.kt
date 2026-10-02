@@ -1,6 +1,10 @@
 package com.xerahs.android.feature.settings.destinations
 
 import androidx.lifecycle.ViewModel
+import com.xerahs.android.core.common.sxcu.ShareXSyntax
+import com.xerahs.android.core.common.sxcu.SxcuParser
+import com.xerahs.android.core.common.sxcu.SxcuWriter
+import com.xerahs.android.core.common.sxcu.SyntaxContext
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,47 +20,36 @@ class CustomHttpConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
-    suspend fun loadConfig(): UploadConfig.CustomHttpConfig =
-        settingsRepository.getCustomHttpConfig()
+    suspend fun loadSxcu(): String = SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec)
 
-    suspend fun saveConfig(
-        url: String, method: String, headers: Map<String, String>,
-        responseUrlJsonPath: String, formFieldName: String
-    ) {
-        settingsRepository.saveCustomHttpConfig(
-            UploadConfig.CustomHttpConfig(
-                url = url,
-                method = method,
-                headers = headers,
-                responseUrlJsonPath = responseUrlJsonPath,
-                formFieldName = formFieldName
-            )
-        )
-    }
+    /** Saves [sxcu] if valid. Returns null on success, otherwise the error message. */
+    suspend fun save(sxcu: String): String? = SxcuParser.parse(sxcu).fold(
+        onSuccess = { settingsRepository.saveCustomUploaderConfig(UploadConfig.CustomUploaderConfig(it)); null },
+        onFailure = { it.message ?: "Not a valid custom uploader" }
+    )
 
-    suspend fun testConnection(url: String, method: String, headers: Map<String, String>): String =
-        withContext(Dispatchers.IO) {
-            try {
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
+    /** Validates [sxcu] and returns it re-formatted, or null if invalid. */
+    fun normalize(sxcu: String): String? = SxcuParser.parse(sxcu).getOrNull()?.let(SxcuWriter::write)
 
-                val requestBuilder = Request.Builder().url(url)
-                headers.forEach { (key, value) -> requestBuilder.addHeader(key, value) }
-                requestBuilder.head()
-
-                val response = client.newCall(requestBuilder.build()).execute()
-                when {
-                    response.code in 200..499 -> "Endpoint reachable (HTTP ${response.code})"
-                    else -> "Endpoint returned HTTP ${response.code}"
-                }
-            } catch (e: java.net.UnknownHostException) {
-                "Connection failed: could not resolve host."
-            } catch (e: java.net.SocketTimeoutException) {
-                "Connection timed out."
-            } catch (e: Exception) {
-                "Connection failed: ${e.message}"
+    suspend fun testConnection(sxcu: String): String = withContext(Dispatchers.IO) {
+        val spec = SxcuParser.parse(sxcu).getOrElse { return@withContext "Fix the definition first: ${it.message}" }
+        val url = runCatching { ShareXSyntax.evaluate(spec.requestURL, SyntaxContext(fileName = "test.png")) }
+            .getOrElse { return@withContext "Request URL can't be evaluated: ${it.message}" }
+        try {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build()
+            client.newCall(Request.Builder().url(url).head().build()).execute().use { response ->
+                if (response.code in 200..499) "Endpoint reachable (HTTP ${response.code})"
+                else "Endpoint returned HTTP ${response.code}"
             }
+        } catch (e: java.net.UnknownHostException) {
+            "Connection failed: could not resolve host."
+        } catch (e: java.net.SocketTimeoutException) {
+            "Connection timed out."
+        } catch (e: Exception) {
+            "Connection failed: ${e.message}"
         }
+    }
 }

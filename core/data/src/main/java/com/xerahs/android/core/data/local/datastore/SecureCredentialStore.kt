@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.xerahs.android.core.common.sxcu.LegacyCustomHttp
+import com.xerahs.android.core.common.sxcu.SxcuParser
+import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -138,35 +141,35 @@ class SecureCredentialStore @Inject constructor(
         }
     }
 
-    // Custom HTTP
-    fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig {
-        val headersJson = prefs.getString("custom_http_headers", "") ?: ""
-        val headers = if (headersJson.isNotEmpty()) {
-            headersJson.split("\n").filter { it.contains("=") }.associate { line ->
-                val (key, value) = line.split("=", limit = 2)
-                key to value
-            }
-        } else emptyMap()
+    // Custom uploader (.sxcu JSON). Prefix "" = global config, "profile_<id>_" = profile config.
+    fun getCustomUploaderConfig(): UploadConfig.CustomUploaderConfig = readCustomUploader("")
 
-        return UploadConfig.CustomHttpConfig(
-            url = prefs.getString("custom_http_url", "") ?: "",
-            method = prefs.getString("custom_http_method", "POST") ?: "POST",
-            headers = headers,
-            responseUrlJsonPath = prefs.getString("custom_http_json_path", "url") ?: "url",
-            formFieldName = prefs.getString("custom_http_form_field", "file") ?: "file"
-        )
+    fun saveCustomUploaderConfig(config: UploadConfig.CustomUploaderConfig) {
+        prefs.edit().putString("custom_uploader_sxcu", SxcuWriter.write(config.spec)).apply()
     }
 
-    fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig) {
-        val headersString = config.headers.entries.joinToString("\n") { "${it.key}=${it.value}" }
+    private fun readCustomUploader(p: String): UploadConfig.CustomUploaderConfig {
+        prefs.getString("${p}custom_uploader_sxcu", null)?.let { stored ->
+            SxcuParser.parse(stored).getOrNull()?.let { return UploadConfig.CustomUploaderConfig(it) }
+        }
+        val legacyUrl = prefs.getString("${p}custom_http_url", null)
+        if (legacyUrl.isNullOrEmpty()) return UploadConfig.CustomUploaderConfig()
+
+        // One-time in-place migration of the pre-0.5 Custom HTTP keys.
+        val spec = LegacyCustomHttp.toSpec(
+            url = legacyUrl,
+            method = prefs.getString("${p}custom_http_method", "POST") ?: "POST",
+            headers = LegacyCustomHttp.parseHeaderLines(prefs.getString("${p}custom_http_headers", "") ?: ""),
+            responseUrlJsonPath = prefs.getString("${p}custom_http_json_path", "url") ?: "url",
+            formFieldName = prefs.getString("${p}custom_http_form_field", "file") ?: "file",
+        )
         prefs.edit().apply {
-            putString("custom_http_url", config.url)
-            putString("custom_http_method", config.method)
-            putString("custom_http_headers", headersString)
-            putString("custom_http_json_path", config.responseUrlJsonPath)
-            putString("custom_http_form_field", config.formFieldName)
+            putString("${p}custom_uploader_sxcu", SxcuWriter.write(spec))
+            listOf("url", "method", "headers", "json_path", "form_field")
+                .forEach { remove("${p}custom_http_$it") }
             apply()
         }
+        return UploadConfig.CustomUploaderConfig(spec)
     }
 
     // Profile-specific configs (keyed by profile ID)
@@ -211,22 +214,7 @@ class SecureCredentialStore @Inject constructor(
                 remotePath = prefs.getString("${p}sftp_remote_path", "/") ?: "/",
                 httpUrl = prefs.getString("${p}sftp_http_url", "") ?: ""
             )
-            UploadDestination.CUSTOM_HTTP -> {
-                val headersJson = prefs.getString("${p}custom_http_headers", "") ?: ""
-                val headers = if (headersJson.isNotEmpty()) {
-                    headersJson.split("\n").filter { it.contains("=") }.associate { line ->
-                        val (key, value) = line.split("=", limit = 2)
-                        key to value
-                    }
-                } else emptyMap()
-                UploadConfig.CustomHttpConfig(
-                    url = prefs.getString("${p}custom_http_url", "") ?: "",
-                    method = prefs.getString("${p}custom_http_method", "POST") ?: "POST",
-                    headers = headers,
-                    responseUrlJsonPath = prefs.getString("${p}custom_http_json_path", "url") ?: "url",
-                    formFieldName = prefs.getString("${p}custom_http_form_field", "file") ?: "file"
-                )
-            }
+            UploadDestination.CUSTOM_HTTP -> readCustomUploader(p)
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
         }
     }
@@ -273,13 +261,8 @@ class SecureCredentialStore @Inject constructor(
                     putString("${p}sftp_remote_path", config.remotePath)
                     putString("${p}sftp_http_url", config.httpUrl)
                 }
-                is UploadConfig.CustomHttpConfig -> {
-                    val headersString = config.headers.entries.joinToString("\n") { "${it.key}=${it.value}" }
-                    putString("${p}custom_http_url", config.url)
-                    putString("${p}custom_http_method", config.method)
-                    putString("${p}custom_http_headers", headersString)
-                    putString("${p}custom_http_json_path", config.responseUrlJsonPath)
-                    putString("${p}custom_http_form_field", config.formFieldName)
+                is UploadConfig.CustomUploaderConfig -> {
+                    putString("${p}custom_uploader_sxcu", SxcuWriter.write(config.spec))
                 }
             }
             apply()
