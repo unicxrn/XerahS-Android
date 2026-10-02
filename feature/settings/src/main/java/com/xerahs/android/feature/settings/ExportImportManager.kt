@@ -79,6 +79,34 @@ class ExportImportManager @Inject constructor(
             json.addProperty("customUploader", SxcuWriter.write(customUploaderSpec))
         }
 
+        val nextcloudConfig = settingsRepository.getNextcloudConfig()
+        if (nextcloudConfig.serverUrl.isNotBlank() && nextcloudConfig.username.isNotBlank() && nextcloudConfig.appPassword.isNotBlank()) {
+            val nextcloud = JsonObject()
+            nextcloud.addProperty("serverUrl", nextcloudConfig.serverUrl)
+            nextcloud.addProperty("username", nextcloudConfig.username)
+            nextcloud.addProperty("appPassword", nextcloudConfig.appPassword)
+            nextcloud.addProperty("folder", nextcloudConfig.folder)
+            nextcloud.addProperty("publicShare", nextcloudConfig.publicShare)
+            json.add("nextcloud", nextcloud)
+        }
+
+        val immichConfig = settingsRepository.getImmichConfig()
+        if (immichConfig.serverUrl.isNotBlank() && immichConfig.apiKey.isNotBlank()) {
+            val immich = JsonObject()
+            immich.addProperty("serverUrl", immichConfig.serverUrl)
+            immich.addProperty("apiKey", immichConfig.apiKey)
+            immich.addProperty("createShareLink", immichConfig.createShareLink)
+            json.add("immich", immich)
+        }
+
+        val gistConfig = settingsRepository.getGistConfig()
+        if (gistConfig.token.isNotBlank()) {
+            val gist = JsonObject()
+            gist.addProperty("token", gistConfig.token)
+            gist.addProperty("isPublic", gistConfig.isPublic)
+            json.add("gist", gist)
+        }
+
         json.addProperty("uploadFormat", settingsRepository.getUploadFormat().first().name)
         json.addProperty("stripExif", settingsRepository.getStripExif().first())
         json.addProperty("autoLockTimeout", settingsRepository.getAutoLockTimeout().first())
@@ -172,6 +200,40 @@ class ExportImportManager @Inject constructor(
         }
 
         importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
+
+        json.getAsJsonObject("nextcloud")?.let { nextcloud ->
+            val current = settingsRepository.getNextcloudConfig()
+            settingsRepository.saveNextcloudConfig(
+                current.copy(
+                    serverUrl = nextcloud.get("serverUrl")?.asString ?: current.serverUrl,
+                    username = nextcloud.get("username")?.asString ?: current.username,
+                    appPassword = nextcloud.get("appPassword")?.asString ?: current.appPassword,
+                    folder = nextcloud.get("folder")?.asString ?: current.folder,
+                    publicShare = nextcloud.get("publicShare")?.asBoolean ?: current.publicShare
+                )
+            )
+        }
+
+        json.getAsJsonObject("immich")?.let { immich ->
+            val current = settingsRepository.getImmichConfig()
+            settingsRepository.saveImmichConfig(
+                current.copy(
+                    serverUrl = immich.get("serverUrl")?.asString ?: current.serverUrl,
+                    apiKey = immich.get("apiKey")?.asString ?: current.apiKey,
+                    createShareLink = immich.get("createShareLink")?.asBoolean ?: current.createShareLink
+                )
+            )
+        }
+
+        json.getAsJsonObject("gist")?.let { gist ->
+            val current = settingsRepository.getGistConfig()
+            settingsRepository.saveGistConfig(
+                current.copy(
+                    token = gist.get("token")?.asString ?: current.token,
+                    isPublic = gist.get("isPublic")?.asBoolean ?: current.isPublic
+                )
+            )
+        }
 
         json.get("uploadFormat")?.asString?.let { name ->
             try {
@@ -277,6 +339,46 @@ class ExportImportManager @Inject constructor(
             addField("sftp.remotePath", "Remote Path", current.remotePath, sftp.get("remotePath")?.asString)
             addField("sftp.httpUrl", "HTTP URL", current.httpUrl, sftp.get("httpUrl")?.asString)
             if (fields.isNotEmpty()) sections.add(ImportSection("SFTP", fields))
+        }
+
+        // Nextcloud section
+        json.getAsJsonObject("nextcloud")?.let { nextcloud ->
+            val current = settingsRepository.getNextcloudConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("nextcloud.serverUrl", "Server URL", current.serverUrl, nextcloud.get("serverUrl")?.asString)
+            addField("nextcloud.username", "Username", current.username, nextcloud.get("username")?.asString)
+            addField("nextcloud.appPassword", "App Password", maskSecret(current.appPassword), maskSecret(nextcloud.get("appPassword")?.asString ?: ""))
+            addField("nextcloud.folder", "Folder", current.folder, nextcloud.get("folder")?.asString)
+            addField("nextcloud.publicShare", "Public Share", current.publicShare.toString(), nextcloud.get("publicShare")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Nextcloud", fields))
+        }
+
+        // Immich section
+        json.getAsJsonObject("immich")?.let { immich ->
+            val current = settingsRepository.getImmichConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("immich.serverUrl", "Server URL", current.serverUrl, immich.get("serverUrl")?.asString)
+            addField("immich.apiKey", "API Key", maskSecret(current.apiKey), maskSecret(immich.get("apiKey")?.asString ?: ""))
+            addField("immich.createShareLink", "Create Share Link", current.createShareLink.toString(), immich.get("createShareLink")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Immich", fields))
+        }
+
+        // GitHub Gist section
+        json.getAsJsonObject("gist")?.let { gist ->
+            val current = settingsRepository.getGistConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("gist.token", "Token", maskSecret(current.token), maskSecret(gist.get("token")?.asString ?: ""))
+            addField("gist.isPublic", "Public Gist", current.isPublic.toString(), gist.get("isPublic")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("GitHub Gist", fields))
         }
 
         // Custom uploader section
@@ -387,6 +489,46 @@ class ExportImportManager @Inject constructor(
                     password = if ("sftp.password" in accepted) sftp.get("password")?.asString ?: current.password else current.password,
                     remotePath = if ("sftp.remotePath" in accepted) sftp.get("remotePath")?.asString ?: current.remotePath else current.remotePath,
                     httpUrl = if ("sftp.httpUrl" in accepted) sftp.get("httpUrl")?.asString ?: current.httpUrl else current.httpUrl
+                ))
+            }
+        }
+
+        // Nextcloud
+        val nextcloudKeys = accepted.filter { it.startsWith("nextcloud.") }
+        if (nextcloudKeys.isNotEmpty()) {
+            json.getAsJsonObject("nextcloud")?.let { nextcloud ->
+                val current = settingsRepository.getNextcloudConfig()
+                settingsRepository.saveNextcloudConfig(current.copy(
+                    serverUrl = if ("nextcloud.serverUrl" in accepted) nextcloud.get("serverUrl")?.asString ?: current.serverUrl else current.serverUrl,
+                    username = if ("nextcloud.username" in accepted) nextcloud.get("username")?.asString ?: current.username else current.username,
+                    appPassword = if ("nextcloud.appPassword" in accepted) nextcloud.get("appPassword")?.asString ?: current.appPassword else current.appPassword,
+                    folder = if ("nextcloud.folder" in accepted) nextcloud.get("folder")?.asString ?: current.folder else current.folder,
+                    publicShare = if ("nextcloud.publicShare" in accepted) nextcloud.get("publicShare")?.asBoolean ?: current.publicShare else current.publicShare
+                ))
+            }
+        }
+
+        // Immich
+        val immichKeys = accepted.filter { it.startsWith("immich.") }
+        if (immichKeys.isNotEmpty()) {
+            json.getAsJsonObject("immich")?.let { immich ->
+                val current = settingsRepository.getImmichConfig()
+                settingsRepository.saveImmichConfig(current.copy(
+                    serverUrl = if ("immich.serverUrl" in accepted) immich.get("serverUrl")?.asString ?: current.serverUrl else current.serverUrl,
+                    apiKey = if ("immich.apiKey" in accepted) immich.get("apiKey")?.asString ?: current.apiKey else current.apiKey,
+                    createShareLink = if ("immich.createShareLink" in accepted) immich.get("createShareLink")?.asBoolean ?: current.createShareLink else current.createShareLink
+                ))
+            }
+        }
+
+        // GitHub Gist
+        val gistKeys = accepted.filter { it.startsWith("gist.") }
+        if (gistKeys.isNotEmpty()) {
+            json.getAsJsonObject("gist")?.let { gist ->
+                val current = settingsRepository.getGistConfig()
+                settingsRepository.saveGistConfig(current.copy(
+                    token = if ("gist.token" in accepted) gist.get("token")?.asString ?: current.token else current.token,
+                    isPublic = if ("gist.isPublic" in accepted) gist.get("isPublic")?.asBoolean ?: current.isPublic else current.isPublic
                 ))
             }
         }
