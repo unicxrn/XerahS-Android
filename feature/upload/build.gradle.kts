@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
+    implementation(libs.gson)
 
     implementation(libs.workmanager)
     implementation(libs.hilt.work)
@@ -66,4 +67,5 @@ dependencies {
     implementation(libs.exifinterface)
 
     testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
 }
