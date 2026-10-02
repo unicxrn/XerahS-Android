@@ -4,6 +4,7 @@ import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
 import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.CustomThemeEntity
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -12,6 +13,7 @@ import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -199,4 +201,20 @@ class SettingsRepositoryImpl @Inject constructor(
     override fun getConvertHeicToPng(): Flow<Boolean> = settingsDataStore.getConvertHeicToPng()
 
     override suspend fun setConvertHeicToPng(enabled: Boolean) = settingsDataStore.setConvertHeicToPng(enabled)
+
+    override fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>> =
+        settingsDataStore.getDefaultAfterUploadActions()
+
+    override suspend fun setDefaultAfterUploadActions(actions: Set<AfterUploadAction>) =
+        settingsDataStore.setDefaultAfterUploadActions(actions)
+
+    override fun getProfileAfterUploadActions(profileId: String): Flow<Set<AfterUploadAction>?> =
+        settingsDataStore.getProfileAfterUploadActions(profileId)
+
+    override suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?) =
+        settingsDataStore.setProfileAfterUploadActions(profileId, actions)
+
+    override suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction> =
+        profileId?.let { settingsDataStore.getProfileAfterUploadActions(it).first() }
+            ?: settingsDataStore.getDefaultAfterUploadActions().first()
 }

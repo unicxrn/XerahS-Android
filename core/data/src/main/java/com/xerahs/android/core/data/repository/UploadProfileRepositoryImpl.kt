@@ -1,6 +1,7 @@
 package com.xerahs.android.core.data.repository
 
 import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
+import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.data.local.db.UploadProfileDao
 import com.xerahs.android.core.data.local.db.UploadProfileEntity
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -15,7 +16,8 @@ import javax.inject.Singleton
 @Singleton
 class UploadProfileRepositoryImpl @Inject constructor(
     private val profileDao: UploadProfileDao,
-    private val credentialStore: SecureCredentialStore
+    private val credentialStore: SecureCredentialStore,
+    private val settingsDataStore: SettingsDataStore
 ) : UploadProfileRepository {
 
     override fun getAllProfiles(): Flow<List<UploadProfile>> =
@@ -47,6 +49,7 @@ class UploadProfileRepositoryImpl @Inject constructor(
     override suspend fun deleteProfile(id: String) {
         profileDao.deleteProfile(id)
         credentialStore.deleteProfileConfig(id)
+        settingsDataStore.setProfileAfterUploadActions(id, null)
     }
 
     override suspend fun setDefault(id: String, destination: UploadDestination) {

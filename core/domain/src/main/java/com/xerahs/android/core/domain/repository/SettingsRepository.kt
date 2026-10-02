@@ -1,5 +1,6 @@
 package com.xerahs.android.core.domain.repository
 
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -89,4 +90,11 @@ interface SettingsRepository {
 
     fun getConvertHeicToPng(): Flow<Boolean>
     suspend fun setConvertHeicToPng(enabled: Boolean)
+
+    fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>>
+    suspend fun setDefaultAfterUploadActions(actions: Set<AfterUploadAction>)
+    fun getProfileAfterUploadActions(profileId: String): Flow<Set<AfterUploadAction>?>
+    suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?)
+    // Profile set if it has one, otherwise the default set.
+    suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction>
 }

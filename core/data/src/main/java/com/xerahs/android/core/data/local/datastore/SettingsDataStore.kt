@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
@@ -44,6 +45,31 @@ class SettingsDataStore @Inject constructor(
         val CUSTOM_THEME_ID = stringPreferencesKey("custom_theme_id")
         val SHORTENER_PROFILE_ID = stringPreferencesKey("shortener_profile_id")
         val CONVERT_HEIC = booleanPreferencesKey("convert_heic_to_png")
+        val DEFAULT_AFTER_UPLOAD_ACTIONS = stringPreferencesKey("after_upload_actions")
+    }
+
+    private fun profileActionsKey(profileId: String) = stringPreferencesKey("after_upload_actions_$profileId")
+
+    // Missing key: fall back to the old auto-copy switch.
+    fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>> = context.dataStore.data.map { prefs ->
+        prefs[Keys.DEFAULT_AFTER_UPLOAD_ACTIONS]?.let { AfterUploadAction.decode(it) }
+            ?: if (prefs[Keys.AUTO_COPY_URL] == true) setOf(AfterUploadAction.COPY_URL) else emptySet()
+    }
+
+    suspend fun setDefaultAfterUploadActions(actions: Set<AfterUploadAction>) {
+        context.dataStore.edit { it[Keys.DEFAULT_AFTER_UPLOAD_ACTIONS] = AfterUploadAction.encode(actions) }
+    }
+
+    // null = the profile uses the default set.
+    fun getProfileAfterUploadActions(profileId: String): Flow<Set<AfterUploadAction>?> = context.dataStore.data.map { prefs ->
+        prefs[profileActionsKey(profileId)]?.let { AfterUploadAction.decode(it) }
+    }
+
+    suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?) {
+        context.dataStore.edit { prefs ->
+            if (actions == null) prefs.remove(profileActionsKey(profileId))
+            else prefs[profileActionsKey(profileId)] = AfterUploadAction.encode(actions)
+        }
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
