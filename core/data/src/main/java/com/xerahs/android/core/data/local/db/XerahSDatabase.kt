@@ -12,8 +12,8 @@ import androidx.room.RoomDatabase
         UploadProfileEntity::class,
         CustomThemeEntity::class
     ],
-    version = 3,
-    exportSchema = false
+    version = 4,
+    exportSchema = true
 )
 abstract class XerahSDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao

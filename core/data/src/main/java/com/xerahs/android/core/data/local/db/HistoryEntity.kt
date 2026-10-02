@@ -33,7 +33,8 @@ data class HistoryEntity(
     val fileName: String,
     val fileSize: Long,
     val albumId: String? = null,
-    val fileHash: String? = null
+    val fileHash: String? = null,
+    val mimeType: String? = null
 ) {
     fun toDomain(): HistoryItem = HistoryItem(
         id = id,
@@ -46,7 +47,8 @@ data class HistoryEntity(
         fileName = fileName,
         fileSize = fileSize,
         albumId = albumId,
-        fileHash = fileHash
+        fileHash = fileHash,
+        mimeType = mimeType
     )
 
     companion object {
@@ -61,7 +63,8 @@ data class HistoryEntity(
             fileName = item.fileName,
             fileSize = item.fileSize,
             albumId = item.albumId,
-            fileHash = item.fileHash
+            fileHash = item.fileHash,
+            mimeType = item.mimeType
         )
     }
 }
