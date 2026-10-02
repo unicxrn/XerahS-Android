@@ -64,4 +64,6 @@ dependencies {
     implementation(libs.jsch)
 
     implementation(libs.exifinterface)
+
+    testImplementation(libs.junit)
 }

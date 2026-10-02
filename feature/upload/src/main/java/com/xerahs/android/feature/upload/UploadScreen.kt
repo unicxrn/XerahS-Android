@@ -57,6 +57,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -70,6 +71,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -176,6 +178,31 @@ fun UploadScreen(
                     }
                 }
             }
+        )
+    }
+
+    if (uiState.pendingPrompts.isNotEmpty()) {
+        val answers = remember(uiState.pendingPrompts) {
+            mutableStateMapOf<String, String>().apply { uiState.pendingPrompts.forEach { put(it.title, it.default) } }
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelPrompts() },
+            title = { Text("Uploader needs input") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    uiState.pendingPrompts.forEach { prompt ->
+                        OutlinedTextField(
+                            value = answers[prompt.title].orEmpty(),
+                            onValueChange = { answers[prompt.title] = it },
+                            label = { Text(prompt.title.ifBlank { "Value" }) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.submitPromptValues(answers.toMap()) }) { Text("Upload") } },
+            dismissButton = { TextButton(onClick = { viewModel.cancelPrompts() }) { Text("Cancel") } }
         )
     }
 

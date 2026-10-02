@@ -67,6 +67,7 @@ class UploadWorker @AssistedInject constructor(
         val albumId = inputData.getString(KEY_ALBUM_ID)
         val tagIds = inputData.getString(KEY_TAG_IDS)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
         val profileId = inputData.getString(KEY_PROFILE_ID)
+        val inputValues = decodeInputValues(inputData.getString(KEY_INPUT_VALUES))
 
         // Batch or single mode
         val batchPaths = inputData.getString(KEY_IMAGE_PATHS)?.split("|")?.filter { it.isNotBlank() }
@@ -109,7 +110,7 @@ class UploadWorker @AssistedInject constructor(
             val pattern = settingsRepository.getFileNamingPattern().first()
             val resolvedName = FileNamePattern.resolve(pattern, originalFile.name)
 
-            val uploadResult = performUpload(file, destination, resolvedName, profileId)
+            val uploadResult = performUpload(file, destination, resolvedName, profileId, inputValues)
 
             // Clean up temp file
             if (file != originalFile) file.delete()
@@ -154,7 +155,8 @@ class UploadWorker @AssistedInject constructor(
         file: File,
         destination: UploadDestination,
         resolvedName: String,
-        profileId: String? = null
+        profileId: String? = null,
+        inputValues: Map<String, String> = emptyMap()
     ): UploadResult {
         // Load config from profile if specified, otherwise use global settings
         val profileConfig = profileId?.let {
@@ -185,7 +187,7 @@ class UploadWorker @AssistedInject constructor(
             UploadDestination.CUSTOM_HTTP -> {
                 val config = (profileConfig as? UploadConfig.CustomUploaderConfig)
                     ?: settingsRepository.getCustomUploaderConfig()
-                customHttpUploader.upload(file, config, resolvedName)
+                customHttpUploader.upload(file, config, resolvedName, inputValues = inputValues)
             }
             UploadDestination.LOCAL -> {
                 UploadResult(
@@ -336,10 +338,22 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_DUPLICATE_URL = "duplicate_url"
         const val KEY_DUPLICATE_FILE_NAME = "duplicate_file_name"
         const val KEY_DUPLICATE_TIMESTAMP = "duplicate_timestamp"
+        const val KEY_INPUT_VALUES = "input_values"
 
         private const val CHANNEL_UPLOAD = "upload_channel"
         private const val CHANNEL_UPLOAD_COMPLETE = "upload_complete_channel"
         private const val NOTIFICATION_ID_PROGRESS = 2001
         private const val NOTIFICATION_ID_COMPLETE = 2002
+
+        private const val RECORD_SEP = '\u001E'
+        private const val UNIT_SEP = '\u001F'
+
+        /** WorkManager Data can't hold maps; encode {inputbox} answers with ASCII separators. */
+        fun encodeInputValues(values: Map<String, String>): String =
+            values.entries.joinToString(RECORD_SEP.toString()) { "${it.key}$UNIT_SEP${it.value}" }
+
+        fun decodeInputValues(encoded: String?): Map<String, String> =
+            if (encoded.isNullOrEmpty()) emptyMap()
+            else encoded.split(RECORD_SEP).associate { it.substringBefore(UNIT_SEP) to it.substringAfter(UNIT_SEP, "") }
     }
 }

@@ -10,8 +10,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.xerahs.android.feature.upload.worker.UploadWorker
+import com.xerahs.android.core.common.sxcu.InputPrompt
+import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.Tag
+import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.model.UploadResult
@@ -21,11 +24,13 @@ import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class DuplicateInfo(
@@ -52,7 +57,8 @@ data class UploadUiState(
     val selectedTagIds: Set<String> = emptySet(),
     val duplicateInfo: DuplicateInfo? = null,
     val profiles: List<UploadProfile> = emptyList(),
-    val selectedProfileId: String? = null
+    val selectedProfileId: String? = null,
+    val pendingPrompts: List<InputPrompt> = emptyList()
 )
 
 @HiltViewModel
@@ -66,6 +72,9 @@ class UploadViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(UploadUiState())
     val uiState: StateFlow<UploadUiState> = _uiState.asStateFlow()
+
+    private var pendingPaths: List<String> = emptyList()
+    private var lastInputValues: Map<String, String> = emptyMap()
 
     init {
         viewModelScope.launch {
@@ -119,15 +128,49 @@ class UploadViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedDestination = destination)
     }
 
-    fun upload(imagePath: String) {
-        enqueueUpload(listOf(imagePath))
+    fun upload(imagePath: String) = startUpload(listOf(imagePath))
+
+    fun uploadBatch(imagePaths: List<String>) = startUpload(imagePaths)
+
+    /** Asks for {inputbox} values first when the selected custom uploader needs them. */
+    private fun startUpload(paths: List<String>) {
+        viewModelScope.launch {
+            val prompts = customUploaderPrompts()
+            if (prompts.isEmpty()) {
+                enqueueUpload(paths)
+            } else {
+                pendingPaths = paths
+                _uiState.value = _uiState.value.copy(pendingPrompts = prompts)
+            }
+        }
     }
 
-    fun uploadBatch(imagePaths: List<String>) {
-        enqueueUpload(imagePaths)
+    private suspend fun customUploaderPrompts(): List<InputPrompt> {
+        if (_uiState.value.selectedDestination != UploadDestination.CUSTOM_HTTP) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val config = _uiState.value.selectedProfileId
+                ?.let { profileRepository.getProfileConfig(it, UploadDestination.CUSTOM_HTTP) }
+                as? UploadConfig.CustomUploaderConfig
+                ?: settingsRepository.getCustomUploaderConfig()
+            ShareXSyntax.inputPrompts(config.spec.requestTemplates())
+        }
     }
 
-    private fun enqueueUpload(imagePaths: List<String>, skipDuplicateCheck: Boolean = false) {
+    fun submitPromptValues(values: Map<String, String>) {
+        lastInputValues = values
+        _uiState.value = _uiState.value.copy(pendingPrompts = emptyList())
+        enqueueUpload(pendingPaths, inputValues = values)
+    }
+
+    fun cancelPrompts() {
+        _uiState.value = _uiState.value.copy(pendingPrompts = emptyList())
+    }
+
+    private fun enqueueUpload(
+        imagePaths: List<String>,
+        skipDuplicateCheck: Boolean = false,
+        inputValues: Map<String, String> = emptyMap()
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isUploading = true, errorMessage = null, result = null,
@@ -144,6 +187,9 @@ class UploadViewModel @Inject constructor(
 
             _uiState.value.selectedProfileId?.let { profileId ->
                 inputDataBuilder.putString(UploadWorker.KEY_PROFILE_ID, profileId)
+            }
+            if (inputValues.isNotEmpty()) {
+                inputDataBuilder.putString(UploadWorker.KEY_INPUT_VALUES, UploadWorker.encodeInputValues(inputValues))
             }
 
             if (_uiState.value.selectedAlbumId != null) {
@@ -231,7 +277,7 @@ class UploadViewModel @Inject constructor(
     fun uploadAnyway() {
         val dupInfo = _uiState.value.duplicateInfo ?: return
         _uiState.value = _uiState.value.copy(duplicateInfo = null)
-        enqueueUpload(listOf(dupInfo.imagePath), skipDuplicateCheck = true)
+        enqueueUpload(listOf(dupInfo.imagePath), skipDuplicateCheck = true, inputValues = lastInputValues)
     }
 
     fun dismissDuplicate() {
