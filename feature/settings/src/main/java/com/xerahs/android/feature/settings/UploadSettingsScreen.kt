@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -352,6 +353,34 @@ fun UploadSettingsScreen(
                         )
                     }
                 )
+
+                if (uiState.shortenerProfiles.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    var shortenerMenu by remember { mutableStateOf(false) }
+                    val current = uiState.shortenerProfiles.find { it.id == uiState.shortenerProfileId }
+                    ListItem(
+                        headlineContent = { Text("URL shortener") },
+                        supportingContent = { Text(current?.name ?: "is.gd (built-in)") },
+                        modifier = Modifier.clickable { shortenerMenu = true },
+                        trailingContent = {
+                            DropdownMenu(expanded = shortenerMenu, onDismissRequest = { shortenerMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("is.gd (built-in)") },
+                                    onClick = { viewModel.setShortenerProfileId(null); shortenerMenu = false }
+                                )
+                                uiState.shortenerProfiles.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text(p.name) },
+                                        onClick = { viewModel.setShortenerProfileId(p.id); shortenerMenu = false }
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

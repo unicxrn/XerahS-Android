@@ -171,4 +171,10 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun deleteCustomTheme(id: String) =
         customThemeDao.deleteTheme(id)
+
+    override fun getShortenerProfileId(): Flow<String?> =
+        settingsDataStore.getShortenerProfileId()
+
+    override suspend fun setShortenerProfileId(id: String?) =
+        settingsDataStore.setShortenerProfileId(id)
 }

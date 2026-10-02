@@ -76,4 +76,8 @@ interface SettingsRepository {
     suspend fun getCustomTheme(id: String): CustomTheme?
     suspend fun saveCustomTheme(theme: CustomTheme)
     suspend fun deleteCustomTheme(id: String)
+
+    /** Custom-uploader profile used for URL shortening; null = built-in is.gd. */
+    fun getShortenerProfileId(): Flow<String?>
+    suspend fun setShortenerProfileId(id: String?)
 }
