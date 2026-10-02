@@ -195,6 +195,9 @@ class SettingsViewModel @Inject constructor(
             UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
             UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
             UploadDestination.LOCAL -> true
+            UploadDestination.NEXTCLOUD -> settingsRepository.getNextcloudConfig().let { it.serverUrl.isNotBlank() && it.username.isNotBlank() && it.appPassword.isNotBlank() }
+            UploadDestination.IMMICH -> settingsRepository.getImmichConfig().let { it.serverUrl.isNotBlank() && it.apiKey.isNotBlank() }
+            UploadDestination.GITHUB_GIST -> settingsRepository.getGistConfig().token.isNotBlank()
         }
     }
 

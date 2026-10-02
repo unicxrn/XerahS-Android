@@ -987,6 +987,9 @@ private fun destinationAccentColor(destination: UploadDestination): Color {
         UploadDestination.SFTP -> SftpAccent
         UploadDestination.CUSTOM_HTTP -> Color(0xFFFF9800)
         UploadDestination.LOCAL -> LocalAccent
+        UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
+        UploadDestination.IMMICH -> Color(0xFF4250AF)
+        UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
     }
 }
 

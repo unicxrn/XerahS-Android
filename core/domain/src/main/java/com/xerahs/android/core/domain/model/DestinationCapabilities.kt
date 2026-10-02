@@ -21,7 +21,10 @@ object DestinationCapabilities {
                 CustomDestinationType.TEXT in customTypes || CustomDestinationType.FILE in customTypes
             else -> CustomDestinationType.FILE in customTypes
         }
-        UploadDestination.S3, UploadDestination.FTP, UploadDestination.SFTP, UploadDestination.LOCAL -> true
+        UploadDestination.IMMICH -> MimeTypes.isRasterImage(mimeType) || mimeType.startsWith("video/")
+        UploadDestination.GITHUB_GIST -> MimeTypes.isText(mimeType)
+        UploadDestination.S3, UploadDestination.FTP, UploadDestination.SFTP,
+        UploadDestination.LOCAL, UploadDestination.NEXTCLOUD -> true
     }
 
     fun acceptsAll(

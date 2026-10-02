@@ -77,6 +77,24 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun saveS3Config(config: UploadConfig.S3Config) =
         secureCredentialStore.saveS3Config(config)
 
+    override suspend fun getNextcloudConfig(): UploadConfig.NextcloudConfig =
+        secureCredentialStore.getNextcloudConfig()
+
+    override suspend fun saveNextcloudConfig(config: UploadConfig.NextcloudConfig) =
+        secureCredentialStore.saveNextcloudConfig(config)
+
+    override suspend fun getImmichConfig(): UploadConfig.ImmichConfig =
+        secureCredentialStore.getImmichConfig()
+
+    override suspend fun saveImmichConfig(config: UploadConfig.ImmichConfig) =
+        secureCredentialStore.saveImmichConfig(config)
+
+    override suspend fun getGistConfig(): UploadConfig.GistConfig =
+        secureCredentialStore.getGistConfig()
+
+    override suspend fun saveGistConfig(config: UploadConfig.GistConfig) =
+        secureCredentialStore.saveGistConfig(config)
+
     override suspend fun getFtpConfig(): UploadConfig.FtpConfig =
         secureCredentialStore.getFtpConfig()
 

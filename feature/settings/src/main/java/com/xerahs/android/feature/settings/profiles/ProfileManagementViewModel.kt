@@ -246,6 +246,7 @@ class ProfileManagementViewModel @Inject constructor(
             is UploadConfig.CustomUploaderConfig -> copy(
                 customUploaderSxcu = SxcuWriter.write(config.spec)
             )
+            is UploadConfig.NextcloudConfig, is UploadConfig.ImmichConfig, is UploadConfig.GistConfig -> this
         }
     }
 
@@ -291,6 +292,9 @@ class ProfileManagementViewModel @Inject constructor(
                 SxcuParser.parse(customUploaderSxcu).getOrThrow() // validated in saveProfile
             )
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
+            UploadDestination.NEXTCLOUD -> UploadConfig.NextcloudConfig()
+            UploadDestination.IMMICH -> UploadConfig.ImmichConfig()
+            UploadDestination.GITHUB_GIST -> UploadConfig.GistConfig()
         }
     }
 }

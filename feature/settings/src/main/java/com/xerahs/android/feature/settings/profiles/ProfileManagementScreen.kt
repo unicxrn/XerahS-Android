@@ -57,6 +57,9 @@ private val destinationDotColor: (UploadDestination) -> Color = { dest ->
         UploadDestination.SFTP -> Color(0xFF6B7C93)
         UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
         UploadDestination.LOCAL -> Color(0xFF8E8E93)
+        UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
+        UploadDestination.IMMICH -> Color(0xFF4250AF)
+        UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
     }
 }
 

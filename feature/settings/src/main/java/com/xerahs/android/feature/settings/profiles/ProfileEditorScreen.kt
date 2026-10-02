@@ -56,6 +56,9 @@ private fun destDotColor(dest: UploadDestination): Color = when (dest) {
     UploadDestination.SFTP -> Color(0xFF6B7C93)
     UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
     UploadDestination.LOCAL -> Color(0xFF8E8E93)
+    UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
+    UploadDestination.IMMICH -> Color(0xFF4250AF)
+    UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -200,6 +203,7 @@ fun ProfileEditorScreen(
                 UploadDestination.SFTP -> SftpFields(state, viewModel)
                 UploadDestination.CUSTOM_HTTP -> CustomHttpFields(state, viewModel)
                 UploadDestination.LOCAL -> {}
+                UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST -> {}
             }
 
             Spacer(modifier = Modifier.height(24.dp))

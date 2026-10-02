@@ -26,5 +26,8 @@ enum class UploadDestination(val displayName: String) {
     FTP("FTP"),
     SFTP("SFTP"),
     CUSTOM_HTTP("Custom uploader"),
-    LOCAL("Local")
+    LOCAL("Local"),
+    NEXTCLOUD("Nextcloud"),
+    IMMICH("Immich"),
+    GITHUB_GIST("GitHub Gist")
 }

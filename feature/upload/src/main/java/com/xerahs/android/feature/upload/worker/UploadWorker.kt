@@ -232,6 +232,8 @@ class UploadWorker @AssistedInject constructor(
                     destination = UploadDestination.LOCAL
                 )
             }
+            UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST ->
+                UploadResult(success = false, errorMessage = "${destination.displayName} isn't available yet", destination = destination)
         }
     }
 

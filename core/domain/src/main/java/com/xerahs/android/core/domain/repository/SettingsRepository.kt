@@ -35,6 +35,12 @@ interface SettingsRepository {
 
     suspend fun getS3Config(): UploadConfig.S3Config
     suspend fun saveS3Config(config: UploadConfig.S3Config)
+    suspend fun getNextcloudConfig(): UploadConfig.NextcloudConfig
+    suspend fun saveNextcloudConfig(config: UploadConfig.NextcloudConfig)
+    suspend fun getImmichConfig(): UploadConfig.ImmichConfig
+    suspend fun saveImmichConfig(config: UploadConfig.ImmichConfig)
+    suspend fun getGistConfig(): UploadConfig.GistConfig
+    suspend fun saveGistConfig(config: UploadConfig.GistConfig)
 
     suspend fun getFtpConfig(): UploadConfig.FtpConfig
     suspend fun saveFtpConfig(config: UploadConfig.FtpConfig)

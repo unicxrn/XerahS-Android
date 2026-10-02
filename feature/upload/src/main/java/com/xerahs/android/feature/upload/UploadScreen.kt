@@ -39,6 +39,9 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Http
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.FolderShared
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
@@ -885,6 +888,9 @@ private fun destinationIcon(destination: UploadDestination): ImageVector {
         UploadDestination.SFTP -> Icons.Default.Security
         UploadDestination.CUSTOM_HTTP -> Icons.Default.Http
         UploadDestination.LOCAL -> Icons.Default.CloudUpload
+        UploadDestination.NEXTCLOUD -> Icons.Default.FolderShared
+        UploadDestination.IMMICH -> Icons.Default.PhotoLibrary
+        UploadDestination.GITHUB_GIST -> Icons.Default.Code
     }
 }
 
