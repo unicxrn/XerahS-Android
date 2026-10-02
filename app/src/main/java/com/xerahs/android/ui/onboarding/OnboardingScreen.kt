@@ -75,8 +75,8 @@ private val destinationOptions = listOf(
         destination = UploadDestination.FTP
     ),
     DestinationOption(
-        label = "Custom HTTP",
-        subtitle = "Any custom upload endpoint",
+        label = "Custom uploader",
+        subtitle = "ShareX-compatible (.sxcu) endpoint",
         icon = Icons.Default.Code,
         destination = UploadDestination.CUSTOM_HTTP
     ),

@@ -170,7 +170,7 @@ fun UploadSettingsScreen(
                 var destinationsExpanded by rememberSaveable { mutableStateOf(false) }
                 ListItem(
                     headlineContent = { Text("Configure Destinations") },
-                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom HTTP") },
+                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom uploader") },
                     trailingContent = {
                         Icon(
                             if (destinationsExpanded) Icons.Default.KeyboardArrowUp
