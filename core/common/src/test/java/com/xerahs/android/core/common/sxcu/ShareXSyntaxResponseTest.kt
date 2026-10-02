@@ -42,4 +42,17 @@ class ShareXSyntaxResponseTest {
 
     @Test(expected = SyntaxEvaluationException::class)
     fun regexNoMatchFails() { ShareXSyntax.evaluate("{regex:zzz}", ctx("abc")) }
+
+    @Test(expected = SyntaxEvaluationException::class)
+    fun regexInvalidPatternFails() { ShareXSyntax.evaluate("""{regex:(abc}""", ctx("id=abc")) }
+
+    @Test(expected = SyntaxEvaluationException::class)
+    fun regexGroupIndexOutOfRangeFails() {
+        ShareXSyntax.evaluate("""{regex:id=(\w+)|5}""", ctx("id=abc"))
+    }
+
+    @Test(expected = SyntaxEvaluationException::class)
+    fun regexUnknownNamedGroupFails() {
+        ShareXSyntax.evaluate("""{regex:(?<id>\w+)|nope}""", ctx("id=abc"))
+    }
 }

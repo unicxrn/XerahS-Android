@@ -153,8 +153,14 @@ object ShareXSyntax {
             }
             "regex" -> {
                 val pattern = args.getOrElse(0) { fail(inner, "needs a pattern") }
-                RegexSelect.select(response(inner, ctx).body, pattern, args.getOrNull(1))
-                    ?: fail(inner, "no match in response")
+                try {
+                    RegexSelect.select(response(inner, ctx).body, pattern, args.getOrNull(1))
+                        ?: fail(inner, "no match in response")
+                } catch (e: SyntaxEvaluationException) {
+                    throw e
+                } catch (e: Exception) {
+                    fail(inner, "invalid regex or group: ${e.message}")
+                }
             }
             else -> fail(inner, "unknown function '$name'")
         }
