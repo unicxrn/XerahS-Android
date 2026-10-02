@@ -27,9 +27,11 @@ class UrlShortenerRepositoryImpl @Inject constructor(
     private val customUploaderClient: CustomUploaderClient,
 ) : UrlShortenerRepository {
     override suspend fun shorten(longUrl: String): Result<String> {
-        val profileId = settingsRepository.getShortenerProfileId().first()
-        val config = profileId?.let {
-            profileRepository.getProfileConfig(it, UploadDestination.CUSTOM_HTTP) as? UploadConfig.CustomUploaderConfig
+        val config = withContext(Dispatchers.IO) {
+            val profileId = settingsRepository.getShortenerProfileId().first()
+            profileId?.let {
+                profileRepository.getProfileConfig(it, UploadDestination.CUSTOM_HTTP) as? UploadConfig.CustomUploaderConfig
+            }
         }
         return if (config != null && config.spec.requestURL.isNotBlank()) shortenCustom(config, longUrl)
         else shortenIsGd(longUrl)
