@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class AnnotationTool {
-    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND, NUMBERED_STEP, LINE, HIGHLIGHT, PIXELATE, SPOTLIGHT, MAGNIFY
+    RECTANGLE, ARROW, TEXT, BLUR, CIRCLE, FREEHAND, NUMBERED_STEP, LINE, HIGHLIGHT, PIXELATE, SPOTLIGHT, MAGNIFY,
+    SPEECH_BALLOON, STICKER, SMART_ERASER, HIGHLIGHTER_PEN
 }
 
 data class AnnotationUiState(
@@ -40,7 +41,9 @@ data class AnnotationUiState(
     val editingAnnotationId: String? = null,
     val ocrText: String? = null,
     val isRecognizing: Boolean = false,
-    val ocrError: String? = null
+    val ocrError: String? = null,
+    val balloonText: String = "Note",
+    val pendingStickerPath: String? = null
 )
 
 @HiltViewModel
@@ -65,6 +68,14 @@ class AnnotationViewModel @Inject constructor(
 
     fun setFontSize(size: Float) {
         _uiState.value = _uiState.value.copy(fontSize = size)
+    }
+
+    fun setBalloonText(text: String) {
+        _uiState.value = _uiState.value.copy(balloonText = text)
+    }
+
+    fun setStickerImage(path: String) {
+        _uiState.value = _uiState.value.copy(pendingStickerPath = path)
     }
 
     fun setBlurRadius(radius: Float) {
@@ -98,8 +109,11 @@ class AnnotationViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isCropMode = enabled)
     }
 
-    fun addAnnotation(startX: Float, startY: Float, endX: Float, endY: Float) {
+    fun addAnnotation(startX: Float, startY: Float, endX: Float, endY: Float, sampledColor: Int? = null) {
         val state = _uiState.value
+        // Highlighter pen uses addFreehandAnnotation; a sticker needs a chosen image first.
+        if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) return
+        if (state.selectedTool == AnnotationTool.STICKER && state.pendingStickerPath == null) return
         pushUndo()
 
         val annotation = when (state.selectedTool) {
@@ -207,6 +221,27 @@ class AnnotationViewModel @Inject constructor(
                     zoom = state.magnifyZoom
                 )
             }
+            AnnotationTool.SPEECH_BALLOON -> {
+                val l = minOf(startX, endX); val r = maxOf(startX, endX); val b = maxOf(startY, endY)
+                Annotation.SpeechBalloon(
+                    id = generateId(), zIndex = state.annotations.size,
+                    strokeColor = state.strokeColor, strokeWidth = state.strokeWidth,
+                    startX = startX, startY = startY, endX = endX, endY = endY,
+                    tailX = l + (r - l) * 0.25f, tailY = b + maxOf(24f, (b - minOf(startY, endY)) * 0.4f),
+                    text = state.balloonText, fontSize = state.fontSize
+                )
+            }
+            AnnotationTool.STICKER -> Annotation.Sticker(
+                id = generateId(), zIndex = state.annotations.size,
+                startX = startX, startY = startY, endX = endX, endY = endY,
+                imagePath = state.pendingStickerPath!!
+            )
+            AnnotationTool.SMART_ERASER -> Annotation.SmartEraser(
+                id = generateId(), zIndex = state.annotations.size,
+                startX = startX, startY = startY, endX = endX, endY = endY,
+                fillColor = sampledColor ?: 0xFFFFFFFF.toInt()
+            )
+            AnnotationTool.HIGHLIGHTER_PEN -> return
         }
 
         _uiState.value = state.copy(
@@ -220,14 +255,24 @@ class AnnotationViewModel @Inject constructor(
         val state = _uiState.value
         pushUndo()
 
-        val annotation = Annotation.Freehand(
-            id = generateId(),
-            zIndex = state.annotations.size,
-            strokeColor = state.strokeColor,
-            strokeWidth = state.strokeWidth,
-            opacity = state.opacity,
-            points = points
-        )
+        val annotation = if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) {
+            Annotation.HighlighterPen(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                strokeColor = state.strokeColor,
+                strokeWidth = maxOf(state.strokeWidth, 12f) * 3f,
+                points = points
+            )
+        } else {
+            Annotation.Freehand(
+                id = generateId(),
+                zIndex = state.annotations.size,
+                strokeColor = state.strokeColor,
+                strokeWidth = state.strokeWidth,
+                opacity = state.opacity,
+                points = points
+            )
+        }
 
         _uiState.value = state.copy(
             annotations = state.annotations + annotation,

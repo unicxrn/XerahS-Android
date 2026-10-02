@@ -2,6 +2,9 @@ package com.xerahs.android.feature.annotation
 
 import android.content.Intent
 import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +30,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixOff
+import androidx.compose.material.icons.filled.BorderColor
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -84,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
+import com.xerahs.android.feature.annotation.canvas.SmartEraserSampler
 import com.xerahs.android.feature.annotation.crop.CropEngine
 import com.xerahs.android.feature.annotation.crop.CropOverlay
 import com.xerahs.android.feature.annotation.engine.AnnotationEngine
@@ -123,6 +131,23 @@ fun AnnotationScreen(
 
     // Crop state
     var cropRect by remember { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
+
+    val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) coroutineScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                runCatching {
+                    val dir = File(context.filesDir, "stickers").apply { mkdirs() }
+                    val out = File(dir, "sticker_${System.currentTimeMillis()}")
+                    context.contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it) } }
+                    out.absolutePath
+                }.getOrNull()
+            }
+            path?.let(viewModel::setStickerImage)
+        }
+    }
+    val pickSticker = {
+        stickerPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
 
     // Contextual options sheet
     var showToolOptions by remember { mutableStateOf(false) }
@@ -189,7 +214,9 @@ fun AnnotationScreen(
                 onOpacityChanged = viewModel::setOpacity,
                 onFillEnabledChanged = viewModel::setFillEnabled,
                 onFontSizeChanged = viewModel::setFontSize,
-                onTextBackgroundChanged = viewModel::setTextBackgroundEnabled
+                onTextBackgroundChanged = viewModel::setTextBackgroundEnabled,
+                onBalloonTextChanged = viewModel::setBalloonText,
+                onPickSticker = pickSticker
             )
         }
     }
@@ -310,7 +337,9 @@ fun AnnotationScreen(
                         return@AnnotationCanvas
                     }
                     dragStartPos = offset
-                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                    if (uiState.selectedTool == AnnotationTool.FREEHAND ||
+                        uiState.selectedTool == AnnotationTool.HIGHLIGHTER_PEN
+                    ) {
                         freehandPoints = listOf(Pair(offset.x, offset.y))
                     }
                 },
@@ -323,6 +352,14 @@ fun AnnotationScreen(
                             strokeColor = uiState.strokeColor,
                             strokeWidth = uiState.strokeWidth,
                             opacity = uiState.opacity,
+                            points = freehandPoints
+                        )
+                    } else if (uiState.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) {
+                        freehandPoints = freehandPoints + Pair(offset.x, offset.y)
+                        currentDragAnnotation = Annotation.HighlighterPen(
+                            id = "in_progress",
+                            strokeColor = uiState.strokeColor,
+                            strokeWidth = maxOf(uiState.strokeWidth, 12f) * 3f,
                             points = freehandPoints
                         )
                     } else {
@@ -343,12 +380,21 @@ fun AnnotationScreen(
                 },
                 onDragEnd = { offset ->
                     if (uiState.selectedTool == AnnotationTool.NUMBERED_STEP) return@AnnotationCanvas
-                    if (uiState.selectedTool == AnnotationTool.FREEHAND) {
+                    if (uiState.selectedTool == AnnotationTool.FREEHAND ||
+                        uiState.selectedTool == AnnotationTool.HIGHLIGHTER_PEN
+                    ) {
                         viewModel.addFreehandAnnotation(freehandPoints)
                         freehandPoints = emptyList()
                     } else {
                         dragStartPos?.let { start ->
-                            viewModel.addAnnotation(start.x, start.y, offset.x, offset.y)
+                            viewModel.addAnnotation(
+                                start.x, start.y, offset.x, offset.y,
+                                sampledColor = if (uiState.selectedTool == AnnotationTool.SMART_ERASER) {
+                                    SmartEraserSampler.sample(bitmap, start.x, start.y, offset.x, offset.y)
+                                } else {
+                                    null
+                                }
+                            )
                         }
                     }
                     dragStartPos = null
@@ -452,6 +498,9 @@ fun AnnotationScreen(
                                     } else {
                                         viewModel.selectTool(tool)
                                     }
+                                    if (tool == AnnotationTool.STICKER && uiState.pendingStickerPath == null) {
+                                        pickSticker()
+                                    }
                                 }
                             )
                         }
@@ -535,7 +584,11 @@ private val ToolButtons: List<Triple<ImageVector, String, AnnotationTool>> = lis
     Triple(Icons.Default.Highlight, "Mark", AnnotationTool.HIGHLIGHT),
     Triple(Icons.Default.GridOn, "Pixel", AnnotationTool.PIXELATE),
     Triple(Icons.Default.HighlightAlt, "Spot", AnnotationTool.SPOTLIGHT),
-    Triple(Icons.Default.ZoomIn, "Zoom", AnnotationTool.MAGNIFY)
+    Triple(Icons.Default.ZoomIn, "Zoom", AnnotationTool.MAGNIFY),
+    Triple(Icons.Default.ChatBubbleOutline, "Balloon", AnnotationTool.SPEECH_BALLOON),
+    Triple(Icons.Default.EmojiEmotions, "Sticker", AnnotationTool.STICKER),
+    Triple(Icons.Default.AutoFixOff, "Erase", AnnotationTool.SMART_ERASER),
+    Triple(Icons.Default.BorderColor, "Marker", AnnotationTool.HIGHLIGHTER_PEN)
 )
 
 @Composable
@@ -604,7 +657,9 @@ private fun ToolOptionsSheet(
     onOpacityChanged: (Float) -> Unit,
     onFillEnabledChanged: (Boolean) -> Unit,
     onFontSizeChanged: (Float) -> Unit,
-    onTextBackgroundChanged: (Boolean) -> Unit
+    onTextBackgroundChanged: (Boolean) -> Unit,
+    onBalloonTextChanged: (String) -> Unit,
+    onPickSticker: () -> Unit
 ) {
     val tool = uiState.selectedTool
     val title = when (tool) {
@@ -620,6 +675,10 @@ private fun ToolOptionsSheet(
         AnnotationTool.PIXELATE -> "Pixelate"
         AnnotationTool.SPOTLIGHT -> "Spotlight"
         AnnotationTool.MAGNIFY -> "Magnify"
+        AnnotationTool.SPEECH_BALLOON -> "Speech balloon"
+        AnnotationTool.STICKER -> "Sticker"
+        AnnotationTool.SMART_ERASER -> "Smart eraser"
+        AnnotationTool.HIGHLIGHTER_PEN -> "Highlighter pen"
     }
 
     Column(
@@ -631,7 +690,9 @@ private fun ToolOptionsSheet(
         Text(text = title, style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(12.dp))
 
-        val showColor = tool != AnnotationTool.BLUR
+        val showColor = tool != AnnotationTool.BLUR &&
+            tool != AnnotationTool.SMART_ERASER &&
+            tool != AnnotationTool.STICKER
         if (showColor) {
             ColorSwatchRow(strokeColor = uiState.strokeColor, onColorSelected = onColorSelected)
             Spacer(modifier = Modifier.height(12.dp))
@@ -677,6 +738,29 @@ private fun ToolOptionsSheet(
             AnnotationTool.MAGNIFY -> {
                 LabeledSlider("Zoom", uiState.magnifyZoom, 1.5f..4f, onMagnifyZoomChanged)
                 LabeledSlider("Stroke", uiState.strokeWidth, 1f..20f, onStrokeWidthChanged)
+            }
+            AnnotationTool.SPEECH_BALLOON -> {
+                OutlinedTextField(
+                    value = uiState.balloonText,
+                    onValueChange = onBalloonTextChanged,
+                    label = { Text("Text") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                LabeledSlider("Size", uiState.fontSize, 12f..96f, onFontSizeChanged)
+            }
+            AnnotationTool.STICKER -> {
+                Button(onClick = onPickSticker) {
+                    Text(if (uiState.pendingStickerPath == null) "Choose image" else "Change image")
+                }
+            }
+            AnnotationTool.SMART_ERASER -> {
+                Text(
+                    "Drag over text or UI on a plain background. The area is filled with the colour around it.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            AnnotationTool.HIGHLIGHTER_PEN -> {
+                LabeledSlider("Width", uiState.strokeWidth, 1f..20f, onStrokeWidthChanged)
             }
         }
     }
@@ -877,5 +961,17 @@ private fun createInProgressAnnotation(
                 zoom = magnifyZoom
             )
         }
+        AnnotationTool.SPEECH_BALLOON -> Annotation.SpeechBalloon(
+            id = "in_progress", strokeColor = strokeColor, strokeWidth = strokeWidth,
+            startX = start.x, startY = start.y, endX = current.x, endY = current.y,
+            tailX = minOf(start.x, current.x) + kotlin.math.abs(current.x - start.x) * 0.25f,
+            tailY = maxOf(start.y, current.y) + 24f, text = ""
+        )
+        AnnotationTool.STICKER -> null
+        AnnotationTool.SMART_ERASER -> Annotation.SmartEraser(
+            id = "in_progress", startX = start.x, startY = start.y, endX = current.x, endY = current.y,
+            fillColor = 0x80808080.toInt()
+        )
+        AnnotationTool.HIGHLIGHTER_PEN -> null
     }
 }

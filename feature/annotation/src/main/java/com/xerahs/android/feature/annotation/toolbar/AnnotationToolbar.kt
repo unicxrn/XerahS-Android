@@ -18,6 +18,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixOff
+import androidx.compose.material.icons.filled.BorderColor
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.BlurOn
@@ -122,6 +126,10 @@ fun AnnotationToolbar(
                 Triple(Icons.Default.GridOn, "Pixel", AnnotationTool.PIXELATE),
                 Triple(Icons.Default.HighlightAlt, "Spot", AnnotationTool.SPOTLIGHT),
                 Triple(Icons.Default.ZoomIn, "Zoom", AnnotationTool.MAGNIFY),
+                Triple(Icons.Default.ChatBubbleOutline, "Balloon", AnnotationTool.SPEECH_BALLOON),
+                Triple(Icons.Default.EmojiEmotions, "Sticker", AnnotationTool.STICKER),
+                Triple(Icons.Default.AutoFixOff, "Erase", AnnotationTool.SMART_ERASER),
+                Triple(Icons.Default.BorderColor, "Marker", AnnotationTool.HIGHLIGHTER_PEN),
             )
 
             items(tools) { (icon, label, tool) ->

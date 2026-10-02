@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
     implementation(libs.compose.foundation)
+    implementation(libs.activity.compose)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
