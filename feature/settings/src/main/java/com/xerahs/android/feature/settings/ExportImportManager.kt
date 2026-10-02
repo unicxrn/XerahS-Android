@@ -1,24 +1,35 @@
 package com.xerahs.android.feature.settings
 
 import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.xerahs.android.core.common.crypto.PassphraseEnvelope
 import com.xerahs.android.core.common.sxcu.LegacyCustomHttp
 import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.common.sxcu.SxcuWriter
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.common.generateId
+import com.xerahs.android.core.common.generateTimestamp
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ExportImportManager @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val profileRepository: UploadProfileRepository
 ) {
     private val gson = Gson()
+
+    companion object { const val BACKUP_FORMAT = "XerahS.Backup" }
 
     suspend fun exportSettings(): String {
         val json = JsonObject()
@@ -560,5 +571,76 @@ class ExportImportManager @Inject constructor(
 
     private fun maskSecret(value: String): String {
         return if (value.length > 4) "${"*".repeat(value.length - 4)}${value.takeLast(4)}" else value
+    }
+
+    suspend fun exportBackup(passphrase: CharArray): String {
+        val payload = JsonObject()
+        payload.add("settings", JsonParser.parseString(exportSettings()))
+        payload.addProperty("defaultAfterUploadActions", AfterUploadAction.encode(settingsRepository.getDefaultAfterUploadActions().first()))
+        val profiles = JsonArray()
+        profileRepository.getAllProfiles().first().forEach { p ->
+            profiles.add(JsonObject().apply {
+                addProperty("name", p.name)
+                addProperty("destination", p.destination.name)
+                addProperty("isDefault", p.isDefault)
+                add("config", ConfigJson.toJson(profileRepository.getProfileConfig(p.id, p.destination)))
+                settingsRepository.getProfileAfterUploadActions(p.id).first()
+                    ?.let { addProperty("afterUploadActions", AfterUploadAction.encode(it)) }
+            })
+        }
+        payload.add("profiles", profiles)
+        return PassphraseEnvelope.seal(BACKUP_FORMAT, payload.toString().toByteArray(Charsets.UTF_8), passphrase)
+    }
+
+    fun isEncryptedBackup(text: String): Boolean = PassphraseEnvelope.formatOf(text) == BACKUP_FORMAT
+
+    fun openBackup(text: String, passphrase: CharArray): JsonObject =
+        JsonParser.parseString(String(PassphraseEnvelope.open(text, BACKUP_FORMAT, passphrase), Charsets.UTF_8)).asJsonObject
+
+    suspend fun parseBackupExtrasPreview(payload: JsonObject): ImportSection? {
+        val existing = profileRepository.getAllProfiles().first()
+        val fields = mutableListOf<ImportField>()
+        payload.get("defaultAfterUploadActions")?.takeIf { it.isJsonPrimitive }?.asString?.let { imported ->
+            val current = AfterUploadAction.encode(settingsRepository.getDefaultAfterUploadActions().first())
+            fields.add(ImportField("afterUploadActions.default", "Default after-upload actions", current, imported, current != imported))
+        }
+        payload.getAsJsonArray("profiles")?.forEachIndexed { index, el ->
+            val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@forEachIndexed
+            val name = o.get("name")?.asString ?: return@forEachIndexed
+            val dest = runCatching { UploadDestination.valueOf(o.get("destination").asString) }.getOrNull() ?: return@forEachIndexed
+            val exists = existing.any { it.name == name && it.destination == dest }
+            fields.add(ImportField("profile.$index", "$name (${dest.displayName})", if (exists) "Existing profile" else "None", "From backup", hasConflict = exists))
+        }
+        return if (fields.isEmpty()) null else ImportSection("Upload profiles", fields)
+    }
+
+    suspend fun applyBackupExtras(payload: JsonObject, preview: ImportPreview) {
+        val accepted = preview.sections.flatMap { it.fields }
+            .filter { it.resolution == FieldResolution.USE_IMPORTED }.map { it.key }.toSet()
+        if ("afterUploadActions.default" in accepted) {
+            payload.get("defaultAfterUploadActions")?.asString
+                ?.let { settingsRepository.setDefaultAfterUploadActions(AfterUploadAction.decode(it)) }
+        }
+        val existing = profileRepository.getAllProfiles().first()
+        payload.getAsJsonArray("profiles")?.forEachIndexed { index, el ->
+            if ("profile.$index" !in accepted) return@forEachIndexed
+            val o = el.asJsonObject
+            val name = o.get("name").asString
+            val dest = UploadDestination.valueOf(o.get("destination").asString)
+            val config = o.getAsJsonObject("config")?.let { ConfigJson.fromJson(dest, it) } ?: return@forEachIndexed
+            val match = existing.firstOrNull { it.name == name && it.destination == dest }
+            val profile = UploadProfile(
+                id = match?.id ?: generateId(),
+                name = name,
+                destination = dest,
+                isDefault = o.get("isDefault")?.asBoolean ?: false,
+                createdAt = match?.createdAt ?: generateTimestamp()
+            )
+            if (match != null) profileRepository.updateProfile(profile, config) else profileRepository.createProfile(profile, config)
+            if (profile.isDefault) profileRepository.setDefault(profile.id, dest)
+            settingsRepository.setProfileAfterUploadActions(
+                profile.id, o.get("afterUploadActions")?.asString?.let { AfterUploadAction.decode(it) }
+            )
+        }
     }
 }
