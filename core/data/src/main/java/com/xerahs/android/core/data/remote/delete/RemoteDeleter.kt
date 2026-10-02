@@ -17,7 +17,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.FTPSClient
 import java.io.IOException
 import javax.inject.Inject
@@ -38,18 +37,15 @@ class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) 
         require(canDelete(item)) { "Deleting from ${item.uploadDestination.displayName} isn't supported" }
         val key = item.remoteKey.orEmpty()
         when (config) {
-            is UploadConfig.CustomUploaderConfig -> viaDeletionUrl(item.deleteUrl!!)
+            // Many deletion-page URLs are HTML confirmation pages that return 200 without
+            // deleting anything (ShareX never auto-GETs these either); hand off to the user.
+            is UploadConfig.CustomUploaderConfig -> throw OpenInBrowserException(item.deleteUrl!!)
             is UploadConfig.S3Config -> s3(config, key)
             is UploadConfig.FtpConfig -> withContext(Dispatchers.IO) { ftp(config, key) }
             is UploadConfig.SftpConfig -> withContext(Dispatchers.IO) { sftp(config, key) }
             is UploadConfig.NextcloudConfig -> nextcloud(config, key)
             else -> throw IllegalArgumentException("No delete support for this config")
         }
-    }
-
-    private suspend fun viaDeletionUrl(url: String) {
-        val code = okHttpClient.newCall(Request.Builder().url(url).get().build()).await().use { it.code }
-        if (code !in 200..299 && code != 404) throw OpenInBrowserException(url)
     }
 
     private suspend fun s3(config: UploadConfig.S3Config, key: String) {
@@ -64,8 +60,12 @@ class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) 
             header("Authorization", signed.authorization)
         }.build()
         okHttpClient.newCall(request).await().use { resp ->
-            if (!resp.isSuccessful && resp.code != 404) {
-                throw IOException("S3 HTTP ${resp.code}: ${resp.peekBody(200).string()}")
+            if (!resp.isSuccessful) {
+                val body = resp.peekBody(400).string()
+                // A 404 for a missing object counts as success, but a 404 because the
+                // bucket itself is gone/misconfigured is a real failure.
+                if (resp.code == 404 && !body.contains("NoSuchBucket")) return@use
+                throw IOException("S3 HTTP ${resp.code}: $body")
             }
         }
     }
@@ -76,8 +76,11 @@ class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) 
             client.connect(config.host, config.port)
             if (!client.login(config.username, config.password)) throw IOException("FTP login failed")
             if (config.usePassiveMode) client.enterLocalPassiveMode() else client.enterLocalActiveMode()
-            if (!client.deleteFile(path) && client.replyCode != FTPReply.FILE_UNAVAILABLE) {
-                throw IOException("FTP delete failed: ${client.replyString?.trim()}")
+            if (!client.deleteFile(path)) {
+                // 550 covers both "no such file" and "permission denied"; tell them apart
+                // by checking whether the file is actually still there.
+                val stillExists = !client.listNames(path).isNullOrEmpty()
+                if (stillExists) throw IOException("FTP delete failed: ${client.replyString?.trim()}")
             }
         } finally {
             runCatching { if (client.isConnected) { client.logout(); client.disconnect() } }

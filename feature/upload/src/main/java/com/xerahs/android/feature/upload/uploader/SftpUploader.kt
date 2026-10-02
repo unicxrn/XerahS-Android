@@ -74,11 +74,14 @@ class SftpUploader @Inject constructor() {
                     "sftp://${config.host}$remotePath/$uploadName"
                 }
 
+                // The actual directory the file landed in: when remotePath was blank
+                // and no cd happened, this is the login home dir, not "/".
+                val actualDir = channel.pwd() ?: remotePath
                 UploadResult(
                     success = true,
                     url = url,
                     destination = UploadDestination.SFTP,
-                    remoteKey = (if (remotePath.isEmpty() || remotePath == "/") "" else remotePath) + "/" + uploadName
+                    remoteKey = actualDir.trimEnd('/') + "/" + uploadName
                 )
             } catch (e: Exception) {
                 UploadResult(

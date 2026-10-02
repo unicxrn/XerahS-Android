@@ -36,19 +36,14 @@ class RemoteDeleterTest {
         assertFalse(deleter.canDelete(item(UploadDestination.LOCAL, remoteKey = "/x")))
     }
 
-    @Test fun deletionUrlSuccess() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(200))
-        val url = server.url("/delete/abc").toString()
-        deleter.delete(item(UploadDestination.CUSTOM_HTTP, deleteUrl = url), UploadConfig.CustomUploaderConfig())
-        assertEquals("GET", server.takeRequest().method)
-    }
-
-    @Test fun deletionUrlNeedsBrowser() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(403))
+    @Test fun deletionUrlAlwaysOpensInBrowser() = runBlocking {
+        // Many deletion-page URLs are HTML confirm pages that return 200 without deleting,
+        // so these are never auto-GETed - always hand off to the user, and make no request.
         val url = server.url("/delete/abc").toString()
         val e = runCatching { deleter.delete(item(UploadDestination.CUSTOM_HTTP, deleteUrl = url), UploadConfig.CustomUploaderConfig()) }.exceptionOrNull()
         assertTrue(e is OpenInBrowserException)
         assertEquals(url, (e as OpenInBrowserException).url)
+        assertEquals(0, server.requestCount)
     }
 
     @Test fun nextcloudDeleteToleratesMissingFile() = runBlocking {
@@ -72,6 +67,14 @@ class RemoteDeleterTest {
         assertEquals("DELETE", req.method)
         assertEquals("/b/a/x.png", req.path)
         assertTrue(req.getHeader("Authorization")!!.startsWith("AWS4-HMAC-SHA256"))
+    }
+
+    @Test fun s3NoSuchBucket404IsFailure() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("NoSuchBucket"))
+        val config = UploadConfig.S3Config(accessKeyId = "AK", secretAccessKey = "SK", bucket = "b",
+            endpoint = server.url("/").toString().trimEnd('/'), usePathStyle = true)
+        val e = runCatching { deleter.delete(item(UploadDestination.S3, remoteKey = "a/x.png"), config) }.exceptionOrNull()
+        assertTrue(e!!.message!!.startsWith("S3 HTTP 404"))
     }
 
     @Test fun s3ErrorIsReported() = runBlocking {
