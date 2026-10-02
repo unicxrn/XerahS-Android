@@ -185,16 +185,6 @@ class SettingsDataStore @Inject constructor(
         }
     }
 
-    fun getAutoCopyUrl(): Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[Keys.AUTO_COPY_URL] ?: false
-    }
-
-    suspend fun setAutoCopyUrl(enabled: Boolean) {
-        context.dataStore.edit { prefs ->
-            prefs[Keys.AUTO_COPY_URL] = enabled
-        }
-    }
-
     fun getBiometricLockMode(): Flow<String> = context.dataStore.data.map { prefs ->
         prefs[Keys.BIOMETRIC_LOCK_MODE] ?: "OFF"
     }
