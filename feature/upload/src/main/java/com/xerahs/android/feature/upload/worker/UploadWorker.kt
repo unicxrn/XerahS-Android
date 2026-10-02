@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload.worker
 
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ClipData
@@ -271,6 +272,8 @@ class UploadWorker @AssistedInject constructor(
         return tempFile
     }
 
+    // dataSync is declared for SystemForegroundService in the app manifest; lint can't see it from this module.
+    @SuppressLint("SpecifyForegroundServiceType")
     private fun createForegroundInfo(text: String, current: Int, total: Int): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD)
             .setSmallIcon(android.R.drawable.ic_menu_upload)
