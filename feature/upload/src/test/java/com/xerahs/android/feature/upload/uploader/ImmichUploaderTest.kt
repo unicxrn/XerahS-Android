@@ -54,4 +54,14 @@ class ImmichUploaderTest {
         assertFalse(result.success)
         assertTrue(result.errorMessage!!.startsWith("Immich HTTP 401"))
     }
+
+    @Test fun stripsTrailingApiSegmentFromServerUrl() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"a1","status":"created"}"""))
+        val pastedUrl = "${base()}/api"
+        val result = uploader.upload(file(), UploadConfig.ImmichConfig(pastedUrl, "k3y", createShareLink = false), "shot.png")
+
+        assertEquals("${base()}/photos/a1", result.url)
+        val upload = server.takeRequest()
+        assertEquals("/api/assets", upload.path)
+    }
 }

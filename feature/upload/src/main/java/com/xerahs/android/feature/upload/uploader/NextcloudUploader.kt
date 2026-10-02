@@ -45,7 +45,7 @@ class NextcloudUploader @Inject constructor(
     } catch (e: IOException) {
         failure("Nextcloud network error: ${e.message ?: e.javaClass.simpleName}")
     } catch (e: IllegalArgumentException) {
-        failure("Nextcloud server URL is invalid")
+        failure("Nextcloud request is invalid (check the server URL and app password)")
     }
 
     private fun davUrl(base: HttpUrl, user: String, segments: List<String>): HttpUrl =

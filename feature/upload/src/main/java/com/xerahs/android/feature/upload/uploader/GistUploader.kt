@@ -38,7 +38,7 @@ class GistUploader @Inject constructor(
             }
             val reply = okHttpClient.send(
                 Request.Builder().url("$apiBase/gists")
-                    .header("Authorization", "Bearer ${config.token}")
+                    .header("Authorization", "Bearer ${config.token.trim()}")
                     .header("Accept", "application/vnd.github+json")
                     .header("X-GitHub-Api-Version", "2022-11-28")
                     .post(json.toString().toRequestBody("application/json".toMediaType()))
@@ -55,6 +55,8 @@ class GistUploader @Inject constructor(
         throw e
     } catch (e: IOException) {
         failure("GitHub network error: ${e.message ?: e.javaClass.simpleName}")
+    } catch (e: IllegalArgumentException) {
+        failure("GitHub request is invalid (check the token)")
     }
 
     private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.GITHUB_GIST)

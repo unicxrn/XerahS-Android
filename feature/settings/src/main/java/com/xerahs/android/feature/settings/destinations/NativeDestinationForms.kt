@@ -23,7 +23,7 @@ object NativeDestinationForms {
     fun fields(destination: UploadDestination): List<FormField> = when (destination) {
         UploadDestination.NEXTCLOUD -> listOf(
             FormField("serverUrl", "Server URL", FormField.Kind.URL, help = "For example https://cloud.example.com"),
-            FormField("username", "Username", FormField.Kind.TEXT),
+            FormField("username", "Username", FormField.Kind.TEXT, help = "Your Nextcloud user ID (usually the login name)"),
             FormField("appPassword", "App password", FormField.Kind.SECRET, help = "Create one under Settings, Security, Devices & sessions"),
             FormField("folder", "Folder", FormField.Kind.TEXT, required = false, default = "XerahS"),
             FormField("publicShare", "Create a public share link", FormField.Kind.SWITCH, required = false, default = "true"),

@@ -26,7 +26,8 @@ class ImmichUploader @Inject constructor(
     private val okHttpClient: OkHttpClient
 ) {
     suspend fun upload(file: File, config: UploadConfig.ImmichConfig, remoteFileName: String): UploadResult = try {
-        val base = config.serverUrl.trim().trimEnd('/')
+        val base = config.serverUrl.trim().trimEnd('/').removeSuffix("/api")
+        val apiKey = config.apiKey.trim()
         val modified = Instant.ofEpochMilli(file.lastModified()).toString()
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("deviceAssetId", "$remoteFileName-${file.length()}-${file.lastModified()}")
@@ -35,20 +36,20 @@ class ImmichUploader @Inject constructor(
             .addFormDataPart("fileModifiedAt", modified)
             .addFormDataPart("assetData", remoteFileName, file.asRequestBody(MimeTypes.fromFileName(remoteFileName).toMediaType()))
             .build()
-        val upload = okHttpClient.send(request("$base/api/assets", config.apiKey).post(body).build())
+        val upload = okHttpClient.send(request("$base/api/assets", apiKey).post(body).build())
         val id = if (upload.ok) runCatching { JsonParser.parseString(upload.body).asJsonObject.get("id").asString }.getOrNull() else null
         when {
             !upload.ok -> failure(hostError("Immich", upload))
             id.isNullOrBlank() -> failure("Immich returned no asset id")
             !config.createShareLink -> success("$base/photos/$id")
-            else -> shareLink(base, config.apiKey, id)
+            else -> shareLink(base, apiKey, id)
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: IOException) {
         failure("Immich network error: ${e.message ?: e.javaClass.simpleName}")
     } catch (e: IllegalArgumentException) {
-        failure("Immich server URL is invalid")
+        failure("Immich request is invalid (check the server URL and API key)")
     }
 
     private suspend fun shareLink(base: String, apiKey: String, assetId: String): UploadResult {
