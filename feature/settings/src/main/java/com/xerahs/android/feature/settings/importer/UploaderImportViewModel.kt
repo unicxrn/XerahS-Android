@@ -6,8 +6,11 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.common.sxcu.SxcuPresets
 import com.xerahs.android.core.domain.model.INSECURE_HTTP_WARNING
 import com.xerahs.android.core.domain.model.ImportDraft
+import com.xerahs.android.core.domain.model.UploadConfig
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploaderFileKind
 import com.xerahs.android.core.domain.repository.UploaderImportRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -107,6 +110,18 @@ class UploaderImportViewModel @Inject constructor(
                 onFailure = { UploaderImportState.NeedsPassphrase(it.message) }
             )
         }
+    }
+
+    fun loadPreset(id: String, values: Map<String, String>) {
+        _state.value = SxcuPresets.render(id, values).fold(
+            onSuccess = { spec ->
+                val warnings = if (spec.requestURL.trim().startsWith("http://", ignoreCase = true)) listOf(INSECURE_HTTP_WARNING) else emptyList()
+                UploaderImportState.Preview(
+                    listOf(SelectableDraft(ImportDraft(spec.name, UploadDestination.CUSTOM_HTTP, UploadConfig.CustomUploaderConfig(spec), warnings)))
+                )
+            },
+            onFailure = { UploaderImportState.Error("Couldn't build the preset: ${it.message}") }
+        )
     }
 
     fun toggleSelected(index: Int) = updateItem(index) { it.copy(selected = !it.selected) }

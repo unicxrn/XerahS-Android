@@ -2,6 +2,7 @@ package com.xerahs.android.feature.settings.importer
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -33,6 +35,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,8 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.common.sxcu.SxcuPreset
+import com.xerahs.android.core.common.sxcu.SxcuPresets
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.ui.SettingsGroupCard
 
@@ -59,6 +65,57 @@ fun UploaderImportScreen(
         uri?.let(viewModel::loadUri)
     }
     var confirmInsecure by remember { mutableStateOf(false) }
+    var pickPreset by remember { mutableStateOf(false) }
+    var preset by remember { mutableStateOf<SxcuPreset?>(null) }
+
+    if (pickPreset) {
+        AlertDialog(
+            onDismissRequest = { pickPreset = false },
+            title = { Text("Add from preset") },
+            text = {
+                Column {
+                    SxcuPresets.all.forEach { p ->
+                        ListItem(
+                            headlineContent = { Text(p.name) },
+                            supportingContent = { Text(p.description) },
+                            modifier = Modifier.clickable { pickPreset = false; preset = p }
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { pickPreset = false }) { Text("Cancel") } }
+        )
+    }
+
+    preset?.let { p ->
+        val answers = remember(p) { mutableStateMapOf<String, String>() }
+        AlertDialog(
+            onDismissRequest = { preset = null },
+            title = { Text(p.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    p.fields.forEach { f ->
+                        OutlinedTextField(
+                            value = answers[f.key].orEmpty(),
+                            onValueChange = { answers[f.key] = it },
+                            label = { Text(f.label) },
+                            singleLine = true,
+                            visualTransformation = if (f.secret) PasswordVisualTransformation() else VisualTransformation.None,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = p.fields.all { !answers[it.key].isNullOrBlank() },
+                    onClick = { viewModel.loadPreset(p.id, answers.toMap()); preset = null }
+                ) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { preset = null }) { Text("Cancel") } }
+        )
+    }
 
     if (confirmInsecure) {
         AlertDialog(
@@ -95,6 +152,7 @@ fun UploaderImportScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Choose file") }
                         OutlinedButton(onClick = { viewModel.loadText(clipboard.getText()?.text) }) { Text("Paste .sxcu") }
+                        OutlinedButton(onClick = { pickPreset = true }) { Text("Add from preset") }
                     }
                 }
                 UploaderImportState.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
