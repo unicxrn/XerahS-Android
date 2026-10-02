@@ -98,8 +98,13 @@ class MainActivity : FragmentActivity() {
                 oledBlack = oledBlack,
                 customThemeSeedColor = customThemeSeedColor
             ) {
-                Crossfade(
-                    targetState = onboardingCompleted,
+                val onboardingState = onboardingCompleted
+                if (onboardingState == null) {
+                    // Settings still loading: show only the background. Composing Home here would
+                    // consume a pending share before onboarding takes over.
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                } else Crossfade(
+                    targetState = onboardingState,
                     animationSpec = tween(500),
                     label = "onboarding-crossfade"
                 ) { completed ->

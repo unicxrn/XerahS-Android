@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,8 +25,10 @@ class MainViewModel @Inject constructor(
     val themeMode: StateFlow<ThemeMode> = settingsRepository.getThemeMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.SYSTEM)
 
-    val onboardingCompleted: StateFlow<Boolean> = settingsRepository.getOnboardingCompleted()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    // null until DataStore has loaded, so the UI never shows Home or onboarding on a guess.
+    val onboardingCompleted: StateFlow<Boolean?> = settingsRepository.getOnboardingCompleted()
+        .map<Boolean, Boolean?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val dynamicColor: StateFlow<Boolean> = settingsRepository.getDynamicColor()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
