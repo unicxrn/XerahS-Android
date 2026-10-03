@@ -41,6 +41,12 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.tools.BatchToolScreen
+import com.xerahs.android.feature.tools.ColorPickerToolScreen
+import com.xerahs.android.feature.tools.HashScreen
+import com.xerahs.android.feature.tools.QrScreen
+import com.xerahs.android.feature.tools.ToolId
+import com.xerahs.android.feature.tools.ToolsScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,6 +122,11 @@ sealed class Screen(val route: String) {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
     }
+    data object Tools : Screen("tools")
+    data object ToolsBatch : Screen("tools/batch")
+    data object ToolsHash : Screen("tools/hash")
+    data object ToolsQr : Screen("tools/qr")
+    data object ToolsColor : Screen("tools/color")
 }
 
 @Composable
@@ -491,6 +502,40 @@ fun XerahSNavGraph(
                 },
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Screen.Tools.route) {
+            ToolsScreen(
+                onOpen = { tool ->
+                    navController.navigate(
+                        when (tool) {
+                            ToolId.BATCH -> Screen.ToolsBatch.route
+                            ToolId.HASH -> Screen.ToolsHash.route
+                            ToolId.QR -> Screen.ToolsQr.route
+                            ToolId.COLOR -> Screen.ToolsColor.route
+                        }
+                    )
+                }
+            )
+        }
+
+        composable(Screen.ToolsBatch.route) {
+            BatchToolScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { paths -> navController.navigate(Screen.UploadBatch.createRoute(paths)) }
+            )
+        }
+
+        composable(Screen.ToolsHash.route) {
+            HashScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.ToolsQr.route) {
+            QrScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.ToolsColor.route) {
+            ColorPickerToolScreen(onBack = { navController.popBackStack() })
         }
     }
 }

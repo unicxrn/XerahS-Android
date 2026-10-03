@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.xerahs.android.core.common.image.ColorFormat
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -46,6 +47,7 @@ class SettingsDataStore @Inject constructor(
         val SHORTENER_PROFILE_ID = stringPreferencesKey("shortener_profile_id")
         val CONVERT_HEIC = booleanPreferencesKey("convert_heic_to_png")
         val DEFAULT_AFTER_UPLOAD_ACTIONS = stringPreferencesKey("after_upload_actions")
+        val RECENT_COLORS = stringPreferencesKey("recent_colors")
     }
 
     private fun profileActionsKey(profileId: String) = stringPreferencesKey("after_upload_actions_$profileId")
@@ -260,5 +262,17 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setConvertHeicToPng(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[Keys.CONVERT_HEIC] = enabled }
+    }
+
+    fun getRecentColors(): Flow<List<Int>> = context.dataStore.data.map { prefs ->
+        prefs[Keys.RECENT_COLORS].orEmpty().split(',').mapNotNull { ColorFormat.parseHex(it) }
+    }
+
+    suspend fun addRecentColor(color: Int) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.RECENT_COLORS].orEmpty().split(',').filter { it.isNotBlank() }
+            prefs[Keys.RECENT_COLORS] = (listOf(ColorFormat.hex(color)) + current)
+                .distinct().take(10).joinToString(",")
+        }
     }
 }

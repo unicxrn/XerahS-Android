@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.xerahs.android.feature.annotation"
+    namespace = "com.xerahs.android.feature.tools"
     compileSdk = 34
 
     defaultConfig {
@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
+    implementation(project(":core:ui"))
 
     implementation(libs.core.ktx)
     implementation(libs.lifecycle.runtime.compose)
@@ -45,10 +46,13 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
-    implementation(libs.compose.foundation)
-    implementation(libs.activity.compose)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+
+    implementation(libs.activity.compose)
+    implementation(libs.exifinterface)
+
+    testImplementation(libs.junit)
 }

@@ -196,6 +196,10 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setConvertHeicToPng(enabled: Boolean) = settingsDataStore.setConvertHeicToPng(enabled)
 
+    override fun getRecentColors(): Flow<List<Int>> = settingsDataStore.getRecentColors()
+
+    override suspend fun addRecentColor(color: Int) = settingsDataStore.addRecentColor(color)
+
     override fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>> =
         settingsDataStore.getDefaultAfterUploadActions()
 

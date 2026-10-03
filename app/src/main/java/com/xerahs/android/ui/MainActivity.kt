@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.FloatingActionButton
@@ -97,8 +98,13 @@ class MainActivity : FragmentActivity() {
                 oledBlack = oledBlack,
                 customThemeSeedColor = customThemeSeedColor
             ) {
-                Crossfade(
-                    targetState = onboardingCompleted,
+                val onboardingState = onboardingCompleted
+                if (onboardingState == null) {
+                    // Settings still loading: show only the background. Composing Home here would
+                    // consume a pending share before onboarding takes over.
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                } else Crossfade(
+                    targetState = onboardingState,
                     animationSpec = tween(500),
                     label = "onboarding-crossfade"
                 ) { completed ->
@@ -333,7 +339,8 @@ fun MainScreen(
     val currentRoute = currentDestination?.route
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route,
-        Screen.S3Explorer.route
+        Screen.S3Explorer.route,
+        Screen.Tools.route
     )
 
     Scaffold(
@@ -386,6 +393,27 @@ fun MainScreen(
                                     }
                                 )
                             }
+                        }
+                        val toolsSelected = currentRoute == Screen.Tools.route
+                        IconButton(
+                            onClick = {
+                                if (!toolsSelected) {
+                                    navController.navigate(Screen.Tools.route) {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Handyman,
+                                contentDescription = "Tools",
+                                tint = if (toolsSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
                         }
                     },
                     floatingActionButton = {

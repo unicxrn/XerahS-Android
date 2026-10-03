@@ -66,6 +66,7 @@ dependencies {
     implementation(project(":feature:history"))
     implementation(project(":feature:s3explorer"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:tools"))
 
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)

@@ -13,6 +13,10 @@ import com.xerahs.android.feature.annotation.canvas.shapes.MagnifyRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.NumberedStepRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.PixelateRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.RectangleRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.SmartEraserRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.SpeechBalloonRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.StickerRenderer
+import com.xerahs.android.feature.annotation.canvas.shapes.HighlighterPenRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.SpotlightRenderer
 import com.xerahs.android.feature.annotation.canvas.shapes.TextRenderer
 import java.io.File
@@ -42,6 +46,10 @@ object AnnotationEngine {
                 is Annotation.Pixelate -> PixelateRenderer.draw(canvas, annotation, sourceBitmap)
                 is Annotation.Spotlight -> SpotlightRenderer.draw(canvas, annotation)
                 is Annotation.Magnify -> MagnifyRenderer.draw(canvas, annotation, sourceBitmap)
+                is Annotation.SpeechBalloon -> SpeechBalloonRenderer.draw(canvas, annotation)
+                is Annotation.Sticker -> StickerRenderer.draw(canvas, annotation)
+                is Annotation.SmartEraser -> SmartEraserRenderer.draw(canvas, annotation)
+                is Annotation.HighlighterPen -> HighlighterPenRenderer.draw(canvas, annotation)
             }
         }
 
