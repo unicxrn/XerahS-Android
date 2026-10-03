@@ -57,8 +57,8 @@ interface SettingsRepository {
     fun getBiometricLockMode(): Flow<String>
     suspend fun setBiometricLockMode(mode: String)
 
-    suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig
-    suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig)
+    suspend fun getCustomUploaderConfig(): UploadConfig.CustomUploaderConfig
+    suspend fun saveCustomUploaderConfig(config: UploadConfig.CustomUploaderConfig)
 
     fun getUploadFormat(): Flow<ImageFormat>
     suspend fun setUploadFormat(format: ImageFormat)
@@ -76,4 +76,11 @@ interface SettingsRepository {
     suspend fun getCustomTheme(id: String): CustomTheme?
     suspend fun saveCustomTheme(theme: CustomTheme)
     suspend fun deleteCustomTheme(id: String)
+
+    /** Custom-uploader profile used for URL shortening; null = built-in is.gd. */
+    fun getShortenerProfileId(): Flow<String?>
+    suspend fun setShortenerProfileId(id: String?)
+
+    fun getConvertHeicToPng(): Flow<Boolean>
+    suspend fun setConvertHeicToPng(enabled: Boolean)
 }

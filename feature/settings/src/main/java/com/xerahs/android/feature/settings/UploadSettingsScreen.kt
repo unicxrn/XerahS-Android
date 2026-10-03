@@ -20,12 +20,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -68,6 +70,7 @@ fun UploadSettingsScreen(
     onNavigateToS3Config: () -> Unit,
     onNavigateToFtpConfig: () -> Unit,
     onNavigateToCustomHttpConfig: () -> Unit,
+    onNavigateToImportUploader: () -> Unit = {},
     onNavigateToProfiles: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
@@ -167,7 +170,7 @@ fun UploadSettingsScreen(
                 var destinationsExpanded by rememberSaveable { mutableStateOf(false) }
                 ListItem(
                     headlineContent = { Text("Configure Destinations") },
-                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom HTTP") },
+                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom uploader") },
                     trailingContent = {
                         Icon(
                             if (destinationsExpanded) Icons.Default.KeyboardArrowUp
@@ -227,9 +230,21 @@ fun UploadSettingsScreen(
 
                         DestinationItem(
                             icon = Icons.Default.Http,
-                            title = "Custom HTTP",
-                            subtitle = "Configure custom HTTP endpoint",
+                            title = "Custom uploader",
+                            subtitle = "ShareX-compatible (.sxcu) uploader",
                             onClick = onNavigateToCustomHttpConfig
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(
+                            icon = Icons.Default.FileDownload,
+                            title = "Import uploader",
+                            subtitle = "ShareX .sxcu or XerahS .xsdc file",
+                            onClick = onNavigateToImportUploader
                         )
                     }
                 }
@@ -352,6 +367,50 @@ fun UploadSettingsScreen(
                         )
                     }
                 )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                ListItem(
+                    headlineContent = { Text("Convert HEIC to PNG") },
+                    supportingContent = { Text("Most hosts can't display HEIC photos (Android 9+)") },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.convertHeicToPng,
+                            onCheckedChange = { viewModel.setConvertHeicToPng(it) }
+                        )
+                    }
+                )
+
+                if (uiState.shortenerProfiles.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    var shortenerMenu by remember { mutableStateOf(false) }
+                    val current = uiState.shortenerProfiles.find { it.id == uiState.shortenerProfileId }
+                    ListItem(
+                        headlineContent = { Text("URL shortener") },
+                        supportingContent = { Text(current?.name ?: "is.gd (built-in)") },
+                        modifier = Modifier.clickable { shortenerMenu = true },
+                        trailingContent = {
+                            DropdownMenu(expanded = shortenerMenu, onDismissRequest = { shortenerMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("is.gd (built-in)") },
+                                    onClick = { viewModel.setShortenerProfileId(null); shortenerMenu = false }
+                                )
+                                uiState.shortenerProfiles.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text(p.name) },
+                                        onClick = { viewModel.setShortenerProfileId(p.id); shortenerMenu = false }
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

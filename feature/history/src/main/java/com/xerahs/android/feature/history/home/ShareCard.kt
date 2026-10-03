@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.ui.FileTypeTile
 
 /**
  * The "Link copied" moment - the emotional payoff after a successful share.
@@ -115,16 +116,21 @@ fun ShareCard(
             Spacer(Modifier.size(16.dp))
 
             // Thumbnail
-            AsyncImage(
-                model = item.thumbnailPath ?: item.filePath,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-            )
+            val thumbModifier = Modifier
+                .fillMaxWidth()
+                .height(160.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+            if (item.isImage) {
+                AsyncImage(
+                    model = item.thumbnailPath ?: item.filePath,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = thumbModifier
+                )
+            } else {
+                FileTypeTile(item.mimeType, thumbModifier, iconSize = 56.dp)
+            }
 
             Spacer(Modifier.size(16.dp))
 

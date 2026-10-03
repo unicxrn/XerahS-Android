@@ -57,6 +57,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -70,6 +71,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -89,7 +91,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material3.AlertDialog
 import com.xerahs.android.core.common.toShortDate
+import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.GradientBorderCard
 import com.xerahs.android.core.ui.StatusBanner
 
@@ -106,6 +110,12 @@ fun UploadScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
     val isBatch = imagePaths.size > 1
+
+    LaunchedEffect(imagePath, imagePaths) {
+        viewModel.setFiles(if (isBatch) imagePaths else listOf(imagePath))
+    }
+    val mimeType = remember(imagePath) { MimeTypes.fromFileName(imagePath) }
+    val isImage = MimeTypes.isRasterImage(mimeType)
 
     var showDestinationSheet by remember { mutableStateOf(false) }
     var albumTagExpanded by remember { mutableStateOf(false) }
@@ -179,6 +189,31 @@ fun UploadScreen(
         )
     }
 
+    if (uiState.pendingPrompts.isNotEmpty()) {
+        val answers = remember(uiState.pendingPrompts) {
+            mutableStateMapOf<String, String>().apply { uiState.pendingPrompts.forEach { put(it.title, it.default) } }
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelPrompts() },
+            title = { Text("Uploader needs input") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    uiState.pendingPrompts.forEach { prompt ->
+                        OutlinedTextField(
+                            value = answers[prompt.title].orEmpty(),
+                            onValueChange = { answers[prompt.title] = it },
+                            label = { Text(prompt.title.ifBlank { "Value" }) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.submitPromptValues(answers.toMap()) }) { Text("Upload") } },
+            dismissButton = { TextButton(onClick = { viewModel.cancelPrompts() }) { Text("Cancel") } }
+        )
+    }
+
     // Destination + profile selector sheet
     if (showDestinationSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -209,7 +244,7 @@ fun UploadScreen(
     }
 
     val bitmap = remember(imagePath) {
-        BitmapFactory.decodeFile(imagePath)
+        if (isImage) BitmapFactory.decodeFile(imagePath) else null
     }
     val dimensions = remember(imagePath) {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -258,7 +293,7 @@ fun UploadScreen(
                 if (isBatch) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "${imagePaths.size} images selected",
+                            text = "${imagePaths.size} files selected",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -267,19 +302,25 @@ fun UploadScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(imagePaths) { path ->
-                                val thumb = remember(path) { BitmapFactory.decodeFile(path) }
+                                val thumb = remember(path) {
+                                    if (MimeTypes.isRasterImage(MimeTypes.fromFileName(path))) {
+                                        BitmapFactory.decodeFile(path)
+                                    } else null
+                                }
                                 Box(
                                     modifier = Modifier
                                         .size(120.dp)
                                         .clip(MaterialTheme.shapes.medium)
                                 ) {
-                                    thumb?.let {
+                                    if (thumb != null) {
                                         Image(
-                                            bitmap = it.asImageBitmap(),
-                                            contentDescription = "Selected image",
+                                            bitmap = thumb.asImageBitmap(),
+                                            contentDescription = "Selected file",
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
+                                    } else {
+                                        FileTypeTile(MimeTypes.fromFileName(path), Modifier.fillMaxSize(), iconSize = 40.dp)
                                     }
                                 }
                             }
@@ -297,13 +338,27 @@ fun UploadScreen(
                             .heightIn(min = 220.dp, max = 340.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        bitmap?.let {
+                        if (bitmap != null) {
                             Image(
-                                bitmap = it.asImageBitmap(),
+                                bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "Selected image",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Fit
                             )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                FileTypeTile(
+                                    mimeType,
+                                    Modifier.size(96.dp).clip(MaterialTheme.shapes.large),
+                                    iconSize = 48.dp
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = java.io.File(imagePath).name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
                         }
 
                         // Monospace size / dimension caption
@@ -425,6 +480,11 @@ fun UploadScreen(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                 )
+                uiState.result?.errorMessage?.let { message ->
+                    TextButton(onClick = { clipboardManager.setText(AnnotatedString(message)) }) {
+                        Text("Copy error details")
+                    }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
@@ -719,7 +779,7 @@ private fun DestinationSheetContent(
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        UploadDestination.entries.forEach { dest ->
+        uiState.selectableDestinations.forEach { dest ->
             val isSelected = uiState.selectedProfileId == null && uiState.selectedDestination == dest
             Surface(
                 modifier = Modifier
@@ -766,7 +826,7 @@ private fun DestinationSheetContent(
         }
 
         // Profiles for the currently selected destination
-        val destProfiles = uiState.profiles.filter { it.destination == uiState.selectedDestination }
+        val destProfiles = uiState.allowedProfiles(uiState.selectedDestination)
         if (destProfiles.isNotEmpty()) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             Text(

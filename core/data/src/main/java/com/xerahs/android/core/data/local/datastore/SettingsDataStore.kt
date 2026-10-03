@@ -42,6 +42,8 @@ class SettingsDataStore @Inject constructor(
         val STRIP_EXIF = booleanPreferencesKey("strip_exif")
         val AUTO_LOCK_TIMEOUT = longPreferencesKey("auto_lock_timeout")
         val CUSTOM_THEME_ID = stringPreferencesKey("custom_theme_id")
+        val SHORTENER_PROFILE_ID = stringPreferencesKey("shortener_profile_id")
+        val CONVERT_HEIC = booleanPreferencesKey("convert_heic_to_png")
     }
 
     fun getDefaultDestination(): Flow<UploadDestination> = context.dataStore.data.map { prefs ->
@@ -224,5 +226,23 @@ class SettingsDataStore @Inject constructor(
                 prefs.remove(Keys.CUSTOM_THEME_ID)
             }
         }
+    }
+
+    fun getShortenerProfileId(): Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SHORTENER_PROFILE_ID]
+    }
+
+    suspend fun setShortenerProfileId(id: String?) {
+        context.dataStore.edit { prefs ->
+            if (id != null) prefs[Keys.SHORTENER_PROFILE_ID] = id else prefs.remove(Keys.SHORTENER_PROFILE_ID)
+        }
+    }
+
+    fun getConvertHeicToPng(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.CONVERT_HEIC] ?: true
+    }
+
+    suspend fun setConvertHeicToPng(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[Keys.CONVERT_HEIC] = enabled }
     }
 }

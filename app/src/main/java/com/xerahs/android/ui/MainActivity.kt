@@ -3,6 +3,7 @@ package com.xerahs.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -48,6 +49,12 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.xerahs.android.core.common.file.MimeTypes
 import java.io.File
 import java.io.FileOutputStream
 
@@ -56,12 +63,13 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+        private const val MAX_NAME_BYTES = 200
     }
 
     private val mainViewModel: MainViewModel by viewModels()
-    private var pendingSharedImagePath by mutableStateOf<String?>(null)
-    private var pendingSharedImagePaths by mutableStateOf<List<String>?>(null)
+    private var pendingSharedPaths by mutableStateOf<List<String>?>(null)
     private var pendingLaunchCapture by mutableStateOf(false)
+    private var pendingImportUri by mutableStateOf<String?>(null)
     private var isUnlocked by mutableStateOf(false)
     private var lastBackgroundTime: Long = 0L
 
@@ -69,7 +77,9 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        handleIncomingIntent(intent)
+        if (savedInstanceState == null) {
+            handleIncomingIntent(intent)
+        }
 
         setContent {
             val themeMode by mainViewModel.themeMode.collectAsState()
@@ -127,14 +137,12 @@ class MainActivity : FragmentActivity() {
                         }
                     } else {
                         MainScreen(
-                            sharedImagePath = pendingSharedImagePath,
-                            sharedImagePaths = pendingSharedImagePaths,
-                            onSharedImageHandled = {
-                                pendingSharedImagePath = null
-                                pendingSharedImagePaths = null
-                            },
+                            sharedPaths = pendingSharedPaths,
+                            onSharedHandled = { pendingSharedPaths = null },
                             launchCapture = pendingLaunchCapture,
-                            onLaunchCaptureHandled = { pendingLaunchCapture = false }
+                            onLaunchCaptureHandled = { pendingLaunchCapture = false },
+                            importUri = pendingImportUri,
+                            onImportHandled = { pendingImportUri = null }
                         )
                     }
                 }
@@ -185,71 +193,137 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent) {
-        if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return
-            val path = copyUriToInternal(uri) ?: return
-            pendingSharedImagePath = path
-            pendingSharedImagePaths = null
-        } else if (intent.action == Intent.ACTION_SEND_MULTIPLE && intent.type?.startsWith("image/") == true) {
-            @Suppress("DEPRECATION")
-            val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: return
-            val paths = uris.mapNotNull { copyUriToInternal(it) }
-            if (paths.isNotEmpty()) {
-                pendingSharedImagePaths = paths
-                pendingSharedImagePath = null
+        when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data?.let { pendingImportUri = it.toString() }
+            Intent.ACTION_SEND -> {
+                val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (uri == null && text == null) return
+                // Copying can take a while (e.g. large videos), so keep it off the main thread.
+                lifecycleScope.launch {
+                    if (uri != null) {
+                        val (name, path) = withContext(Dispatchers.IO) {
+                            val name = displayName(uri)
+                            name to if (isUploaderConfig(name)) null else copyUriToInternal(uri, name)
+                        }
+                        if (isUploaderConfig(name)) {
+                            pendingImportUri = uri.toString()
+                        } else if (path != null) {
+                            pendingSharedPaths = listOf(path)
+                        }
+                    } else if (text != null) {
+                        withContext(Dispatchers.IO) { writeSharedText(text) }
+                            ?.let { pendingSharedPaths = listOf(it) }
+                    }
+                }
             }
-        } else if (intent.action == ACTION_CAPTURE) {
-            pendingLaunchCapture = true
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                    ?: return
+                lifecycleScope.launch {
+                    val paths = withContext(Dispatchers.IO) {
+                        uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
+                    }
+                    if (paths.isNotEmpty()) pendingSharedPaths = paths
+                }
+            }
+            ACTION_CAPTURE -> pendingLaunchCapture = true
         }
     }
 
-    private fun copyUriToInternal(uri: Uri): String? {
+    private fun isUploaderConfig(name: String?): Boolean =
+        name?.substringAfterLast('.', "")?.lowercase() in setOf("sxcu", "xsdc")
+
+    private fun displayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
+
+    private fun newSharedDir(): File =
+        File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
+
+    /** Copies a shared item into app storage, keeping its real name (and so its extension). */
+    private fun copyUriToInternal(uri: Uri, displayName: String?): String? {
+        val dir = newSharedDir()
         return try {
-            val inputStream = contentResolver.openInputStream(uri) ?: return null
-            val capturesDir = File(filesDir, "captures")
-            if (!capturesDir.exists()) capturesDir.mkdirs()
-            val file = File(capturesDir, "shared_${System.currentTimeMillis()}.png")
-            FileOutputStream(file).use { out ->
-                inputStream.copyTo(out)
-            }
-            inputStream.close()
-            file.absolutePath
+            copyInto(dir, uri, displayName)
         } catch (e: Exception) {
+            dir.deleteRecursively() // don't leave empty share folders behind
             null
         }
     }
+
+    private fun copyInto(dir: File, uri: Uri, displayName: String?): String {
+        var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
+        if (!name.contains('.')) {
+            val ext = contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
+            name = "$name.$ext"
+        }
+        val file = File(dir, limitFileName(name))
+        contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(file).use { out -> input.copyTo(out) }
+        } ?: throw java.io.FileNotFoundException(uri.toString())
+        return file.absolutePath
+    }
+
+    /** Keeps the name's UTF-8 length within [MAX_NAME_BYTES] by trimming the base name, never the extension. */
+    private fun limitFileName(name: String): String {
+        val dot = name.lastIndexOf('.')
+        val ext = if (dot >= 0) name.substring(dot) else ""
+        var base = if (dot >= 0) name.substring(0, dot) else name
+        val budget = (MAX_NAME_BYTES - ext.toByteArray(Charsets.UTF_8).size).coerceAtLeast(1)
+        while (base.isNotEmpty() && base.toByteArray(Charsets.UTF_8).size > budget) {
+            base = base.dropLast(1)
+            // Don't leave a dangling high surrogate.
+            if (base.isNotEmpty() && base.last().isHighSurrogate()) base = base.dropLast(1)
+        }
+        if (base.isBlank()) base = "shared"
+        return base + ext
+    }
+
+    private fun writeSharedText(text: String): String? = runCatching {
+        File(newSharedDir(), "shared-text.txt").apply { writeText(text) }.absolutePath
+    }.getOrNull()
 }
 
 @Composable
 fun MainScreen(
-    sharedImagePath: String? = null,
-    sharedImagePaths: List<String>? = null,
-    onSharedImageHandled: () -> Unit = {},
+    sharedPaths: List<String>? = null,
+    onSharedHandled: () -> Unit = {},
     launchCapture: Boolean = false,
-    onLaunchCaptureHandled: () -> Unit = {}
+    onLaunchCaptureHandled: () -> Unit = {},
+    importUri: String? = null,
+    onImportHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
     val s3Configured by mainViewModel.s3Configured.collectAsStateWithLifecycle()
 
-    LaunchedEffect(sharedImagePath) {
-        if (sharedImagePath != null) {
-            navController.navigate(Screen.Annotation.createRoute(sharedImagePath))
-            onSharedImageHandled()
+    LaunchedEffect(sharedPaths) {
+        val paths = sharedPaths ?: return@LaunchedEffect
+        val single = paths.singleOrNull()
+        val mime = single?.let { MimeTypes.fromFileName(it) }
+        when {
+            // Editable raster image → editor (HEIC goes straight to upload; it is converted there).
+            single != null && MimeTypes.isRasterImage(mime) && !MimeTypes.isHeic(mime) ->
+                navController.navigate(Screen.Annotation.createRoute(single))
+            single != null -> navController.navigate(Screen.Upload.createRoute(single))
+            else -> navController.navigate(Screen.UploadBatch.createRoute(paths))
         }
-    }
-
-    LaunchedEffect(sharedImagePaths) {
-        if (sharedImagePaths != null && sharedImagePaths.isNotEmpty()) {
-            navController.navigate(Screen.UploadBatch.createRoute(sharedImagePaths))
-            onSharedImageHandled()
-        }
+        onSharedHandled()
     }
 
     LaunchedEffect(launchCapture) {
         if (launchCapture) {
             navController.navigate(Screen.Capture.route)
             onLaunchCaptureHandled()
+        }
+    }
+
+    LaunchedEffect(importUri) {
+        if (importUri != null) {
+            navController.navigate(Screen.UploaderImport.createRoute(importUri))
+            onImportHandled()
         }
     }
 

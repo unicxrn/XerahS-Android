@@ -12,14 +12,19 @@ data class HistoryItem(
     val fileSize: Long = 0,
     val albumId: String? = null,
     val tags: List<Tag> = emptyList(),
-    val fileHash: String? = null
-)
+    val fileHash: String? = null,
+    // MIME type of the uploaded file; null/"image/*" for rows created before v0.5.
+    val mimeType: String? = null
+) {
+    val isImage: Boolean
+        get() = mimeType == null || com.xerahs.android.core.common.file.MimeTypes.isRasterImage(mimeType)
+}
 
 enum class UploadDestination(val displayName: String) {
     IMGUR("Imgur"),
     S3("S3"),
     FTP("FTP"),
     SFTP("SFTP"),
-    CUSTOM_HTTP("Custom HTTP"),
+    CUSTOM_HTTP("Custom uploader"),
     LOCAL("Local")
 }

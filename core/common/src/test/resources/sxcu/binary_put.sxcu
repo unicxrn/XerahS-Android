@@ -1,0 +1,9 @@
+{
+  "name": "Binary PUT",
+  "destinationtype": "FileUploader",
+  "requestmethod": "put",
+  "requesturl": "https://b.example.com/{filename}",
+  "parameters": { "ttl": "3600" },
+  "body": "Binary",
+  "url": "https://b.example.com/{filename}"
+}

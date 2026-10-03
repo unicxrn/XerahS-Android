@@ -10,8 +10,14 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.xerahs.android.feature.upload.worker.UploadWorker
+import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.common.sxcu.CustomDestinationType
+import com.xerahs.android.core.common.sxcu.InputPrompt
+import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.Album
+import com.xerahs.android.core.domain.model.DestinationCapabilities
 import com.xerahs.android.core.domain.model.Tag
+import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.model.UploadResult
@@ -21,11 +27,13 @@ import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class DuplicateInfo(
@@ -52,8 +60,58 @@ data class UploadUiState(
     val selectedTagIds: Set<String> = emptySet(),
     val duplicateInfo: DuplicateInfo? = null,
     val profiles: List<UploadProfile> = emptyList(),
-    val selectedProfileId: String? = null
-)
+    val selectedProfileId: String? = null,
+    val pendingPrompts: List<InputPrompt> = emptyList(),
+    val fileMimeTypes: List<String> = emptyList(),
+    val globalCustomTypes: Set<CustomDestinationType>? = null,
+    val profileCustomTypes: Map<String, Set<CustomDestinationType>> = emptyMap(),
+) {
+    fun allows(destination: UploadDestination): Boolean = fileMimeTypes.isEmpty() ||
+        DestinationCapabilities.acceptsAll(
+            destination, fileMimeTypes,
+            if (destination == UploadDestination.CUSTOM_HTTP) globalCustomTypes else null
+        )
+
+    fun allows(profile: UploadProfile): Boolean = fileMimeTypes.isEmpty() ||
+        DestinationCapabilities.acceptsAll(profile.destination, fileMimeTypes, profileCustomTypes[profile.id])
+
+    /** Profiles of [destination] that can take the current files. */
+    fun allowedProfiles(destination: UploadDestination): List<UploadProfile> =
+        profiles.filter { it.destination == destination && allows(it) }
+
+    /** A destination is offered when its global config or any of its profiles can take the files. */
+    fun isSelectable(destination: UploadDestination): Boolean =
+        allows(destination) || allowedProfiles(destination).isNotEmpty()
+
+    val selectableDestinations: List<UploadDestination>
+        get() = UploadDestination.entries.filter { isSelectable(it) }
+
+    /**
+     * What picking [destination] should select: its global config when allowed, otherwise its
+     * first allowed profile. Returns (destination, profileId).
+     */
+    fun resolveDestination(destination: UploadDestination): Pair<UploadDestination, String?> =
+        if (allows(destination)) destination to null
+        else allowedProfiles(destination).firstOrNull()?.let { destination to it.id } ?: (destination to null)
+
+    /** Whether the current selection can take the files. */
+    val isSelectionAllowed: Boolean
+        get() {
+            val profile = profiles.find { it.id == selectedProfileId }
+            return if (profile != null) allows(profile) else allows(selectedDestination)
+        }
+
+    /**
+     * Replacement for a disallowed selection: an allowed profile (or the global config) of the same
+     * destination first, then the first other destination that can take the files, else LOCAL.
+     */
+    fun fallbackSelection(): Pair<UploadDestination, String?> {
+        allowedProfiles(selectedDestination).firstOrNull()?.let { return selectedDestination to it.id }
+        if (allows(selectedDestination)) return selectedDestination to null
+        val dest = UploadDestination.entries.firstOrNull { isSelectable(it) } ?: UploadDestination.LOCAL
+        return resolveDestination(dest)
+    }
+}
 
 @HiltViewModel
 class UploadViewModel @Inject constructor(
@@ -67,10 +125,20 @@ class UploadViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(UploadUiState())
     val uiState: StateFlow<UploadUiState> = _uiState.asStateFlow()
 
+    private var pendingPaths: List<String> = emptyList()
+    private var lastInputValues: Map<String, String> = emptyMap()
+
     init {
         viewModelScope.launch {
             val defaultDest = settingsRepository.getDefaultDestination().first()
-            _uiState.value = _uiState.value.copy(selectedDestination = defaultDest)
+            val globalCustomTypes = withContext(Dispatchers.IO) {
+                settingsRepository.getCustomUploaderConfig().spec.destinationTypes
+            }
+            _uiState.value = _uiState.value.copy(
+                selectedDestination = defaultDest,
+                globalCustomTypes = globalCustomTypes
+            )
+            ensureAllowedSelection()
         }
         viewModelScope.launch {
             settingsRepository.getAutoCopyUrl().collect { enabled ->
@@ -89,7 +157,16 @@ class UploadViewModel @Inject constructor(
         }
         viewModelScope.launch {
             profileRepository.getAllProfiles().collect { profiles ->
-                _uiState.value = _uiState.value.copy(profiles = profiles)
+                val customTypes = withContext(Dispatchers.IO) {
+                    profiles
+                        .filter { it.destination == UploadDestination.CUSTOM_HTTP }
+                        .associate { p ->
+                            p.id to ((profileRepository.getProfileConfig(p.id, UploadDestination.CUSTOM_HTTP)
+                                as? UploadConfig.CustomUploaderConfig)?.spec?.destinationTypes ?: emptySet())
+                        }
+                }
+                _uiState.value = _uiState.value.copy(profiles = profiles, profileCustomTypes = customTypes)
+                ensureAllowedSelection()
             }
         }
     }
@@ -116,18 +193,69 @@ class UploadViewModel @Inject constructor(
     }
 
     fun selectDestination(destination: UploadDestination) {
-        _uiState.value = _uiState.value.copy(selectedDestination = destination)
+        val (dest, profileId) = _uiState.value.resolveDestination(destination)
+        _uiState.value = _uiState.value.copy(selectedDestination = dest, selectedProfileId = profileId)
     }
 
-    fun upload(imagePath: String) {
-        enqueueUpload(listOf(imagePath))
+    fun setFiles(paths: List<String>) {
+        val mimes = paths.map { MimeTypes.fromFileName(it) }
+        if (mimes == _uiState.value.fileMimeTypes) return
+        _uiState.value = _uiState.value.copy(fileMimeTypes = mimes)
+        ensureAllowedSelection()
     }
 
-    fun uploadBatch(imagePaths: List<String>) {
-        enqueueUpload(imagePaths)
+    /** If the current destination/profile can't take these files, fall back to one that can. */
+    private fun ensureAllowedSelection() {
+        val s = _uiState.value
+        if (!s.isSelectionAllowed) {
+            val (dest, profileId) = s.fallbackSelection()
+            _uiState.value = s.copy(selectedDestination = dest, selectedProfileId = profileId)
+        }
     }
 
-    private fun enqueueUpload(imagePaths: List<String>, skipDuplicateCheck: Boolean = false) {
+    fun upload(imagePath: String) = startUpload(listOf(imagePath))
+
+    fun uploadBatch(imagePaths: List<String>) = startUpload(imagePaths)
+
+    /** Asks for {inputbox} values first when the selected custom uploader needs them. */
+    private fun startUpload(paths: List<String>) {
+        viewModelScope.launch {
+            val prompts = customUploaderPrompts()
+            if (prompts.isEmpty()) {
+                enqueueUpload(paths)
+            } else {
+                pendingPaths = paths
+                _uiState.value = _uiState.value.copy(pendingPrompts = prompts)
+            }
+        }
+    }
+
+    private suspend fun customUploaderPrompts(): List<InputPrompt> {
+        if (_uiState.value.selectedDestination != UploadDestination.CUSTOM_HTTP) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val config = _uiState.value.selectedProfileId
+                ?.let { profileRepository.getProfileConfig(it, UploadDestination.CUSTOM_HTTP) }
+                as? UploadConfig.CustomUploaderConfig
+                ?: settingsRepository.getCustomUploaderConfig()
+            ShareXSyntax.inputPrompts(config.spec.requestTemplates())
+        }
+    }
+
+    fun submitPromptValues(values: Map<String, String>) {
+        lastInputValues = values
+        _uiState.value = _uiState.value.copy(pendingPrompts = emptyList())
+        enqueueUpload(pendingPaths, inputValues = values)
+    }
+
+    fun cancelPrompts() {
+        _uiState.value = _uiState.value.copy(pendingPrompts = emptyList())
+    }
+
+    private fun enqueueUpload(
+        imagePaths: List<String>,
+        skipDuplicateCheck: Boolean = false,
+        inputValues: Map<String, String> = emptyMap()
+    ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isUploading = true, errorMessage = null, result = null,
@@ -145,6 +273,9 @@ class UploadViewModel @Inject constructor(
             _uiState.value.selectedProfileId?.let { profileId ->
                 inputDataBuilder.putString(UploadWorker.KEY_PROFILE_ID, profileId)
             }
+            if (inputValues.isNotEmpty()) {
+                inputDataBuilder.putString(UploadWorker.KEY_INPUT_VALUES, UploadWorker.encodeInputValues(inputValues))
+            }
 
             if (_uiState.value.selectedAlbumId != null) {
                 inputDataBuilder.putString(UploadWorker.KEY_ALBUM_ID, _uiState.value.selectedAlbumId)
@@ -154,9 +285,9 @@ class UploadViewModel @Inject constructor(
             }
 
             if (imagePaths.size == 1) {
-                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATH, imagePaths.first())
+                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATH, imagePaths.first())
             } else {
-                inputDataBuilder.putString(UploadWorker.KEY_IMAGE_PATHS, imagePaths.joinToString("|"))
+                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATHS, imagePaths.joinToString("|"))
             }
 
             val constraints = Constraints.Builder()
@@ -202,20 +333,21 @@ class UploadViewModel @Inject constructor(
                                     url = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_URL),
                                     fileName = workInfo.outputData.getString(UploadWorker.KEY_DUPLICATE_FILE_NAME),
                                     timestamp = workInfo.outputData.getLong(UploadWorker.KEY_DUPLICATE_TIMESTAMP, 0L),
-                                    imagePath = workInfo.outputData.getString(UploadWorker.KEY_IMAGE_PATH) ?: "",
+                                    imagePath = workInfo.outputData.getString(UploadWorker.KEY_FILE_PATH) ?: "",
                                     destination = workInfo.outputData.getString(UploadWorker.KEY_DESTINATION) ?: ""
                                 )
                             )
                         } else {
+                            val message = workInfo.outputData.getString(UploadWorker.KEY_ERROR_MESSAGE) ?: "Upload failed"
                             _uiState.value = _uiState.value.copy(
                                 isUploading = false,
                                 result = UploadResult(
                                     success = false,
-                                    errorMessage = "Upload failed",
+                                    errorMessage = message,
                                     destination = destination
                                 ),
                                 batchProgress = null,
-                                errorMessage = "Upload failed"
+                                errorMessage = message
                             )
                         }
                     }
@@ -231,7 +363,7 @@ class UploadViewModel @Inject constructor(
     fun uploadAnyway() {
         val dupInfo = _uiState.value.duplicateInfo ?: return
         _uiState.value = _uiState.value.copy(duplicateInfo = null)
-        enqueueUpload(listOf(dupInfo.imagePath), skipDuplicateCheck = true)
+        enqueueUpload(listOf(dupInfo.imagePath), skipDuplicateCheck = true, inputValues = lastInputValues)
     }
 
     fun dismissDuplicate() {

@@ -2,12 +2,16 @@ package com.xerahs.android.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
+import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +38,7 @@ data class SettingsUiState(
     val biometricLockMode: String = "OFF",
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
+    val convertHeicToPng: Boolean = true,
     val autoLockTimeout: Long = 0L,
     val destinationConfigured: Boolean = false,
     val exportImportMessage: String? = null,
@@ -41,13 +46,16 @@ data class SettingsUiState(
     val customThemes: List<CustomTheme> = emptyList(),
     val currentAccentSeed: Int? = null,
     val importPreview: ImportPreview? = null,
-    val pendingImportJson: String? = null
+    val pendingImportJson: String? = null,
+    val shortenerProfileId: String? = null,
+    val shortenerProfiles: List<UploadProfile> = emptyList()
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val exportImportManager: ExportImportManager
+    private val exportImportManager: ExportImportManager,
+    private val profileRepository: UploadProfileRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -121,6 +129,11 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
+                settingsRepository.getConvertHeicToPng().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(convertHeicToPng = enabled)
+                }
+            }
+            launch {
                 settingsRepository.getAutoLockTimeout().collect { timeout ->
                     _uiState.value = _uiState.value.copy(autoLockTimeout = timeout)
                 }
@@ -152,6 +165,22 @@ class SettingsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(customThemes = themes)
                 }
             }
+            launch {
+                settingsRepository.getShortenerProfileId().collect { id ->
+                    _uiState.value = _uiState.value.copy(shortenerProfileId = id)
+                }
+            }
+            launch {
+                profileRepository.getProfilesForDestination(UploadDestination.CUSTOM_HTTP).collect { profiles ->
+                    val shorteners = withContext(Dispatchers.IO) {
+                        profiles.filter { p ->
+                            (profileRepository.getProfileConfig(p.id, UploadDestination.CUSTOM_HTTP) as? UploadConfig.CustomUploaderConfig)
+                                ?.spec?.destinationTypes?.contains(CustomDestinationType.URL_SHORTENER) == true
+                        }
+                    }
+                    _uiState.value = _uiState.value.copy(shortenerProfiles = shorteners)
+                }
+            }
         }
     }
 
@@ -164,7 +193,7 @@ class SettingsViewModel @Inject constructor(
             }
             UploadDestination.FTP -> settingsRepository.getFtpConfig().host.isNotBlank()
             UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
-            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomHttpConfig().url.isNotBlank()
+            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
             UploadDestination.LOCAL -> true
         }
     }
@@ -245,6 +274,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setStripExif(enabled)
         }
+    }
+
+    fun setConvertHeicToPng(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setConvertHeicToPng(enabled) }
     }
 
     fun setAutoLockTimeout(timeout: Long) {
@@ -381,6 +414,10 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(exportImportMessage = null)
+    }
+
+    fun setShortenerProfileId(id: String?) {
+        viewModelScope.launch { settingsRepository.setShortenerProfileId(id) }
     }
 
     companion object {

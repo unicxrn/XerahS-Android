@@ -5,29 +5,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,107 +23,73 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
-import com.xerahs.android.core.ui.StatusBanner
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomHttpConfigScreen(
     onBack: () -> Unit,
+    onImportAsProfile: () -> Unit = {},
     viewModel: CustomHttpConfigViewModel = hiltViewModel()
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
 
-    var isTesting by remember { mutableStateOf(false) }
-    var url by remember { mutableStateOf("") }
-    var method by remember { mutableStateOf("POST") }
-    var responseUrlJsonPath by remember { mutableStateOf("url") }
-    var formFieldName by remember { mutableStateOf("file") }
-
-    val headerKeys = remember { mutableStateListOf<String>() }
-    val headerValues = remember { mutableStateListOf<String>() }
+    var sxcu by rememberSaveable { mutableStateOf("") }
+    var loaded by rememberSaveable { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val config = viewModel.loadConfig()
-        url = config.url
-        method = config.method
-        responseUrlJsonPath = config.responseUrlJsonPath
-        formFieldName = config.formFieldName
-        headerKeys.clear()
-        headerValues.clear()
-        config.headers.forEach { (k, v) ->
-            headerKeys.add(k)
-            headerValues.add(v)
+        if (!loaded) {
+            sxcu = viewModel.loadSxcu()
+            loaded = true
         }
     }
 
-    fun headersMap(): Map<String, String> {
-        val map = mutableMapOf<String, String>()
-        for (i in headerKeys.indices) {
-            val k = headerKeys[i].trim()
-            if (k.isNotEmpty()) {
-                map[k] = headerValues[i]
-            }
+    fun replaceWith(text: String?) {
+        val normalized = text?.let(viewModel::normalize)
+        if (normalized == null) {
+            scope.launch { snackbarHostState.showSnackbar("Not a valid .sxcu custom uploader") }
+        } else {
+            sxcu = normalized
+            error = null
+            scope.launch { snackbarHostState.showSnackbar("Loaded — review and tap Save") }
         }
-        return map
     }
 
-    val context = LocalContext.current
-    var importMessage by remember { mutableStateOf<String?>(null) }
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val text = runCatching {
-            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-        }.getOrNull()
-        if (text == null) {
-            importMessage = "Couldn't read file"
-            return@rememberLauncherForActivityResult
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            replaceWith(runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull())
         }
-        SxcuParser.parse(text).fold(
-            onSuccess = { c ->
-                url = c.url
-                method = c.method
-                responseUrlJsonPath = c.responseUrlJsonPath
-                formFieldName = c.fileFormName
-                headerKeys.clear()
-                headerValues.clear()
-                c.headers.forEach { (k, v) ->
-                    headerKeys.add(k)
-                    headerValues.add(v)
-                }
-                importMessage = "Imported \"${c.name}\""
-                coroutineScope.launch {
-                    viewModel.saveConfig(url, method, headersMap(), responseUrlJsonPath, formFieldName)
-                }
-            },
-            onFailure = { importMessage = "Not a valid .sxcu file" },
-        )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Custom HTTP Configuration") },
+                title = { Text("Custom uploader") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -146,211 +98,67 @@ fun CustomHttpConfigScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            val isConfigured = url.isNotBlank()
-            StatusBanner(
-                icon = if (isConfigured) Icons.Default.CheckCircle else Icons.Default.Info,
-                title = if (isConfigured) "Configured" else "Not configured",
-                subtitle = if (isConfigured) "Endpoint URL is set" else "Enter your HTTP endpoint URL",
-                containerColor = if (isConfigured) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                contentColor = if (isConfigured) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            OutlinedButton(
-                onClick = {
-                    importMessage = null
-                    importLauncher.launch(
-                        arrayOf("application/octet-stream", "application/json", "*/*")
-                    )
-                },
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .height(48.dp)
+            SectionHeader("Load")
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Import .sxcu")
+                OutlinedButton(onClick = { fileLauncher.launch(arrayOf("*/*")) }) { Text("Open .sxcu") }
+                OutlinedButton(onClick = { replaceWith(clipboard.getText()?.text) }) { Text("Paste") }
+            }
+            TextButton(onClick = onImportAsProfile, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("Import as a new profile instead…")
             }
 
-            importMessage?.let { msg ->
-                Text(
-                    text = msg,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            SectionHeader("Definition")
+            SettingsGroupCard {
+                OutlinedTextField(
+                    value = sxcu,
+                    onValueChange = { sxcu = it; error = null },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    isError = error != null,
+                    supportingText = { Text(error ?: "ShareX .sxcu JSON — supports {json:}, {regex:}, {xml:}, {inputbox:} …") },
+                    minLines = 14,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 )
             }
 
-            SectionHeader("Endpoint")
-            SettingsGroupCard {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = url, onValueChange = { url = it },
-                        label = { Text("URL") },
-                        supportingText = { Text("The full URL to POST/PUT the file to") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        isError = url.isBlank(),
-                    )
-
-                    var methodExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = methodExpanded,
-                        onExpandedChange = { methodExpanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = method,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("HTTP Method") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = methodExpanded,
-                            onDismissRequest = { methodExpanded = false }
-                        ) {
-                            listOf("POST", "PUT").forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m) },
-                                    onClick = { method = m; methodExpanded = false }
-                                )
-                            }
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = formFieldName, onValueChange = { formFieldName = it },
-                        label = { Text("Form Field Name") },
-                        supportingText = { Text("Multipart form field name for the file (default: file)") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                }
-            }
-
-            SectionHeader("Response Parsing")
-            SettingsGroupCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    OutlinedTextField(
-                        value = responseUrlJsonPath, onValueChange = { responseUrlJsonPath = it },
-                        label = { Text("Response URL JSON Path") },
-                        supportingText = { Text("Dot-separated path to URL in JSON response, e.g. data.url") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                }
-            }
-
-            SectionHeader("Headers")
-            SettingsGroupCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    for (i in headerKeys.indices) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = headerKeys[i],
-                                onValueChange = { headerKeys[i] = it },
-                                label = { Text("Key") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = headerValues[i],
-                                onValueChange = { headerValues[i] = it },
-                                label = { Text("Value") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                            FilledTonalIconButton(
-                                onClick = {
-                                    headerKeys.removeAt(i)
-                                    headerValues.removeAt(i)
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            headerKeys.add("")
-                            headerValues.add("")
-                        }
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Header")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val canSave = url.isNotBlank()
-            Button(
-                onClick = {
-                    coroutineScope.launch {
-                        viewModel.saveConfig(url, method, headersMap(), responseUrlJsonPath, formFieldName)
-                        snackbarHostState.showSnackbar("Custom HTTP settings saved")
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.large,
-                enabled = canSave
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Save")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = {
-                    isTesting = true
-                    coroutineScope.launch {
-                        val result = viewModel.testConnection(url, method, headersMap())
-                        isTesting = false
-                        snackbarHostState.showSnackbar(result)
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            error = viewModel.save(sxcu)
+                            busy = false
+                            if (error == null) snackbarHostState.showSnackbar("Saved")
+                        }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.large,
-                enabled = canSave && !isTesting
-            ) {
-                if (isTesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text("Test Connection")
+                ) { Text("Save") }
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            val result = viewModel.testConnection(sxcu)
+                            busy = false
+                            snackbarHostState.showSnackbar(result)
+                        }
+                    }
+                ) { Text("Test endpoint") }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

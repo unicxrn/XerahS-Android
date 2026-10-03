@@ -1,5 +1,7 @@
 package com.xerahs.android.core.domain.model
 
+import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
+
 sealed class UploadConfig {
     data class ImgurConfig(
         val clientId: String = "",
@@ -43,11 +45,8 @@ sealed class UploadConfig {
         val httpUrl: String = ""
     ) : UploadConfig()
 
-    data class CustomHttpConfig(
-        val url: String = "",
-        val method: String = "POST",
-        val headers: Map<String, String> = emptyMap(),
-        val responseUrlJsonPath: String = "url",
-        val formFieldName: String = "file"
+    /** ShareX-compatible custom uploader; stored as .sxcu JSON. */
+    data class CustomUploaderConfig(
+        val spec: CustomUploaderSpec = CustomUploaderSpec()
     ) : UploadConfig()
 }

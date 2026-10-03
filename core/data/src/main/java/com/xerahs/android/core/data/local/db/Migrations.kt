@@ -101,3 +101,11 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE history ADD COLUMN mimeType TEXT")
+        // Everything uploaded before v0.5 was an image.
+        db.execSQL("UPDATE history SET mimeType = 'image/*' WHERE mimeType IS NULL")
+    }
+}

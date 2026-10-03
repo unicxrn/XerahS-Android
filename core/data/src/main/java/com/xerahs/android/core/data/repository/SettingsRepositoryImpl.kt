@@ -119,11 +119,11 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setBiometricLockMode(mode: String) =
         settingsDataStore.setBiometricLockMode(mode)
 
-    override suspend fun getCustomHttpConfig(): UploadConfig.CustomHttpConfig =
-        secureCredentialStore.getCustomHttpConfig()
+    override suspend fun getCustomUploaderConfig(): UploadConfig.CustomUploaderConfig =
+        secureCredentialStore.getCustomUploaderConfig()
 
-    override suspend fun saveCustomHttpConfig(config: UploadConfig.CustomHttpConfig) =
-        secureCredentialStore.saveCustomHttpConfig(config)
+    override suspend fun saveCustomUploaderConfig(config: UploadConfig.CustomUploaderConfig) =
+        secureCredentialStore.saveCustomUploaderConfig(config)
 
     override fun getUploadFormat(): Flow<ImageFormat> =
         settingsDataStore.getUploadFormat()
@@ -171,4 +171,14 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun deleteCustomTheme(id: String) =
         customThemeDao.deleteTheme(id)
+
+    override fun getShortenerProfileId(): Flow<String?> =
+        settingsDataStore.getShortenerProfileId()
+
+    override suspend fun setShortenerProfileId(id: String?) =
+        settingsDataStore.setShortenerProfileId(id)
+
+    override fun getConvertHeicToPng(): Flow<Boolean> = settingsDataStore.getConvertHeicToPng()
+
+    override suspend fun setConvertHeicToPng(enabled: Boolean) = settingsDataStore.setConvertHeicToPng(enabled)
 }

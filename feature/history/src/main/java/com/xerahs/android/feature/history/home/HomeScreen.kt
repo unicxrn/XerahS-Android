@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.ui.EmptyState
+import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.ShimmerBox
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -187,15 +188,20 @@ private fun TimelineRow(
             .heightIn(min = 56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = item.thumbnailPath ?: item.filePath,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-        )
+        val thumbModifier = Modifier
+            .size(44.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+        if (item.isImage) {
+            AsyncImage(
+                model = item.thumbnailPath ?: item.filePath,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = thumbModifier
+            )
+        } else {
+            FileTypeTile(item.mimeType, thumbModifier)
+        }
         Spacer(Modifier.size(12.dp))
         Column(
             modifier = Modifier.weight(1f),

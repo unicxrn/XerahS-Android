@@ -1,0 +1,12 @@
+{
+  "Name": "Old Host",
+  "DestinationType": "ImageUploader",
+  "RequestType": "POST",
+  "RequestURL": "https://old.example.com/upload.php",
+  "FileFormName": "file",
+  "Arguments": { "key": "k1" },
+  "ResponseType": "Text",
+  "RegexList": [ "\"url\":\"(.+?)\"" ],
+  "URL": "$regex:1,1$",
+  "DeletionURL": "$json:delete$"
+}

@@ -113,6 +113,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.core.content.FileProvider
 import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.EmptyState
+import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
 import java.io.File
@@ -168,7 +169,9 @@ fun HistoryScreen(
                     var offsetX by remember { mutableFloatStateOf(0f) }
                     var offsetY by remember { mutableFloatStateOf(0f) }
 
-                    AsyncImage(
+                    if (!pageItem.isImage) {
+                        FileTypeTile(pageItem.mimeType, Modifier.fillMaxSize(), iconSize = 96.dp)
+                    } else AsyncImage(
                         model = pageItem.filePath,
                         contentDescription = "Preview",
                         modifier = Modifier

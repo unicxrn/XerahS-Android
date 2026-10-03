@@ -1,0 +1,9 @@
+{
+  "Name": "Paste",
+  "DestinationType": "TextUploader",
+  "RequestMethod": "POST",
+  "RequestURL": "https://paste.example.com/api",
+  "Body": "FormURLEncoded",
+  "Arguments": { "content": "{input}", "format": "text" },
+  "URL": "{response}"
+}

@@ -7,6 +7,7 @@ import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.HistoryDao
 import com.xerahs.android.core.data.local.db.MIGRATION_1_2
 import com.xerahs.android.core.data.local.db.MIGRATION_2_3
+import com.xerahs.android.core.data.local.db.MIGRATION_3_4
 import com.xerahs.android.core.data.local.db.TagDao
 import com.xerahs.android.core.data.local.db.UploadProfileDao
 import com.xerahs.android.core.data.local.db.XerahSDatabase
@@ -29,7 +30,7 @@ object DatabaseModule {
             XerahSDatabase::class.java,
             "xerahs_database"
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
 
     @Provides
