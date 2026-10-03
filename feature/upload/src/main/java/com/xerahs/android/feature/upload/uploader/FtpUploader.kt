@@ -64,10 +64,16 @@ class FtpUploader @Inject constructor() {
                         "ftp://${config.host}$remotePath/$remoteFileName"
                     }
 
+                    // The actual directory the file landed in: when remotePath was blank
+                    // and no cd happened, this is the login home dir, not "/". If the
+                    // server won't tell us, don't guess a path -- leave remoteKey null
+                    // so delete isn't offered for a path we aren't sure about.
+                    val actualDir = client.printWorkingDirectory()
                     UploadResult(
                         success = true,
                         url = url,
-                        destination = UploadDestination.FTP
+                        destination = UploadDestination.FTP,
+                        remoteKey = actualDir?.let { it.trimEnd('/') + "/" + remoteFileName }
                     )
                 } else {
                     UploadResult(

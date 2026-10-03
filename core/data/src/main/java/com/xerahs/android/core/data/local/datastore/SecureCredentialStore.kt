@@ -172,6 +172,52 @@ class SecureCredentialStore @Inject constructor(
         return UploadConfig.CustomUploaderConfig(spec)
     }
 
+    // Nextcloud / Immich / GitHub Gist. Prefix "" = global, "profile_<id>_" = profile.
+    fun getNextcloudConfig() = readNextcloud("")
+    fun saveNextcloudConfig(config: UploadConfig.NextcloudConfig) = prefs.edit().apply { writeNextcloud("", config) }.apply()
+    fun getImmichConfig() = readImmich("")
+    fun saveImmichConfig(config: UploadConfig.ImmichConfig) = prefs.edit().apply { writeImmich("", config) }.apply()
+    fun getGistConfig() = readGist("")
+    fun saveGistConfig(config: UploadConfig.GistConfig) = prefs.edit().apply { writeGist("", config) }.apply()
+
+    private fun readNextcloud(p: String) = UploadConfig.NextcloudConfig(
+        serverUrl = prefs.getString("${p}nextcloud_server_url", "") ?: "",
+        username = prefs.getString("${p}nextcloud_username", "") ?: "",
+        appPassword = prefs.getString("${p}nextcloud_app_password", "") ?: "",
+        folder = prefs.getString("${p}nextcloud_folder", "XerahS") ?: "XerahS",
+        publicShare = prefs.getBoolean("${p}nextcloud_public_share", true)
+    )
+
+    private fun SharedPreferences.Editor.writeNextcloud(p: String, c: UploadConfig.NextcloudConfig) {
+        putString("${p}nextcloud_server_url", c.serverUrl)
+        putString("${p}nextcloud_username", c.username)
+        putString("${p}nextcloud_app_password", c.appPassword)
+        putString("${p}nextcloud_folder", c.folder)
+        putBoolean("${p}nextcloud_public_share", c.publicShare)
+    }
+
+    private fun readImmich(p: String) = UploadConfig.ImmichConfig(
+        serverUrl = prefs.getString("${p}immich_server_url", "") ?: "",
+        apiKey = prefs.getString("${p}immich_api_key", "") ?: "",
+        createShareLink = prefs.getBoolean("${p}immich_share_link", true)
+    )
+
+    private fun SharedPreferences.Editor.writeImmich(p: String, c: UploadConfig.ImmichConfig) {
+        putString("${p}immich_server_url", c.serverUrl)
+        putString("${p}immich_api_key", c.apiKey)
+        putBoolean("${p}immich_share_link", c.createShareLink)
+    }
+
+    private fun readGist(p: String) = UploadConfig.GistConfig(
+        token = prefs.getString("${p}gist_token", "") ?: "",
+        isPublic = prefs.getBoolean("${p}gist_public", false)
+    )
+
+    private fun SharedPreferences.Editor.writeGist(p: String, c: UploadConfig.GistConfig) {
+        putString("${p}gist_token", c.token)
+        putBoolean("${p}gist_public", c.isPublic)
+    }
+
     // Profile-specific configs (keyed by profile ID)
     fun getProfileConfig(profileId: String, destination: UploadDestination): UploadConfig {
         val p = "profile_${profileId}_"
@@ -216,6 +262,9 @@ class SecureCredentialStore @Inject constructor(
             )
             UploadDestination.CUSTOM_HTTP -> readCustomUploader(p)
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
+            UploadDestination.NEXTCLOUD -> readNextcloud(p)
+            UploadDestination.IMMICH -> readImmich(p)
+            UploadDestination.GITHUB_GIST -> readGist(p)
         }
     }
 
@@ -264,6 +313,9 @@ class SecureCredentialStore @Inject constructor(
                 is UploadConfig.CustomUploaderConfig -> {
                     putString("${p}custom_uploader_sxcu", SxcuWriter.write(config.spec))
                 }
+                is UploadConfig.NextcloudConfig -> writeNextcloud(p, config)
+                is UploadConfig.ImmichConfig -> writeImmich(p, config)
+                is UploadConfig.GistConfig -> writeGist(p, config)
             }
             apply()
         }

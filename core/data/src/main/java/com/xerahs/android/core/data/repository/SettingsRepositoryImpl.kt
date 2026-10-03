@@ -4,6 +4,7 @@ import com.xerahs.android.core.data.local.datastore.SecureCredentialStore
 import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.CustomThemeEntity
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -12,6 +13,7 @@ import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -77,6 +79,24 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun saveS3Config(config: UploadConfig.S3Config) =
         secureCredentialStore.saveS3Config(config)
 
+    override suspend fun getNextcloudConfig(): UploadConfig.NextcloudConfig =
+        secureCredentialStore.getNextcloudConfig()
+
+    override suspend fun saveNextcloudConfig(config: UploadConfig.NextcloudConfig) =
+        secureCredentialStore.saveNextcloudConfig(config)
+
+    override suspend fun getImmichConfig(): UploadConfig.ImmichConfig =
+        secureCredentialStore.getImmichConfig()
+
+    override suspend fun saveImmichConfig(config: UploadConfig.ImmichConfig) =
+        secureCredentialStore.saveImmichConfig(config)
+
+    override suspend fun getGistConfig(): UploadConfig.GistConfig =
+        secureCredentialStore.getGistConfig()
+
+    override suspend fun saveGistConfig(config: UploadConfig.GistConfig) =
+        secureCredentialStore.saveGistConfig(config)
+
     override suspend fun getFtpConfig(): UploadConfig.FtpConfig =
         secureCredentialStore.getFtpConfig()
 
@@ -106,12 +126,6 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setMaxImageDimension(maxDim: Int) =
         settingsDataStore.setMaxImageDimension(maxDim)
-
-    override fun getAutoCopyUrl(): Flow<Boolean> =
-        settingsDataStore.getAutoCopyUrl()
-
-    override suspend fun setAutoCopyUrl(enabled: Boolean) =
-        settingsDataStore.setAutoCopyUrl(enabled)
 
     override fun getBiometricLockMode(): Flow<String> =
         settingsDataStore.getBiometricLockMode()
@@ -181,4 +195,20 @@ class SettingsRepositoryImpl @Inject constructor(
     override fun getConvertHeicToPng(): Flow<Boolean> = settingsDataStore.getConvertHeicToPng()
 
     override suspend fun setConvertHeicToPng(enabled: Boolean) = settingsDataStore.setConvertHeicToPng(enabled)
+
+    override fun getDefaultAfterUploadActions(): Flow<Set<AfterUploadAction>> =
+        settingsDataStore.getDefaultAfterUploadActions()
+
+    override suspend fun setDefaultAfterUploadActions(actions: Set<AfterUploadAction>) =
+        settingsDataStore.setDefaultAfterUploadActions(actions)
+
+    override fun getProfileAfterUploadActions(profileId: String): Flow<Set<AfterUploadAction>?> =
+        settingsDataStore.getProfileAfterUploadActions(profileId)
+
+    override suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?) =
+        settingsDataStore.setProfileAfterUploadActions(profileId, actions)
+
+    override suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction> =
+        profileId?.let { settingsDataStore.getProfileAfterUploadActions(it).first() }
+            ?: settingsDataStore.getDefaultAfterUploadActions().first()
 }

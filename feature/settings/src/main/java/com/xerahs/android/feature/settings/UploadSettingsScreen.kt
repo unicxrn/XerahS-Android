@@ -19,8 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FolderShared
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Http
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -72,6 +75,7 @@ fun UploadSettingsScreen(
     onNavigateToCustomHttpConfig: () -> Unit,
     onNavigateToImportUploader: () -> Unit = {},
     onNavigateToProfiles: () -> Unit = {},
+    onNavigateToDestination: (UploadDestination) -> Unit = {},
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -170,7 +174,7 @@ fun UploadSettingsScreen(
                 var destinationsExpanded by rememberSaveable { mutableStateOf(false) }
                 ListItem(
                     headlineContent = { Text("Configure Destinations") },
-                    supportingContent = { Text("Imgur, Amazon S3, FTP / SFTP, Custom uploader") },
+                    supportingContent = { Text("Imgur, S3, FTP, Nextcloud, Immich, Gist, Custom uploader") },
                     trailingContent = {
                         Icon(
                             if (destinationsExpanded) Icons.Default.KeyboardArrowUp
@@ -222,6 +226,27 @@ fun UploadSettingsScreen(
                             subtitle = "Configure FTP/SFTP upload",
                             onClick = onNavigateToFtpConfig
                         )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(icon = Icons.Default.FolderShared, title = "Nextcloud", subtitle = "Upload to your Nextcloud", onClick = { onNavigateToDestination(UploadDestination.NEXTCLOUD) })
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(icon = Icons.Default.PhotoLibrary, title = "Immich", subtitle = "Add to your photo library", onClick = { onNavigateToDestination(UploadDestination.IMMICH) })
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        DestinationItem(icon = Icons.Default.Code, title = "GitHub Gist", subtitle = "Text and code snippets", onClick = { onNavigateToDestination(UploadDestination.GITHUB_GIST) })
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
@@ -438,16 +463,19 @@ fun UploadSettingsScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                ListItem(
-                    headlineContent = { Text("Auto-copy URL after upload") },
-                    supportingContent = { Text("Automatically copy the URL to clipboard when a single upload completes") },
-                    trailingContent = {
-                        Switch(
-                            checked = uiState.autoCopyUrl,
-                            onCheckedChange = { viewModel.setAutoCopyUrl(it) }
-                        )
-                    }
-                )
+                Column(Modifier.padding(16.dp)) {
+                    Text("After upload", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Runs after each upload unless the profile has its own actions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    AfterUploadActionChips(
+                        selected = uiState.defaultAfterUploadActions,
+                        onToggle = viewModel::toggleDefaultAfterUploadAction,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

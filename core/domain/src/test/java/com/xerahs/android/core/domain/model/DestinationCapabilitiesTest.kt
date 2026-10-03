@@ -42,4 +42,13 @@ class DestinationCapabilitiesTest {
         assertFalse(DestinationCapabilities.acceptsAll(UploadDestination.IMGUR, mimes))
         assertTrue(DestinationCapabilities.acceptsAll(UploadDestination.S3, mimes))
     }
+
+    @Test fun newDestinations() {
+        assertTrue(accepts(UploadDestination.NEXTCLOUD, "application/zip"))
+        assertTrue(accepts(UploadDestination.IMMICH, "image/heic"))
+        assertTrue(accepts(UploadDestination.IMMICH, "video/mp4"))
+        assertFalse(accepts(UploadDestination.IMMICH, "application/pdf"))
+        assertTrue(accepts(UploadDestination.GITHUB_GIST, "text/plain"))
+        assertFalse(accepts(UploadDestination.GITHUB_GIST, "image/png"))
+    }
 }

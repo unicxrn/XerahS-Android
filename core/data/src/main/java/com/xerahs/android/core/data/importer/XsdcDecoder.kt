@@ -2,12 +2,8 @@ package com.xerahs.android.core.data.importer
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import java.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
-import javax.crypto.spec.SecretKeySpec
+import com.xerahs.android.core.common.crypto.EnvelopeException
+import com.xerahs.android.core.common.crypto.PassphraseEnvelope
 
 class XsdcException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -24,43 +20,21 @@ data class XsdcDestination(
  * the passphrase is never stored.
  */
 object XsdcDecoder {
-    private const val MAX_ITERATIONS = 10_000_000
 
     fun decode(bytes: ByteArray, passphrase: CharArray): List<XsdcDestination> {
-        val envelope = try {
-            JsonParser.parseString(String(bytes, Charsets.UTF_8).trim().removePrefix("\uFEFF")).asJsonObject
-        } catch (e: Exception) {
-            throw XsdcException("The .xsdc file is not valid JSON.", e)
-        }
-        if (envelope.str("Format") != "XerahS.DestinationConfig" || envelope.int("FormatVersion") != 1) {
-            throw XsdcException("This is not a XerahS destination config.")
-        }
-        val enc = envelope.get("Encryption")?.takeIf { it.isJsonObject }?.asJsonObject
-            ?: throw XsdcException("The .xsdc file is missing encryption metadata.")
-        if (enc.str("Method") != "Passphrase" || enc.str("Kdf") != "PBKDF2-HMAC-SHA256" ||
-            enc.str("Cipher") != "AES-256-GCM"
-        ) throw XsdcException("This .xsdc encryption method is not supported.")
-        val iterations = enc.int("Iterations")?.takeIf { it in 1..MAX_ITERATIONS }
-            ?: throw XsdcException("This .xsdc file has invalid encryption metadata.")
-
         val plain = try {
-            val b64 = Base64.getDecoder()
-            val spec = PBEKeySpec(passphrase, b64.decode(enc.str("Salt").orEmpty()), iterations, 256)
-            val key = try {
-                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-            } finally {
-                spec.clearPassword()
-            }
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            try {
-                cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"),
-                    GCMParameterSpec(128, b64.decode(enc.str("Nonce").orEmpty())))
-            } finally {
-                key.fill(0)
-            }
-            cipher.doFinal(b64.decode(envelope.str("Payload").orEmpty()) + b64.decode(enc.str("Tag").orEmpty()))
-        } catch (e: Exception) {
-            throw XsdcException("Wrong passphrase or damaged file.", e)
+            PassphraseEnvelope.open(String(bytes, Charsets.UTF_8), "XerahS.DestinationConfig", passphrase)
+        } catch (e: EnvelopeException) {
+            throw XsdcException(
+                when (e.reason) {
+                    EnvelopeException.Reason.NOT_JSON -> "The .xsdc file is not valid JSON."
+                    EnvelopeException.Reason.WRONG_FORMAT -> "This is not a XerahS destination config."
+                    EnvelopeException.Reason.UNSUPPORTED -> "This .xsdc encryption method is not supported."
+                    EnvelopeException.Reason.BAD_METADATA -> "This .xsdc file has invalid encryption metadata."
+                    EnvelopeException.Reason.WRONG_PASSPHRASE -> "Wrong passphrase or damaged file."
+                },
+                e
+            )
         }
 
         val payload = try {

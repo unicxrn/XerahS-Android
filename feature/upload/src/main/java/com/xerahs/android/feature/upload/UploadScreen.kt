@@ -1,6 +1,8 @@
 package com.xerahs.android.feature.upload
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -39,6 +41,9 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Http
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.FolderShared
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
@@ -74,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +89,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -92,9 +99,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material3.AlertDialog
 import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.GradientBorderCard
+import kotlinx.coroutines.launch
 import com.xerahs.android.core.ui.StatusBanner
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -109,6 +118,8 @@ fun UploadScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val isBatch = imagePaths.size > 1
 
     LaunchedEffect(imagePath, imagePaths) {
@@ -235,11 +246,24 @@ fun UploadScreen(
         }
     }
 
-    // Auto-copy URL for single uploads
-    LaunchedEffect(uiState.autoCopiableUrl) {
-        uiState.autoCopiableUrl?.let { url ->
-            clipboardManager.setText(AnnotatedString(url))
-            snackbarHostState.showSnackbar("URL copied to clipboard")
+    LaunchedEffect(uiState.pendingAfterUpload) {
+        val event = uiState.pendingAfterUpload ?: return@LaunchedEffect
+        viewModel.consumeAfterUpload()
+        val first = event.urls.first()
+        if (AfterUploadAction.COPY_URL in event.actions) {
+            clipboardManager.setText(AnnotatedString(event.urls.joinToString("\n")))
+            scope.launch { snackbarHostState.showSnackbar(if (event.urls.size > 1) "Links copied" else "Link copied") }
+        }
+        val shared = AfterUploadAction.SHARE_SHEET in event.actions
+        if (shared) {
+            context.startActivity(
+                Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null)
+            )
+        }
+        // Don't also launch the browser if we just launched the share sheet -- that
+        // would pop two activities on top of the upload screen for one event.
+        if (!shared && AfterUploadAction.OPEN_URL in event.actions && first.startsWith("http", ignoreCase = true)) {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(first))) }
         }
     }
 
@@ -885,6 +909,9 @@ private fun destinationIcon(destination: UploadDestination): ImageVector {
         UploadDestination.SFTP -> Icons.Default.Security
         UploadDestination.CUSTOM_HTTP -> Icons.Default.Http
         UploadDestination.LOCAL -> Icons.Default.CloudUpload
+        UploadDestination.NEXTCLOUD -> Icons.Default.FolderShared
+        UploadDestination.IMMICH -> Icons.Default.PhotoLibrary
+        UploadDestination.GITHUB_GIST -> Icons.Default.Code
     }
 }
 

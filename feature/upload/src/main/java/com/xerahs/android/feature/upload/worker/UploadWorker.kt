@@ -3,8 +3,6 @@ package com.xerahs.android.feature.upload.worker
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -25,6 +23,7 @@ import com.xerahs.android.core.common.ThumbnailGenerator
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.generateTimestamp
 import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -34,9 +33,13 @@ import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.domain.repository.UrlShortenerRepository
 import com.xerahs.android.feature.upload.uploader.CustomHttpUploader
 import com.xerahs.android.feature.upload.uploader.FtpUploader
+import com.xerahs.android.feature.upload.uploader.GistUploader
 import com.xerahs.android.feature.upload.uploader.ImgurUploader
+import com.xerahs.android.feature.upload.uploader.ImmichUploader
+import com.xerahs.android.feature.upload.uploader.NextcloudUploader
 import com.xerahs.android.feature.upload.uploader.S3Uploader
 import com.xerahs.android.feature.upload.uploader.SftpUploader
 import dagger.assisted.Assisted
@@ -58,7 +61,11 @@ class UploadWorker @AssistedInject constructor(
     private val ftpUploader: FtpUploader,
     private val sftpUploader: SftpUploader,
     private val customHttpUploader: CustomHttpUploader,
-    private val profileRepository: UploadProfileRepository
+    private val nextcloudUploader: NextcloudUploader,
+    private val immichUploader: ImmichUploader,
+    private val gistUploader: GistUploader,
+    private val profileRepository: UploadProfileRepository,
+    private val urlShortener: UrlShortenerRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -83,6 +90,7 @@ class UploadWorker @AssistedInject constructor(
         setForeground(createForegroundInfo("Uploading...", 0, paths.size))
 
         val skipDuplicateCheck = inputData.getBoolean(KEY_SKIP_DUPLICATE_CHECK, false)
+        val actions = settingsRepository.resolveAfterUploadActions(profileId)
 
         val urls = mutableListOf<String>()
         for ((index, path) in paths.withIndex()) {
@@ -142,11 +150,12 @@ class UploadWorker @AssistedInject constructor(
                         ThumbnailGenerator.generate(appContext, source)
                     } else null
                     val itemId = generateId()
+                    val finalUrl = maybeShorten(result.url, actions) { urlShortener.shorten(it) }
                     val historyItem = HistoryItem(
                         id = itemId,
                         filePath = path,
                         thumbnailPath = thumbnailPath,
-                        url = result.url,
+                        url = finalUrl,
                         deleteUrl = result.deleteUrl,
                         uploadDestination = destination,
                         timestamp = generateTimestamp(),
@@ -154,13 +163,15 @@ class UploadWorker @AssistedInject constructor(
                         fileSize = originalFile.length(),
                         albumId = albumId,
                         fileHash = fileHash,
-                        mimeType = mimeType
+                        mimeType = mimeType,
+                        remoteKey = result.remoteKey,
+                        profileId = profileId
                     )
                     historyRepository.insertHistoryItem(historyItem)
                     for (tagId in tagIds) {
                         tagRepository.addTagToHistory(itemId, tagId)
                     }
-                    result.url?.let { urls.add(it) }
+                    finalUrl?.let { urls.add(it) }
                 }
                 result
             } finally {
@@ -178,10 +189,11 @@ class UploadWorker @AssistedInject constructor(
         }
 
         val combinedUrl = urls.joinToString("\n")
-        postSuccessNotification(combinedUrl, urls.size)
+        postSuccessNotification(combinedUrl, urls.size, actions)
 
         val outputData = Data.Builder()
             .putString(KEY_RESULT_URL, combinedUrl)
+            .putString(KEY_ACTIONS, AfterUploadAction.encode(actions))
             .build()
         return Result.success(outputData)
     }
@@ -232,6 +244,21 @@ class UploadWorker @AssistedInject constructor(
                     destination = UploadDestination.LOCAL
                 )
             }
+            UploadDestination.NEXTCLOUD -> nextcloudUploader.upload(
+                file,
+                (profileConfig as? UploadConfig.NextcloudConfig) ?: settingsRepository.getNextcloudConfig(),
+                resolvedName
+            )
+            UploadDestination.IMMICH -> immichUploader.upload(
+                file,
+                (profileConfig as? UploadConfig.ImmichConfig) ?: settingsRepository.getImmichConfig(),
+                resolvedName
+            )
+            UploadDestination.GITHUB_GIST -> gistUploader.upload(
+                file,
+                (profileConfig as? UploadConfig.GistConfig) ?: settingsRepository.getGistConfig(),
+                resolvedName
+            )
         }
     }
 
@@ -333,26 +360,30 @@ class UploadWorker @AssistedInject constructor(
         }
     }
 
-    private fun postSuccessNotification(url: String, count: Int) {
-        val copyIntent = Intent(appContext, CopyUrlReceiver::class.java).apply {
-            putExtra("url", url)
-        }
-        val copyPendingIntent = PendingIntent.getBroadcast(
-            appContext, 0, copyIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+    private fun postSuccessNotification(url: String, count: Int, actions: Set<AfterUploadAction>) {
+        val first = url.lines().firstOrNull().orEmpty()
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val copyIntent = Intent(appContext, CopyUrlReceiver::class.java).apply { putExtra("url", url) }
 
         val title = if (count > 1) "$count uploads complete" else "Upload complete"
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
+        val builder = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
             .setSmallIcon(android.R.drawable.ic_menu_upload)
             .setContentTitle(title)
-            .setContentText(url.lines().firstOrNull() ?: "")
+            .setContentText(first)
             .setAutoCancel(true)
-            .addAction(0, "Copy URL", copyPendingIntent)
-            .build()
-
+            .addAction(0, "Copy URL", PendingIntent.getBroadcast(appContext, 0, copyIntent, flags))
+        if (AfterUploadAction.SHARE_SHEET in actions && first.isNotEmpty()) {
+            val share = Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            builder.addAction(0, "Share", PendingIntent.getActivity(appContext, 1, share, flags))
+        }
+        if (AfterUploadAction.OPEN_URL in actions && first.startsWith("http", ignoreCase = true)) {
+            val open = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(first)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            builder.addAction(0, "Open", PendingIntent.getActivity(appContext, 2, open, flags))
+        }
         val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_COMPLETE, notification)
+        manager.notify(NOTIFICATION_ID_COMPLETE, builder.build())
     }
 
     private fun postFailureNotification(errorMessage: String) {
@@ -384,6 +415,7 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_DUPLICATE_FILE_NAME = "duplicate_file_name"
         const val KEY_DUPLICATE_TIMESTAMP = "duplicate_timestamp"
         const val KEY_INPUT_VALUES = "input_values"
+        const val KEY_ACTIONS = "after_upload_actions"
 
         private const val CHANNEL_UPLOAD = "upload_channel"
         private const val CHANNEL_UPLOAD_COMPLETE = "upload_complete_channel"

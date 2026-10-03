@@ -2,7 +2,9 @@ package com.xerahs.android.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.JsonParser
 import com.xerahs.android.core.common.sxcu.CustomDestinationType
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -34,7 +36,7 @@ data class SettingsUiState(
     val oledBlack: Boolean = true,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
-    val autoCopyUrl: Boolean = false,
+    val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
     val biometricLockMode: String = "OFF",
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
@@ -48,8 +50,13 @@ data class SettingsUiState(
     val importPreview: ImportPreview? = null,
     val pendingImportJson: String? = null,
     val shortenerProfileId: String? = null,
-    val shortenerProfiles: List<UploadProfile> = emptyList()
+    val shortenerProfiles: List<UploadProfile> = emptyList(),
+    val backupPassphraseRequest: BackupPassphraseRequest? = null,
+    val pendingBackupPayload: String? = null,
+    val passphraseError: String? = null
 )
+
+enum class BackupPassphraseRequest { EXPORT, IMPORT }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -60,6 +67,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    private var exportPassphrase: CharArray? = null
+    private var pendingEncryptedBackup: String? = null
 
     init {
         viewModelScope.launch {
@@ -109,8 +119,8 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
-                settingsRepository.getAutoCopyUrl().collect { enabled ->
-                    _uiState.value = _uiState.value.copy(autoCopyUrl = enabled)
+                settingsRepository.getDefaultAfterUploadActions().collect { actions ->
+                    _uiState.value = _uiState.value.copy(defaultAfterUploadActions = actions)
                 }
             }
             launch {
@@ -195,6 +205,9 @@ class SettingsViewModel @Inject constructor(
             UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
             UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
             UploadDestination.LOCAL -> true
+            UploadDestination.NEXTCLOUD -> settingsRepository.getNextcloudConfig().let { it.serverUrl.isNotBlank() && it.username.isNotBlank() && it.appPassword.isNotBlank() }
+            UploadDestination.IMMICH -> settingsRepository.getImmichConfig().let { it.serverUrl.isNotBlank() && it.apiKey.isNotBlank() }
+            UploadDestination.GITHUB_GIST -> settingsRepository.getGistConfig().token.isNotBlank()
         }
     }
 
@@ -252,9 +265,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAutoCopyUrl(enabled: Boolean) {
+    fun toggleDefaultAfterUploadAction(action: AfterUploadAction) {
         viewModelScope.launch {
-            settingsRepository.setAutoCopyUrl(enabled)
+            val current = _uiState.value.defaultAfterUploadActions
+            settingsRepository.setDefaultAfterUploadActions(if (action in current) current - action else current + action)
         }
     }
 
@@ -337,30 +351,29 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun exportSettings(outputStream: OutputStream) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    val json = exportImportManager.exportSettings()
-                    outputStream.use { it.write(json.toByteArray()) }
-                }
-                _uiState.value = _uiState.value.copy(exportImportMessage = "Settings exported successfully")
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(exportImportMessage = "Export failed: ${e.message}")
-            }
-        }
+    fun requestExportPassphrase() {
+        _uiState.value = _uiState.value.copy(backupPassphraseRequest = BackupPassphraseRequest.EXPORT)
     }
 
-    fun importSettings(inputStream: InputStream) {
+    fun setExportPassphrase(passphrase: CharArray) {
+        exportPassphrase = passphrase
+        _uiState.value = _uiState.value.copy(backupPassphraseRequest = null)
+    }
+
+    fun exportBackup(outputStream: OutputStream) {
+        val passphrase = exportPassphrase ?: return
+        exportPassphrase = null
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    val json = inputStream.use { it.bufferedReader().readText() }
-                    exportImportManager.importSettings(json)
+                withContext(Dispatchers.Default) {
+                    val text = exportImportManager.exportBackup(passphrase)
+                    withContext(Dispatchers.IO) { outputStream.use { it.write(text.toByteArray()) } }
                 }
-                _uiState.value = _uiState.value.copy(exportImportMessage = "Settings imported successfully")
+                _uiState.value = _uiState.value.copy(exportImportMessage = "Backup saved")
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(exportImportMessage = "Import failed: ${e.message}")
+                _uiState.value = _uiState.value.copy(exportImportMessage = "Backup failed: ${e.message}")
+            } finally {
+                passphrase.fill('\u0000')
             }
         }
     }
@@ -370,6 +383,11 @@ class SettingsViewModel @Inject constructor(
             try {
                 val json = withContext(Dispatchers.IO) {
                     inputStream.use { it.bufferedReader().readText() }
+                }
+                if (exportImportManager.isEncryptedBackup(json)) {
+                    pendingEncryptedBackup = json
+                    _uiState.value = _uiState.value.copy(backupPassphraseRequest = BackupPassphraseRequest.IMPORT)
+                    return@launch
                 }
                 val preview = exportImportManager.parseImportPreview(json)
                 _uiState.value = _uiState.value.copy(
@@ -382,6 +400,41 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun unlockBackup(passphrase: CharArray) {
+        val text = pendingEncryptedBackup ?: return
+        viewModelScope.launch {
+            try {
+                val payload = withContext(Dispatchers.Default) { exportImportManager.openBackup(text, passphrase) }
+                val settingsJson = payload.get("settings").toString()
+                val preview = exportImportManager.parseImportPreview(settingsJson)
+                val extras = exportImportManager.parseBackupExtrasPreview(payload)
+                pendingEncryptedBackup = null
+                _uiState.value = _uiState.value.copy(
+                    backupPassphraseRequest = null,
+                    passphraseError = null,
+                    importPreview = ImportPreview(preview.sections + listOfNotNull(extras)),
+                    pendingImportJson = settingsJson,
+                    pendingBackupPayload = payload.toString()
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(passphraseError = "Wrong passphrase or damaged backup")
+            } finally {
+                passphrase.fill('\u0000')
+            }
+        }
+    }
+
+    fun cancelPassphrase() {
+        exportPassphrase?.fill('\u0000')
+        exportPassphrase = null
+        pendingEncryptedBackup = null
+        _uiState.value = _uiState.value.copy(backupPassphraseRequest = null, passphraseError = null)
+    }
+
+    fun reportExportError(message: String) {
+        _uiState.value = _uiState.value.copy(exportImportMessage = message)
+    }
+
     fun applyResolvedImport() {
         val preview = _uiState.value.importPreview ?: return
         val json = _uiState.value.pendingImportJson ?: return
@@ -389,16 +442,21 @@ class SettingsViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) {
                     exportImportManager.applyResolvedImport(json, preview)
+                    _uiState.value.pendingBackupPayload?.let {
+                        exportImportManager.applyBackupExtras(JsonParser.parseString(it).asJsonObject, preview)
+                    }
                 }
                 _uiState.value = _uiState.value.copy(
                     importPreview = null,
                     pendingImportJson = null,
+                    pendingBackupPayload = null,
                     exportImportMessage = "Settings imported successfully"
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     importPreview = null,
                     pendingImportJson = null,
+                    pendingBackupPayload = null,
                     exportImportMessage = "Import failed: ${e.message}"
                 )
             }
@@ -408,7 +466,8 @@ class SettingsViewModel @Inject constructor(
     fun cancelImportPreview() {
         _uiState.value = _uiState.value.copy(
             importPreview = null,
-            pendingImportJson = null
+            pendingImportJson = null,
+            pendingBackupPayload = null
         )
     }
 

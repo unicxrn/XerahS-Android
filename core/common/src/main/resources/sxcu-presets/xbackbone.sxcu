@@ -1,0 +1,11 @@
+{
+  "Version": "17.0.0",
+  "Name": "XBackBone",
+  "DestinationType": "ImageUploader, TextUploader, FileUploader",
+  "RequestMethod": "POST",
+  "RequestURL": "{{host}}/upload",
+  "Body": "MultipartFormData",
+  "Arguments": { "token": "{{token}}" },
+  "FileFormName": "upload",
+  "URL": "{json:url}"
+}

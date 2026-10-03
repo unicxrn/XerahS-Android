@@ -14,7 +14,9 @@ data class HistoryItem(
     val tags: List<Tag> = emptyList(),
     val fileHash: String? = null,
     // MIME type of the uploaded file; null/"image/*" for rows created before v0.5.
-    val mimeType: String? = null
+    val mimeType: String? = null,
+    val remoteKey: String? = null,
+    val profileId: String? = null
 ) {
     val isImage: Boolean
         get() = mimeType == null || com.xerahs.android.core.common.file.MimeTypes.isRasterImage(mimeType)
@@ -26,5 +28,8 @@ enum class UploadDestination(val displayName: String) {
     FTP("FTP"),
     SFTP("SFTP"),
     CUSTOM_HTTP("Custom uploader"),
-    LOCAL("Local")
+    LOCAL("Local"),
+    NEXTCLOUD("Nextcloud"),
+    IMMICH("Immich"),
+    GITHUB_GIST("GitHub Gist")
 }

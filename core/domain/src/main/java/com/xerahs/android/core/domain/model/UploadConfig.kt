@@ -49,4 +49,23 @@ sealed class UploadConfig {
     data class CustomUploaderConfig(
         val spec: CustomUploaderSpec = CustomUploaderSpec()
     ) : UploadConfig()
+
+    data class NextcloudConfig(
+        val serverUrl: String = "",
+        val username: String = "",
+        val appPassword: String = "",
+        val folder: String = "XerahS",
+        val publicShare: Boolean = true
+    ) : UploadConfig()
+
+    data class ImmichConfig(
+        val serverUrl: String = "",
+        val apiKey: String = "",
+        val createShareLink: Boolean = true
+    ) : UploadConfig()
+
+    data class GistConfig(
+        val token: String = "",
+        val isPublic: Boolean = false
+    ) : UploadConfig()
 }

@@ -7,14 +7,18 @@ import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
 import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
+import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.feature.settings.destinations.NativeDestinationForms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -64,13 +68,19 @@ data class ProfileEditorUiState(
     // Custom uploader (.sxcu JSON text)
     val customUploaderSxcu: String = SxcuWriter.write(CustomUploaderSpec()),
     val customUploaderError: String? = null,
+    // Native destinations (Nextcloud, Immich, GitHub Gist)
+    val nativeValues: Map<String, String> = emptyMap(),
+    val nativeError: String? = null,
+    // After-upload actions (null = use default)
+    val afterUploadActions: Set<AfterUploadAction>? = null,
     // UI
     val isSaving: Boolean = false
 )
 
 @HiltViewModel
 class ProfileManagementViewModel @Inject constructor(
-    private val profileRepository: UploadProfileRepository
+    private val profileRepository: UploadProfileRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow(ProfileListUiState())
@@ -101,9 +111,24 @@ class ProfileManagementViewModel @Inject constructor(
                 name = profile.name,
                 destination = profile.destination,
                 isDefault = profile.isDefault,
-                isEditing = true
+                isEditing = true,
+                afterUploadActions = settingsRepository.getProfileAfterUploadActions(profileId).first()
             ).applyConfig(config)
         }
+    }
+
+    fun setUseDefaultActions(useDefault: Boolean) {
+        viewModelScope.launch {
+            val actions = if (useDefault) null else settingsRepository.getDefaultAfterUploadActions().first()
+            _editorState.value = _editorState.value.copy(afterUploadActions = actions)
+        }
+    }
+
+    fun toggleAfterUploadAction(action: AfterUploadAction) {
+        val current = _editorState.value.afterUploadActions ?: return
+        _editorState.value = _editorState.value.copy(
+            afterUploadActions = if (action in current) current - action else current + action
+        )
     }
 
     fun updateEditorName(name: String) {
@@ -111,7 +136,7 @@ class ProfileManagementViewModel @Inject constructor(
     }
 
     fun updateEditorDestination(destination: UploadDestination) {
-        _editorState.value = _editorState.value.copy(destination = destination)
+        _editorState.value = _editorState.value.copy(destination = destination, nativeValues = emptyMap(), nativeError = null)
     }
 
     fun updateEditorDefault(isDefault: Boolean) {
@@ -158,6 +183,10 @@ class ProfileManagementViewModel @Inject constructor(
         _editorState.value = _editorState.value.copy(customUploaderSxcu = v, customUploaderError = null)
     }
 
+    fun updateNativeValue(key: String, value: String) {
+        _editorState.value = _editorState.value.copy(nativeValues = _editorState.value.nativeValues + (key to value), nativeError = null)
+    }
+
     fun saveProfile(onComplete: () -> Unit) {
         viewModelScope.launch {
             _editorState.value = _editorState.value.copy(isSaving = true)
@@ -169,6 +198,13 @@ class ProfileManagementViewModel @Inject constructor(
                         isSaving = false,
                         customUploaderError = parsed.exceptionOrNull()?.message ?: "Not a valid custom uploader"
                     )
+                    return@launch
+                }
+            }
+            if (NativeDestinationForms.supports(state.destination)) {
+                val missing = NativeDestinationForms.missingRequired(state.destination, state.nativeValues)
+                if (missing.isNotEmpty()) {
+                    _editorState.value = state.copy(isSaving = false, nativeError = "Fill in: ${missing.joinToString()}")
                     return@launch
                 }
             }
@@ -189,6 +225,7 @@ class ProfileManagementViewModel @Inject constructor(
             } else {
                 profileRepository.createProfile(profile, config)
             }
+            settingsRepository.setProfileAfterUploadActions(id, state.afterUploadActions)
 
             if (state.isDefault) {
                 profileRepository.setDefault(id, state.destination)
@@ -246,6 +283,8 @@ class ProfileManagementViewModel @Inject constructor(
             is UploadConfig.CustomUploaderConfig -> copy(
                 customUploaderSxcu = SxcuWriter.write(config.spec)
             )
+            is UploadConfig.NextcloudConfig, is UploadConfig.ImmichConfig, is UploadConfig.GistConfig ->
+                copy(nativeValues = NativeDestinationForms.toValues(config))
         }
     }
 
@@ -291,6 +330,8 @@ class ProfileManagementViewModel @Inject constructor(
                 SxcuParser.parse(customUploaderSxcu).getOrThrow() // validated in saveProfile
             )
             UploadDestination.LOCAL -> UploadConfig.S3Config() // Placeholder
+            UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST ->
+                NativeDestinationForms.toConfig(destination, nativeValues)
         }
     }
 }

@@ -1,24 +1,35 @@
 package com.xerahs.android.feature.settings
 
 import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.xerahs.android.core.common.crypto.PassphraseEnvelope
 import com.xerahs.android.core.common.sxcu.LegacyCustomHttp
 import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.common.sxcu.SxcuWriter
+import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.common.generateId
+import com.xerahs.android.core.common.generateTimestamp
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ExportImportManager @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val profileRepository: UploadProfileRepository
 ) {
     private val gson = Gson()
+
+    companion object { const val BACKUP_FORMAT = "XerahS.Backup" }
 
     suspend fun exportSettings(): String {
         val json = JsonObject()
@@ -79,113 +90,39 @@ class ExportImportManager @Inject constructor(
             json.addProperty("customUploader", SxcuWriter.write(customUploaderSpec))
         }
 
+        val nextcloudConfig = settingsRepository.getNextcloudConfig()
+        if (nextcloudConfig.serverUrl.isNotBlank() && nextcloudConfig.username.isNotBlank() && nextcloudConfig.appPassword.isNotBlank()) {
+            val nextcloud = JsonObject()
+            nextcloud.addProperty("serverUrl", nextcloudConfig.serverUrl)
+            nextcloud.addProperty("username", nextcloudConfig.username)
+            nextcloud.addProperty("appPassword", nextcloudConfig.appPassword)
+            nextcloud.addProperty("folder", nextcloudConfig.folder)
+            nextcloud.addProperty("publicShare", nextcloudConfig.publicShare)
+            json.add("nextcloud", nextcloud)
+        }
+
+        val immichConfig = settingsRepository.getImmichConfig()
+        if (immichConfig.serverUrl.isNotBlank() && immichConfig.apiKey.isNotBlank()) {
+            val immich = JsonObject()
+            immich.addProperty("serverUrl", immichConfig.serverUrl)
+            immich.addProperty("apiKey", immichConfig.apiKey)
+            immich.addProperty("createShareLink", immichConfig.createShareLink)
+            json.add("immich", immich)
+        }
+
+        val gistConfig = settingsRepository.getGistConfig()
+        if (gistConfig.token.isNotBlank()) {
+            val gist = JsonObject()
+            gist.addProperty("token", gistConfig.token)
+            gist.addProperty("isPublic", gistConfig.isPublic)
+            json.add("gist", gist)
+        }
+
         json.addProperty("uploadFormat", settingsRepository.getUploadFormat().first().name)
         json.addProperty("stripExif", settingsRepository.getStripExif().first())
         json.addProperty("autoLockTimeout", settingsRepository.getAutoLockTimeout().first())
 
         return gson.toJson(json)
-    }
-
-    suspend fun importSettings(jsonString: String) {
-        val json = gson.fromJson(jsonString, JsonObject::class.java)
-
-        json.get("defaultDestination")?.asString?.let { name ->
-            try {
-                settingsRepository.setDefaultDestination(UploadDestination.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("overlayEnabled")?.asBoolean?.let {
-            settingsRepository.setOverlayEnabled(it)
-        }
-
-        json.get("themeMode")?.asString?.let { name ->
-            try {
-                settingsRepository.setThemeMode(ThemeMode.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("fileNamingPattern")?.asString?.let {
-            settingsRepository.setFileNamingPattern(it)
-        }
-
-        json.getAsJsonObject("imgur")?.let { imgur ->
-            val current = settingsRepository.getImgurConfig()
-            settingsRepository.saveImgurConfig(
-                current.copy(
-                    clientId = imgur.get("clientId")?.asString ?: current.clientId,
-                    clientSecret = imgur.get("clientSecret")?.asString ?: current.clientSecret,
-                    accessToken = imgur.get("accessToken")?.asString,
-                    refreshToken = imgur.get("refreshToken")?.asString,
-                    useAnonymous = imgur.get("useAnonymous")?.asBoolean ?: current.useAnonymous
-                )
-            )
-        }
-
-        json.getAsJsonObject("s3")?.let { s3 ->
-            val current = settingsRepository.getS3Config()
-            settingsRepository.saveS3Config(
-                current.copy(
-                    accessKeyId = s3.get("accessKeyId")?.asString ?: current.accessKeyId,
-                    secretAccessKey = s3.get("secretAccessKey")?.asString ?: current.secretAccessKey,
-                    region = s3.get("region")?.asString ?: current.region,
-                    bucket = s3.get("bucket")?.asString ?: current.bucket,
-                    endpoint = s3.get("endpoint")?.asString,
-                    customUrl = s3.get("customUrl")?.asString,
-                    prefix = s3.get("prefix")?.asString ?: current.prefix,
-                    acl = s3.get("acl")?.asString ?: current.acl,
-                    usePathStyle = s3.get("usePathStyle")?.asBoolean ?: current.usePathStyle
-                )
-            )
-        }
-
-        json.getAsJsonObject("ftp")?.let { ftp ->
-            val current = settingsRepository.getFtpConfig()
-            settingsRepository.saveFtpConfig(
-                current.copy(
-                    host = ftp.get("host")?.asString ?: current.host,
-                    port = ftp.get("port")?.asInt ?: current.port,
-                    username = ftp.get("username")?.asString ?: current.username,
-                    password = ftp.get("password")?.asString ?: current.password,
-                    remotePath = ftp.get("remotePath")?.asString ?: current.remotePath,
-                    useFtps = ftp.get("useFtps")?.asBoolean ?: current.useFtps,
-                    usePassiveMode = ftp.get("usePassiveMode")?.asBoolean ?: current.usePassiveMode,
-                    httpUrl = ftp.get("httpUrl")?.asString ?: current.httpUrl
-                )
-            )
-        }
-
-        json.getAsJsonObject("sftp")?.let { sftp ->
-            val current = settingsRepository.getSftpConfig()
-            settingsRepository.saveSftpConfig(
-                current.copy(
-                    host = sftp.get("host")?.asString ?: current.host,
-                    port = sftp.get("port")?.asInt ?: current.port,
-                    username = sftp.get("username")?.asString ?: current.username,
-                    password = sftp.get("password")?.asString ?: current.password,
-                    keyPath = sftp.get("keyPath")?.asString,
-                    keyPassphrase = sftp.get("keyPassphrase")?.asString,
-                    remotePath = sftp.get("remotePath")?.asString ?: current.remotePath,
-                    httpUrl = sftp.get("httpUrl")?.asString ?: current.httpUrl
-                )
-            )
-        }
-
-        importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
-
-        json.get("uploadFormat")?.asString?.let { name ->
-            try {
-                settingsRepository.setUploadFormat(ImageFormat.valueOf(name))
-            } catch (_: IllegalArgumentException) {}
-        }
-
-        json.get("stripExif")?.asBoolean?.let {
-            settingsRepository.setStripExif(it)
-        }
-
-        json.get("autoLockTimeout")?.asLong?.let {
-            settingsRepository.setAutoLockTimeout(it)
-        }
     }
 
     suspend fun parseImportPreview(jsonString: String): ImportPreview {
@@ -277,6 +214,46 @@ class ExportImportManager @Inject constructor(
             addField("sftp.remotePath", "Remote Path", current.remotePath, sftp.get("remotePath")?.asString)
             addField("sftp.httpUrl", "HTTP URL", current.httpUrl, sftp.get("httpUrl")?.asString)
             if (fields.isNotEmpty()) sections.add(ImportSection("SFTP", fields))
+        }
+
+        // Nextcloud section
+        json.getAsJsonObject("nextcloud")?.let { nextcloud ->
+            val current = settingsRepository.getNextcloudConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("nextcloud.serverUrl", "Server URL", current.serverUrl, nextcloud.get("serverUrl")?.asString)
+            addField("nextcloud.username", "Username", current.username, nextcloud.get("username")?.asString)
+            addField("nextcloud.appPassword", "App Password", maskSecret(current.appPassword), maskSecret(nextcloud.get("appPassword")?.asString ?: ""))
+            addField("nextcloud.folder", "Folder", current.folder, nextcloud.get("folder")?.asString)
+            addField("nextcloud.publicShare", "Public Share", current.publicShare.toString(), nextcloud.get("publicShare")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Nextcloud", fields))
+        }
+
+        // Immich section
+        json.getAsJsonObject("immich")?.let { immich ->
+            val current = settingsRepository.getImmichConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("immich.serverUrl", "Server URL", current.serverUrl, immich.get("serverUrl")?.asString)
+            addField("immich.apiKey", "API Key", maskSecret(current.apiKey), maskSecret(immich.get("apiKey")?.asString ?: ""))
+            addField("immich.createShareLink", "Create Share Link", current.createShareLink.toString(), immich.get("createShareLink")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("Immich", fields))
+        }
+
+        // GitHub Gist section
+        json.getAsJsonObject("gist")?.let { gist ->
+            val current = settingsRepository.getGistConfig()
+            val fields = mutableListOf<ImportField>()
+            fun addField(key: String, label: String, cur: String, imp: String?) {
+                if (imp != null) fields.add(ImportField(key, label, cur, imp, cur != imp))
+            }
+            addField("gist.token", "Token", maskSecret(current.token), maskSecret(gist.get("token")?.asString ?: ""))
+            addField("gist.isPublic", "Public Gist", current.isPublic.toString(), gist.get("isPublic")?.asBoolean?.toString())
+            if (fields.isNotEmpty()) sections.add(ImportSection("GitHub Gist", fields))
         }
 
         // Custom uploader section
@@ -391,6 +368,46 @@ class ExportImportManager @Inject constructor(
             }
         }
 
+        // Nextcloud
+        val nextcloudKeys = accepted.filter { it.startsWith("nextcloud.") }
+        if (nextcloudKeys.isNotEmpty()) {
+            json.getAsJsonObject("nextcloud")?.let { nextcloud ->
+                val current = settingsRepository.getNextcloudConfig()
+                settingsRepository.saveNextcloudConfig(current.copy(
+                    serverUrl = if ("nextcloud.serverUrl" in accepted) nextcloud.get("serverUrl")?.asString ?: current.serverUrl else current.serverUrl,
+                    username = if ("nextcloud.username" in accepted) nextcloud.get("username")?.asString ?: current.username else current.username,
+                    appPassword = if ("nextcloud.appPassword" in accepted) nextcloud.get("appPassword")?.asString ?: current.appPassword else current.appPassword,
+                    folder = if ("nextcloud.folder" in accepted) nextcloud.get("folder")?.asString ?: current.folder else current.folder,
+                    publicShare = if ("nextcloud.publicShare" in accepted) nextcloud.get("publicShare")?.asBoolean ?: current.publicShare else current.publicShare
+                ))
+            }
+        }
+
+        // Immich
+        val immichKeys = accepted.filter { it.startsWith("immich.") }
+        if (immichKeys.isNotEmpty()) {
+            json.getAsJsonObject("immich")?.let { immich ->
+                val current = settingsRepository.getImmichConfig()
+                settingsRepository.saveImmichConfig(current.copy(
+                    serverUrl = if ("immich.serverUrl" in accepted) immich.get("serverUrl")?.asString ?: current.serverUrl else current.serverUrl,
+                    apiKey = if ("immich.apiKey" in accepted) immich.get("apiKey")?.asString ?: current.apiKey else current.apiKey,
+                    createShareLink = if ("immich.createShareLink" in accepted) immich.get("createShareLink")?.asBoolean ?: current.createShareLink else current.createShareLink
+                ))
+            }
+        }
+
+        // GitHub Gist
+        val gistKeys = accepted.filter { it.startsWith("gist.") }
+        if (gistKeys.isNotEmpty()) {
+            json.getAsJsonObject("gist")?.let { gist ->
+                val current = settingsRepository.getGistConfig()
+                settingsRepository.saveGistConfig(current.copy(
+                    token = if ("gist.token" in accepted) gist.get("token")?.asString ?: current.token else current.token,
+                    isPublic = if ("gist.isPublic" in accepted) gist.get("isPublic")?.asBoolean ?: current.isPublic else current.isPublic
+                ))
+            }
+        }
+
         // Custom uploader
         if ("customUploader" in accepted) {
             importedCustomUploader(json)?.let { settingsRepository.saveCustomUploaderConfig(it) }
@@ -418,5 +435,78 @@ class ExportImportManager @Inject constructor(
 
     private fun maskSecret(value: String): String {
         return if (value.length > 4) "${"*".repeat(value.length - 4)}${value.takeLast(4)}" else value
+    }
+
+    suspend fun exportBackup(passphrase: CharArray): String {
+        val payload = JsonObject()
+        payload.add("settings", JsonParser.parseString(exportSettings()))
+        payload.addProperty("defaultAfterUploadActions", AfterUploadAction.encode(settingsRepository.getDefaultAfterUploadActions().first()))
+        val profiles = JsonArray()
+        profileRepository.getAllProfiles().first().filter { it.destination != UploadDestination.LOCAL }.forEach { p ->
+            profiles.add(JsonObject().apply {
+                addProperty("name", p.name)
+                addProperty("destination", p.destination.name)
+                addProperty("isDefault", p.isDefault)
+                add("config", ConfigJson.toJson(profileRepository.getProfileConfig(p.id, p.destination)))
+                settingsRepository.getProfileAfterUploadActions(p.id).first()
+                    ?.let { addProperty("afterUploadActions", AfterUploadAction.encode(it)) }
+            })
+        }
+        payload.add("profiles", profiles)
+        return PassphraseEnvelope.seal(BACKUP_FORMAT, payload.toString().toByteArray(Charsets.UTF_8), passphrase)
+    }
+
+    fun isEncryptedBackup(text: String): Boolean = PassphraseEnvelope.formatOf(text) == BACKUP_FORMAT
+
+    fun openBackup(text: String, passphrase: CharArray): JsonObject =
+        JsonParser.parseString(String(PassphraseEnvelope.open(text, BACKUP_FORMAT, passphrase), Charsets.UTF_8)).asJsonObject
+
+    suspend fun parseBackupExtrasPreview(payload: JsonObject): ImportSection? {
+        val existing = profileRepository.getAllProfiles().first()
+        val fields = mutableListOf<ImportField>()
+        payload.get("defaultAfterUploadActions")?.takeIf { it.isJsonPrimitive }?.asString?.let { imported ->
+            val current = AfterUploadAction.encode(settingsRepository.getDefaultAfterUploadActions().first())
+            fields.add(ImportField("afterUploadActions.default", "Default after-upload actions", current, imported, current != imported))
+        }
+        payload.getAsJsonArray("profiles")?.forEachIndexed { index, el ->
+            val o = el.takeIf { it.isJsonObject }?.asJsonObject ?: return@forEachIndexed
+            val name = o.get("name")?.asString ?: return@forEachIndexed
+            val dest = runCatching { UploadDestination.valueOf(o.get("destination").asString) }.getOrNull() ?: return@forEachIndexed
+            if (dest == UploadDestination.LOCAL) return@forEachIndexed
+            val exists = existing.any { it.name == name && it.destination == dest }
+            fields.add(ImportField("profile.$index", "$name (${dest.displayName})", if (exists) "Existing profile" else "None", "From backup", hasConflict = exists))
+        }
+        return if (fields.isEmpty()) null else ImportSection("Upload profiles", fields)
+    }
+
+    suspend fun applyBackupExtras(payload: JsonObject, preview: ImportPreview) {
+        val accepted = preview.sections.flatMap { it.fields }
+            .filter { it.resolution == FieldResolution.USE_IMPORTED }.map { it.key }.toSet()
+        if ("afterUploadActions.default" in accepted) {
+            payload.get("defaultAfterUploadActions")?.asString
+                ?.let { settingsRepository.setDefaultAfterUploadActions(AfterUploadAction.decode(it)) }
+        }
+        val existing = profileRepository.getAllProfiles().first()
+        payload.getAsJsonArray("profiles")?.forEachIndexed { index, el ->
+            if ("profile.$index" !in accepted) return@forEachIndexed
+            val o = el.asJsonObject
+            val name = o.get("name").asString
+            val dest = UploadDestination.valueOf(o.get("destination").asString)
+            val config = o.getAsJsonObject("config")?.let { ConfigJson.fromJson(dest, it) } ?: return@forEachIndexed
+            val match = existing.firstOrNull { it.name == name && it.destination == dest }
+            val backupIsDefault = o.get("isDefault")?.asBoolean ?: false
+            val profile = UploadProfile(
+                id = match?.id ?: generateId(),
+                name = name,
+                destination = dest,
+                isDefault = backupIsDefault || (match?.isDefault == true),
+                createdAt = match?.createdAt ?: generateTimestamp()
+            )
+            if (match != null) profileRepository.updateProfile(profile, config) else profileRepository.createProfile(profile, config)
+            if (profile.isDefault) profileRepository.setDefault(profile.id, dest)
+            settingsRepository.setProfileAfterUploadActions(
+                profile.id, o.get("afterUploadActions")?.asString?.let { AfterUploadAction.decode(it) }
+            )
+        }
     }
 }

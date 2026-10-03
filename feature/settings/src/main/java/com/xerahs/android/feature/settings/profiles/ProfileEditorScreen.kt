@@ -47,6 +47,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.feature.settings.AfterUploadActionChips
+import com.xerahs.android.feature.settings.destinations.NativeDestinationFields
 
 // Destination data-dot color reused from management screen logic
 private fun destDotColor(dest: UploadDestination): Color = when (dest) {
@@ -56,6 +58,9 @@ private fun destDotColor(dest: UploadDestination): Color = when (dest) {
     UploadDestination.SFTP -> Color(0xFF6B7C93)
     UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
     UploadDestination.LOCAL -> Color(0xFF8E8E93)
+    UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
+    UploadDestination.IMMICH -> Color(0xFF4250AF)
+    UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -200,7 +205,18 @@ fun ProfileEditorScreen(
                 UploadDestination.SFTP -> SftpFields(state, viewModel)
                 UploadDestination.CUSTOM_HTTP -> CustomHttpFields(state, viewModel)
                 UploadDestination.LOCAL -> {}
+                UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST -> {
+                    NativeDestinationFields(state.destination, state.nativeValues, viewModel::updateNativeValue)
+                    state.nativeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Use default after-upload actions", Modifier.weight(1f))
+                Switch(checked = state.afterUploadActions == null, onCheckedChange = viewModel::setUseDefaultActions)
+            }
+            state.afterUploadActions?.let { AfterUploadActionChips(it, viewModel::toggleAfterUploadAction) }
 
             Spacer(modifier = Modifier.height(24.dp))
 

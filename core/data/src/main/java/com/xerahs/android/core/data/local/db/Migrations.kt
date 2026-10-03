@@ -109,3 +109,10 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("UPDATE history SET mimeType = 'image/*' WHERE mimeType IS NULL")
     }
 }
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE history ADD COLUMN remoteKey TEXT")
+        db.execSQL("ALTER TABLE history ADD COLUMN profileId TEXT")
+    }
+}
