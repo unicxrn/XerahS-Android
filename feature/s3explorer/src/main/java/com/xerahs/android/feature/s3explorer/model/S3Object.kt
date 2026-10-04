@@ -13,6 +13,10 @@ data class S3Object(
     val isImage: Boolean get() = extension in setOf(
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif"
     )
+
+    val isVideo: Boolean get() = extension in setOf(
+        "mp4", "webm", "mkv", "mov", "m4v", "3gp"
+    )
 }
 
 data class S3Folder(

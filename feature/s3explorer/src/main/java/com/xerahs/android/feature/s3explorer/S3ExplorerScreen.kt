@@ -72,6 +72,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -91,9 +92,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
@@ -143,7 +148,7 @@ fun S3ExplorerScreen(
     // Image preview dialog
     uiState.previewObject?.let { obj ->
         val imageObjects = remember(uiState.filteredObjects) {
-            uiState.filteredObjects.filter { it.isImage }
+            uiState.filteredObjects.filter { it.isImage || it.isVideo }
         }
         val initialIndex = remember(obj, imageObjects) {
             imageObjects.indexOfFirst { it.key == obj.key }.coerceAtLeast(0)
@@ -582,7 +587,7 @@ fun S3ExplorerScreen(
                                         onClick = {
                                             if (uiState.selectedObjects.isNotEmpty()) {
                                                 viewModel.toggleSelection(obj.key)
-                                            } else if (obj.isImage) {
+                                            } else if (obj.isImage || obj.isVideo) {
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
@@ -626,7 +631,7 @@ fun S3ExplorerScreen(
                                         onClick = {
                                             if (uiState.selectedObjects.isNotEmpty()) {
                                                 viewModel.toggleSelection(obj.key)
-                                            } else if (obj.isImage) {
+                                            } else if (obj.isImage || obj.isVideo) {
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
@@ -993,6 +998,15 @@ private fun ImagePreviewDialog(
             ) { page ->
                 val obj = imageObjects[page]
                 val url = remember(obj.key) { viewModel.getPresignedUrl(obj.key) }
+
+                if (obj.isVideo) {
+                    S3VideoPlayer(
+                        url = url,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    return@HorizontalPager
+                }
+
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offsetX by remember { mutableFloatStateOf(0f) }
                 var offsetY by remember { mutableFloatStateOf(0f) }
@@ -1141,6 +1155,36 @@ private fun ImagePreviewDialog(
             }
         }
     }
+}
+
+@Composable
+private fun S3VideoPlayer(
+    url: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val exoPlayer = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose { exoPlayer.release() }
+    }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            val view = android.view.LayoutInflater.from(ctx)
+                .inflate(R.layout.view_s3_video_player, null) as PlayerView
+            view.player = exoPlayer
+            view
+        },
+        update = { view -> view.player = exoPlayer }
+    )
 }
 
 @Composable

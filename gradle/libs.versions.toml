@@ -27,6 +27,7 @@ gson = "2.10.1"
 zxing = "3.5.3"
 mlkit-text = "16.0.1"
 junit = "4.13.2"
+media3 = "1.3.1"
 
 [libraries]
 # Compose BOM
@@ -70,6 +71,10 @@ okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver",
 # Image loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
+
+# Video playback
+media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 
 # WorkManager
 workmanager = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workmanager" }

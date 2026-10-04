@@ -54,4 +54,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
 }
