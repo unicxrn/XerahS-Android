@@ -97,21 +97,25 @@ object LumenPalette {
     }
 
     private fun light(seed: Int): LumenRoles {
-        val accent = AccentDerivation.deriveAccent(seed, dark = false).accent
+        val seedOrAccent = AccentDerivation.deriveAccent(seed, dark = false).accent
+        val background = mix(seedOrAccent, 0.05f, 0xFFF5F5F8.toInt())
+        val accent = AccentDerivation.darkenToContrast(seedOrAccent, background, 4.5)
         val tint = mix(accent, 0.13f, WHITE)
         val ink = AccentDerivation.darkenToContrast(mix(accent, 0.82f, BLACK), tint, 4.5)
-        val variant = 0xFF62606C.toInt()
+        val surfaceContainerHigh = mix(accent, 0.10f, 0xFFF7F7FA.toInt())
+        val surfaceContainerHighest = mix(accent, 0.13f, 0xFFF1F1F5.toInt())
+        val variant = AccentDerivation.darkenToContrast(0xFF62606C.toInt(), surfaceContainerHighest, 4.5)
         return LumenRoles(
             accent = accent,
             onAccent = WHITE,
             ink = ink,
             tint = tint,
-            background = mix(accent, 0.05f, 0xFFF5F5F8.toInt()),
+            background = background,
             surface = WHITE,
             surfaceContainerLow = mix(accent, 0.04f, WHITE),
             surfaceContainer = mix(accent, 0.07f, WHITE),
-            surfaceContainerHigh = mix(accent, 0.10f, 0xFFF7F7FA.toInt()),
-            surfaceContainerHighest = mix(accent, 0.13f, 0xFFF1F1F5.toInt()),
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
             onSurface = 0xFF131218.toInt(),
             onSurfaceVariant = variant,
             outline = mix(accent, 0.10f, 0xFFC7C7CF.toInt()),
@@ -127,22 +131,27 @@ object LumenPalette {
         val base = if (trueBlack) BLACK else 0xFF0D0D11.toInt()
         val s1 = if (trueBlack) 0xFF0B0B0E.toInt() else 0xFF16161B.toInt()
         val s2 = if (trueBlack) 0xFF111115.toInt() else 0xFF1C1C22.toInt()
+        val background = if (trueBlack) BLACK else mix(seed, 0.06f, base)
+        val accent = lightenToContrast(seed, background, 4.5)
         val surface = mix(seed, if (trueBlack) 0.05f else 0.06f, s1)
         val tint = mix(seed, if (trueBlack) 0.20f else 0.24f, s1)
         val ink = lightenToContrast(mix(seed, 0.58f, WHITE), tint, 4.5)
+        val surfaceContainerHigh = mix(seed, 0.12f, 0xFF232329.toInt())
+        val surfaceContainerHighest = mix(seed, 0.14f, 0xFF2A2A31.toInt())
+        val variant = lightenToContrast(0xFF9C99A8.toInt(), surfaceContainerHighest, 4.5)
         return LumenRoles(
-            accent = seed,
-            onAccent = AccentDerivation.onColorFor(seed),
+            accent = accent,
+            onAccent = AccentDerivation.onColorFor(accent),
             ink = ink,
             tint = tint,
-            background = if (trueBlack) BLACK else mix(seed, 0.06f, base),
+            background = background,
             surface = surface,
             surfaceContainerLow = mix(seed, 0.07f, s1),
             surfaceContainer = mix(seed, if (trueBlack) 0.09f else 0.10f, s2),
-            surfaceContainerHigh = mix(seed, 0.12f, 0xFF232329.toInt()),
-            surfaceContainerHighest = mix(seed, 0.14f, 0xFF2A2A31.toInt()),
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
             onSurface = 0xFFF4F3F8.toInt(),
-            onSurfaceVariant = 0xFF9C99A8.toInt(),
+            onSurfaceVariant = variant,
             outline = mix(seed, 0.12f, 0xFF34343C.toInt()),
             outlineVariant = mix(seed, 0.08f, 0xFF24242A.toInt()),
             hairline = withAlpha(WHITE, 0.07f),

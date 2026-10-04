@@ -25,7 +25,11 @@ class LumenPaletteTest {
     @Test fun mixHalfGreyIsBetween() {
         val m = LumenPalette.mix(BLACK, 0.5f, WHITE)
         val r = (m ushr 16) and 0xFF
-        assertTrue(r in 90..140)
+        val g = (m ushr 8) and 0xFF
+        val b = m and 0xFF
+        assertTrue(r in 95..104)
+        assertEquals(r, g)
+        assertEquals(g, b)
     }
 
     @Test fun withAlphaKeepsRgb() {
@@ -52,6 +56,10 @@ class LumenPaletteTest {
             assertTrue("$tag onAccent/accent", AccentDerivation.contrastRatio(r.onAccent, r.accent) >= 4.5)
             assertTrue("$tag ink/surface", AccentDerivation.contrastRatio(r.ink, r.surface) >= 4.5)
             assertTrue("$tag ink/tint", AccentDerivation.contrastRatio(r.ink, r.tint) >= 4.5)
+            assertTrue("$tag accent/bg", AccentDerivation.contrastRatio(r.accent, r.background) >= 4.5)
+            assertTrue("$tag ink/bg", AccentDerivation.contrastRatio(r.ink, r.background) >= 4.5)
+            assertTrue("$tag variant/surfaceContainerHigh", AccentDerivation.contrastRatio(r.onSurfaceVariant, r.surfaceContainerHigh) >= 4.5)
+            assertTrue("$tag variant/surfaceContainerHighest", AccentDerivation.contrastRatio(r.onSurfaceVariant, r.surfaceContainerHighest) >= 4.5)
         }
     }
 
