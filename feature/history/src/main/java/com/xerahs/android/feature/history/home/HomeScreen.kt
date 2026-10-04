@@ -65,6 +65,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -121,7 +122,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 112.dp)
         ) {
-            item {
+            item(key = "header") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -135,7 +136,7 @@ fun HomeScreen(
                 }
             }
 
-            item {
+            item(key = "hero") {
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                     Eyebrow("● ${uiState.todayCount} uploads today")
                     Spacer(Modifier.size(8.dp))
@@ -149,12 +150,12 @@ fun HomeScreen(
                 }
             }
 
-            item {
+            item(key = "bento") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(158.dp)
-                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                        .height(158.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Box(
@@ -201,7 +202,11 @@ fun HomeScreen(
                         LumenCard(
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             radius = 22.dp,
-                            onClick = { searching = !searching }
+                            onClick = {
+                                val turningOff = searching
+                                searching = !searching
+                                if (turningOff) viewModel.onQueryChange("")
+                            }
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxSize().padding(14.dp),
@@ -231,7 +236,7 @@ fun HomeScreen(
             }
 
             if (searching) {
-                item {
+                item(key = "search") {
                     OutlinedTextField(
                         value = uiState.query,
                         onValueChange = viewModel::onQueryChange,
@@ -258,7 +263,7 @@ fun HomeScreen(
             val latest = firstSection?.ids?.firstOrNull()?.let { uiState.itemsById[it] }
 
             if (latest != null && uiState.query.isEmpty()) {
-                item {
+                item(key = "latest") {
                     Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
                         BezelCard(onClick = { onOpen(latest.id) }) {
                             Box(
@@ -311,23 +316,26 @@ fun HomeScreen(
                                     Spacer(Modifier.size(6.dp))
                                     HostChip(latest.uploadDestination.displayName, latest.uploadDestination.hostColor())
                                 }
-                                Spacer(Modifier.size(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(46.dp)
-                                        .clip(CircleShape)
-                                        .background(Lumen.tokens.tint)
-                                        .clickable {
-                                            clipboard.setText(AnnotatedString(latest.url ?: latest.filePath))
-                                            Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = "Copy link",
-                                        tint = Lumen.tokens.ink
-                                    )
+                                val latestUrl = latest.url
+                                if (latestUrl != null) {
+                                    Spacer(Modifier.size(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .clip(CircleShape)
+                                            .background(Lumen.tokens.tint)
+                                            .clickable(role = Role.Button) {
+                                                clipboard.setText(AnnotatedString(latestUrl))
+                                                Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = "Copy link",
+                                            tint = Lumen.tokens.ink
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -343,10 +351,17 @@ fun HomeScreen(
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        EmptyState(
-                            icon = Icons.Default.Image,
-                            title = "Pick an image to get your first link"
-                        )
+                        if (uiState.query.isNotBlank()) {
+                            EmptyState(
+                                icon = Icons.Outlined.Search,
+                                title = "No matches"
+                            )
+                        } else {
+                            EmptyState(
+                                icon = Icons.Default.Image,
+                                title = "Pick an image to get your first link"
+                            )
+                        }
                     }
                 }
             } else {

@@ -47,10 +47,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -184,8 +186,9 @@ fun ShareCard(
                     Box(
                         modifier = Modifier
                             .size(52.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                            .clickable { onCopy(effectiveLink) },
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable(role = Role.Button) { onCopy(effectiveLink) },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
