@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -87,6 +88,7 @@ fun PillCta(
     val pressed by source.collectIsPressedAsState()
     val scale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.98f else 1f, spring(), label = "cta-scale")
     val nudge by animateDpAsState(if (pressed) 2.dp else 0.dp, spring(), label = "cta-nudge")
+    val ripple = LocalIndication.current
     Row(
         modifier
             .scale(scale)
@@ -94,7 +96,7 @@ fun PillCta(
             .height(60.dp)
             .clip(CircleShape)
             .background(if (enabled) container else container.copy(alpha = 0.4f))
-            .clickable(interactionSource = source, indication = null, enabled = enabled && !loading, role = Role.Button, onClick = onClick)
+            .clickable(interactionSource = source, indication = ripple, enabled = enabled && !loading, role = Role.Button, onClick = onClick)
             .then(if (loading) Modifier.semantics { stateDescription = "Loading" } else Modifier)
             .padding(start = 24.dp, end = 7.dp),
         verticalAlignment = Alignment.CenterVertically
