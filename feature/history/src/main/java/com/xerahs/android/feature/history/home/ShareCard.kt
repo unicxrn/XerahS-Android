@@ -265,7 +265,7 @@ fun ShareCard(
 
             Spacer(Modifier.size(4.dp))
 
-            PillCta(text = "Done", onClick = onDone, icon = Icons.Default.Check)
+            PillCta(text = "Done", onClick = onDone, icon = Icons.Default.Check, enabled = !isDeleting)
         }
     }
 
@@ -312,7 +312,10 @@ fun ShareCard(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") }
+                TextButton(
+                    onClick = { confirmDelete = false; onDeleteFromHost() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }

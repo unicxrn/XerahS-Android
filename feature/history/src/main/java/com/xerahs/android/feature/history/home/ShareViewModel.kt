@@ -10,12 +10,12 @@ import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import com.xerahs.android.core.domain.repository.UrlShortenerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,7 +30,7 @@ data class ShareUiState(
 )
 
 sealed interface ShareEvent {
-    data object Deleted : ShareEvent
+    data class Deleted(val host: String) : ShareEvent
     data class OpenUrl(val url: String) : ShareEvent
 }
 
@@ -47,8 +47,8 @@ class ShareViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ShareUiState())
     val uiState: StateFlow<ShareUiState> = _uiState.asStateFlow()
 
-    private val _events = MutableSharedFlow<ShareEvent>(extraBufferCapacity = 1)
-    val events: SharedFlow<ShareEvent> = _events.asSharedFlow()
+    private val _events = Channel<ShareEvent>(Channel.BUFFERED)
+    val events: Flow<ShareEvent> = _events.receiveAsFlow()
 
     init {
         viewModelScope.launch {
@@ -88,7 +88,7 @@ class ShareViewModel @Inject constructor(
                     try {
                         historyRepository.deleteHistoryItem(item.id)
                         _uiState.update { it.copy(isDeleting = false) }
-                        _events.emit(ShareEvent.Deleted)
+                        _events.send(ShareEvent.Deleted(item.uploadDestination.displayName))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -103,7 +103,7 @@ class ShareViewModel @Inject constructor(
                 onFailure = { e ->
                     if (e is OpenInBrowserException) {
                         _uiState.update { it.copy(isDeleting = false) }
-                        _events.emit(ShareEvent.OpenUrl(e.url))
+                        _events.send(ShareEvent.OpenUrl(e.url))
                     } else {
                         _uiState.update {
                             it.copy(isDeleting = false, error = "Couldn't delete: ${e.message ?: "unknown error"}")

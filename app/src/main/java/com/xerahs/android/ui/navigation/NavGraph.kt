@@ -203,7 +203,7 @@ fun XerahSNavGraph(
                         is ShareEvent.Deleted -> {
                             android.widget.Toast.makeText(
                                 context,
-                                "Deleted from ${item?.uploadDestination?.displayName.orEmpty()}",
+                                "Deleted from ${event.host}",
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                             navController.popBackStack(Screen.Home.route, inclusive = false)
