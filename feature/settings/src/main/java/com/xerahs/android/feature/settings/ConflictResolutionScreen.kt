@@ -11,21 +11,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +35,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,16 +49,7 @@ fun ConflictResolutionScreen(
     var resolutionVersion by remember { mutableStateOf(0) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Review Import") },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
-                    }
-                }
-            )
-        },
+        topBar = { LumenTopBar(title = "Review Import", onBack = onCancel) },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
                 Column(
@@ -80,6 +70,7 @@ fun ConflictResolutionScreen(
                                 preview.setAllResolutions(FieldResolution.KEEP_CURRENT)
                                 resolutionVersion++
                             },
+                            shape = CircleShape,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Keep All Current")
@@ -89,6 +80,7 @@ fun ConflictResolutionScreen(
                                 preview.setAllResolutions(FieldResolution.USE_IMPORTED)
                                 resolutionVersion++
                             },
+                            shape = CircleShape,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Use All Imported")
@@ -97,14 +89,11 @@ fun ConflictResolutionScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Button(
+                    PillCta(
+                        text = "Apply Import",
                         onClick = onApply,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Apply Import")
-                    }
+                        icon = Icons.Default.CheckCircle
+                    )
                 }
             }
         }

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dns
@@ -38,14 +37,13 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,9 +61,12 @@ import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Switch
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
+import com.xerahs.android.core.ui.lumen.IconTile
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenSwitch
+import com.xerahs.android.core.ui.lumen.LumenTopBar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -82,16 +84,7 @@ fun UploadSettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Uploads") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+        topBar = { LumenTopBar(title = "Uploads", onBack = onBack) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -168,7 +161,7 @@ fun UploadSettingsScreen(
 
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = Lumen.tokens.hairline
                 )
 
                 var destinationsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -182,6 +175,7 @@ fun UploadSettingsScreen(
                             contentDescription = if (destinationsExpanded) "Collapse" else "Expand"
                         )
                     },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { destinationsExpanded = !destinationsExpanded }
                 )
 
@@ -193,7 +187,7 @@ fun UploadSettingsScreen(
                     Column {
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(
@@ -205,7 +199,7 @@ fun UploadSettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(
@@ -217,7 +211,7 @@ fun UploadSettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(
@@ -229,28 +223,28 @@ fun UploadSettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(icon = Icons.Default.FolderShared, title = "Nextcloud", subtitle = "Upload to your Nextcloud", onClick = { onNavigateToDestination(UploadDestination.NEXTCLOUD) })
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(icon = Icons.Default.PhotoLibrary, title = "Immich", subtitle = "Add to your photo library", onClick = { onNavigateToDestination(UploadDestination.IMMICH) })
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(icon = Icons.Default.Code, title = "GitHub Gist", subtitle = "Text and code snippets", onClick = { onNavigateToDestination(UploadDestination.GITHUB_GIST) })
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(
@@ -262,7 +256,7 @@ fun UploadSettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
+                            color = Lumen.tokens.hairline
                         )
 
                         DestinationItem(
@@ -276,13 +270,14 @@ fun UploadSettingsScreen(
 
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = Lumen.tokens.hairline
                 )
 
                 ListItem(
                     headlineContent = { Text("Upload Profiles") },
                     supportingContent = { Text("Save named configurations for each destination") },
-                    leadingContent = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                    leadingContent = { IconTile(Icons.Default.AccountTree, size = 38.dp) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable(onClick = onNavigateToProfiles)
                 )
             }
@@ -379,40 +374,42 @@ fun UploadSettingsScreen(
 
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = Lumen.tokens.hairline
                 )
 
                 ListItem(
                     headlineContent = { Text("Strip EXIF metadata") },
                     supportingContent = { Text("Remove GPS, camera info, and other metadata before uploading") },
                     trailingContent = {
-                        Switch(
+                        LumenSwitch(
                             checked = uiState.stripExif,
                             onCheckedChange = { viewModel.setStripExif(it) }
                         )
-                    }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
 
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = Lumen.tokens.hairline
                 )
 
                 ListItem(
                     headlineContent = { Text("Convert HEIC to PNG") },
                     supportingContent = { Text("Most hosts can't display HEIC photos (Android 9+)") },
                     trailingContent = {
-                        Switch(
+                        LumenSwitch(
                             checked = uiState.convertHeicToPng,
                             onCheckedChange = { viewModel.setConvertHeicToPng(it) }
                         )
-                    }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
 
                 if (uiState.shortenerProfiles.isNotEmpty()) {
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant
+                        color = Lumen.tokens.hairline
                     )
                     var shortenerMenu by remember { mutableStateOf(false) }
                     val current = uiState.shortenerProfiles.find { it.id == uiState.shortenerProfileId }
@@ -420,6 +417,7 @@ fun UploadSettingsScreen(
                         headlineContent = { Text("URL shortener") },
                         supportingContent = { Text(current?.name ?: "is.gd (built-in)") },
                         modifier = Modifier.clickable { shortenerMenu = true },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         trailingContent = {
                             DropdownMenu(expanded = shortenerMenu, onDismissRequest = { shortenerMenu = false }) {
                                 DropdownMenuItem(
@@ -460,7 +458,7 @@ fun UploadSettingsScreen(
 
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = Lumen.tokens.hairline
                 )
 
                 Column(Modifier.padding(16.dp)) {
@@ -493,7 +491,8 @@ private fun DestinationItem(
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
-        leadingContent = { Icon(icon, contentDescription = null) },
+        leadingContent = { IconTile(icon, size = 38.dp) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick)
     )
 }

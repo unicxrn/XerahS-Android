@@ -14,32 +14,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.settings.charts.HorizontalBarChart
 import com.xerahs.android.feature.settings.charts.SimpleBarChart
 import java.text.SimpleDateFormat
@@ -72,16 +69,7 @@ fun StatisticsScreen(
     val stats = uiState.statistics
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Statistics") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+        topBar = { LumenTopBar(title = "Statistics", onBack = onBack) }
     ) { innerPadding ->
         if (uiState.isLoading) {
             Box(
@@ -156,17 +144,11 @@ fun StatisticsScreen(
             // By Destination
             if (stats.countByDestination.isNotEmpty()) {
                 SectionHeader("By Destination")
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
+                LumenCard(modifier = Modifier.fillMaxWidth(), contentPadding = 16.dp) {
                     val destData = stats.countByDestination.map { (dest, count) -> dest to count }
                     HorizontalBarChart(
                         data = destData,
-                        colors = destData.map { (dest, _) -> destinationColor(dest) },
-                        modifier = Modifier.padding(16.dp)
+                        colors = destData.map { (dest, _) -> destinationColor(dest) }
                     )
                 }
             }
@@ -174,12 +156,7 @@ fun StatisticsScreen(
             // Upload Timeline
             if (stats.uploadsPerDay.isNotEmpty()) {
                 SectionHeader("Upload Timeline (Last 14 Days)")
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
+                LumenCard(modifier = Modifier.fillMaxWidth(), contentPadding = 16.dp) {
                     val dayFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
                     val chartData = stats.uploadsPerDay
                         .sortedBy { it.first }
@@ -188,8 +165,7 @@ fun StatisticsScreen(
                         }
                     SimpleBarChart(
                         data = chartData,
-                        barColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(16.dp)
+                        barColor = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -197,47 +173,36 @@ fun StatisticsScreen(
             // Top Albums
             if (stats.topAlbums.isNotEmpty()) {
                 SectionHeader("Top Albums")
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
-                    Column {
-                        stats.topAlbums.forEachIndexed { index, (name, count) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${index + 1}",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "$count",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (index < stats.topAlbums.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 16.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                )
-                            }
+                LumenCard(modifier = Modifier.fillMaxWidth()) {
+                    stats.topAlbums.forEachIndexed { index, (name, count) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${index + 1}",
+                                style = monoStyle(12),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "$count",
+                                style = monoStyle(12),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (index < stats.topAlbums.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 16.dp),
+                                color = Lumen.tokens.hairline
+                            )
                         }
                     }
                 }
@@ -246,14 +211,8 @@ fun StatisticsScreen(
             // Top Tags
             if (stats.topTags.isNotEmpty()) {
                 SectionHeader("Top Tags")
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
+                LumenCard(modifier = Modifier.fillMaxWidth(), contentPadding = 16.dp) {
                     FlowRow(
-                        modifier = Modifier.padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -264,9 +223,7 @@ fun StatisticsScreen(
                             ) {
                                 Text(
                                     text = "$name · $count",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    ),
+                                    style = monoStyle(12),
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )

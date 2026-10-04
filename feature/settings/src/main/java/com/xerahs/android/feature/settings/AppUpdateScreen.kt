@@ -14,25 +14,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +47,10 @@ import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 import com.xerahs.android.core.ui.ShimmerBox
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,16 +61,7 @@ fun AppUpdateScreen(
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Updates") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+        topBar = { LumenTopBar(title = "Updates", onBack = onBack) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -87,7 +77,7 @@ fun AppUpdateScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "v${state.currentVersion}",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = monoStyle(12),
                             color = MaterialTheme.colorScheme.primary
                         )
 
@@ -112,14 +102,12 @@ fun AppUpdateScreen(
                     }
 
                     if (state.updateAvailable && state.latestRelease != null) {
-                        Card(
+                        LumenCard(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                            )
+                            contentPadding = 12.dp,
+                            color = MaterialTheme.colorScheme.tertiaryContainer
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -171,8 +159,9 @@ fun AppUpdateScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        Button(
+                        OutlinedButton(
                             onClick = { viewModel.downloadAndInstall() },
+                            shape = CircleShape,
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !state.isDownloading
                         ) {
@@ -203,19 +192,12 @@ fun AppUpdateScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    FilledTonalButton(
+                    PillCta(
+                        text = "Check for updates",
                         onClick = { viewModel.checkForUpdate() },
-                        enabled = !state.isChecking,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Check for updates")
-                    }
+                        icon = Icons.Default.Refresh,
+                        enabled = !state.isChecking
+                    )
                 }
             }
 
@@ -243,7 +225,7 @@ fun AppUpdateScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = release.tagName,
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = monoStyle(12),
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.weight(1f))
