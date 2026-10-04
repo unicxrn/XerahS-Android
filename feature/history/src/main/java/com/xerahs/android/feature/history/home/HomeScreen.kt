@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.outlined.CenterFocusWeak
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -78,6 +77,7 @@ import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.lumen.AccentArt
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.BezelCard
+import com.xerahs.android.core.ui.lumen.BrandMark
 import com.xerahs.android.core.ui.lumen.CaptureCorners
 import com.xerahs.android.core.ui.lumen.CircleIconButton
 import com.xerahs.android.core.ui.lumen.Eyebrow
@@ -392,27 +392,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun BrandMark() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CenterFocusWeak,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Text("XerahS", style = MaterialTheme.typography.titleLarge)
     }
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -120,6 +121,7 @@ fun ThemeEditorScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Eyebrow("Preset colors")
                 FlowRow(
+                    modifier = Modifier.selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -128,8 +130,7 @@ fun ThemeEditorScreen(
                         AccentSwatch(
                             color = Color(color),
                             selected = isSelected,
-                            contentDescription = "Preset color ${index + 1}" +
-                                if (isSelected) ", selected" else "",
+                            contentDescription = "Preset color ${index + 1}",
                             onClick = {
                                 val hsv = floatArrayOf(0f, 0f, 0f)
                                 android.graphics.Color.colorToHSV(color, hsv)
@@ -207,7 +208,11 @@ fun ThemeEditorScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "This is how content will look with your custom theme.",
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium,
+                                // The card's container is always a near-white pastel, regardless
+                                // of app theme, so the body text needs an explicit dark colour
+                                // rather than onSurface (which can be near-white in dark mode).
+                                color = Color.Black.copy(alpha = 0.72f)
                             )
                         }
                     }

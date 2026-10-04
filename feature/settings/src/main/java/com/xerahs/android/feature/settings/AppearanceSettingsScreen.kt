@@ -17,23 +17,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.outlined.CenterFocusWeak
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -60,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.BezelCard
+import com.xerahs.android.core.ui.lumen.BrandMark
 import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.IconTile
 import com.xerahs.android.core.ui.lumen.Lumen
@@ -135,7 +132,7 @@ fun AppearanceSettingsScreen(
             ) {
                 Eyebrow(if (uiState.dynamicColor) "Accent · overridden by system colors" else "Accent")
                 FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -144,8 +141,7 @@ fun AppearanceSettingsScreen(
                         AccentSwatch(
                             color = Color(preset.argb),
                             selected = selected,
-                            contentDescription = preset.label +
-                                if (selected) ", selected" else "",
+                            contentDescription = preset.label,
                             onClick = { viewModel.setAccentSeed(preset.argb) },
                             enabled = !uiState.dynamicColor
                         )
@@ -178,34 +174,14 @@ fun AppearanceSettingsScreen(
                 ToggleRow(
                     icon = Icons.Default.DarkMode,
                     title = "True black",
-                    subtitle = "Applies in dark mode",
+                    subtitle = if (uiState.themeMode == ThemeMode.LIGHT)
+                        "Applies in dark mode"
+                    else
+                        "Pure black dark theme for OLED",
                     checked = uiState.oledBlack,
                     onCheckedChange = viewModel::setOledBlack,
                     enabled = uiState.themeMode != ThemeMode.LIGHT
                 )
-            }
-
-            LumenCard(onClick = onNavigateToThemeEditor) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconTile(Icons.Default.Colorize, size = 38.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "Custom theme",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
     }
@@ -279,32 +255,16 @@ private fun ThemePreviewCard() {
             .fillMaxWidth()
             .background(cs.background)
     ) {
-        AccentGlow(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 60.dp, y = (-80).dp)
-        )
+        Box(Modifier.matchParentSize()) {
+            AccentGlow(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 60.dp, y = (-80).dp),
+                size = 220.dp
+            )
+        }
         Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(cs.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.CenterFocusWeak,
-                        contentDescription = null,
-                        tint = cs.onPrimary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Text("XerahS", style = MaterialTheme.typography.titleMedium)
-            }
+            BrandMark(size = 28.dp)
 
             Spacer(modifier = Modifier.height(16.dp))
 

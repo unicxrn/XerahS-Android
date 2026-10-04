@@ -39,7 +39,7 @@ internal fun AccentSwatch(
 ) {
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .selectable(
                 selected = selected,
                 enabled = enabled,
@@ -81,7 +81,7 @@ internal fun CustomSwatch(
 ) {
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .selectable(
                 selected = selected,
                 enabled = enabled,
