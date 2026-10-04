@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,12 +74,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.toShortDate
@@ -92,6 +92,7 @@ import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.SuccessBadge
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.launch
@@ -261,15 +262,26 @@ fun UploadScreen(
 
     // Display-only: remembers whether the link was copied to the clipboard by the effect above,
     // so the success headline below can say "Link copied." even after pendingAfterUpload is consumed.
-    var linkWasCopied by remember { mutableStateOf(false) }
-    LaunchedEffect(uiState.pendingAfterUpload) {
-        uiState.pendingAfterUpload?.let { event ->
-            if (AfterUploadAction.COPY_URL in event.actions) linkWasCopied = true
-        }
+    var linkWasCopied by rememberSaveable { mutableStateOf(false) }
+    val pending = uiState.pendingAfterUpload
+    LaunchedEffect(pending) {
+        if (pending != null && AfterUploadAction.COPY_URL in pending.actions) linkWasCopied = true
     }
 
+    val density = LocalDensity.current
     val bitmap = remember(imagePath) {
-        if (isImage) BitmapFactory.decodeFile(imagePath) else null
+        if (!isImage) {
+            null
+        } else {
+            val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(imagePath, boundsOpts)
+            val targetPx = with(density) { 62.dp.toPx() }.toInt().coerceAtLeast(1)
+            var sampleSize = 1
+            while (boundsOpts.outWidth / (sampleSize * 2) >= targetPx && boundsOpts.outHeight / (sampleSize * 2) >= targetPx) {
+                sampleSize *= 2
+            }
+            BitmapFactory.decodeFile(imagePath, BitmapFactory.Options().apply { inSampleSize = sampleSize })
+        }
     }
     val dimensions = remember(imagePath) {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -307,7 +319,7 @@ fun UploadScreen(
             val metadata = remember(imagePath, imagePaths) {
                 if (isBatch) {
                     val totalBytes = imagePaths.sumOf { java.io.File(it).length() }
-                    listOfNotNull(mimeType, formatFileSize(totalBytes)).joinToString("  ·  ")
+                    "${imagePaths.size} files  ·  ${formatFileSize(totalBytes)}"
                 } else {
                     val file = java.io.File(imagePath)
                     val sizeText = if (file.exists()) formatFileSize(file.length()) else null
@@ -359,7 +371,10 @@ fun UploadScreen(
 
             // ---- Result / error feedback region ----
             if (isSuccess) {
-                UploadSuccessBadge(linkCopied = linkWasCopied)
+                SuccessBadge(
+                    headline = "Uploaded.",
+                    subline = if (linkWasCopied) "Link copied." else "Link ready."
+                )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (uiState.batchUrls.size > 1) {
@@ -608,43 +623,6 @@ private fun LumenFilterChip(selected: Boolean, onClick: () -> Unit, label: Strin
     )
 }
 
-/** The "Uploaded." moment: a tinted check badge with a headline, matching ShareCard's success pattern. */
-@Composable
-private fun UploadSuccessBadge(linkCopied: Boolean) {
-    Column {
-        Box(
-            modifier = Modifier
-                .size(74.dp)
-                .background(Lumen.tokens.tint, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(58.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            buildAnnotatedString {
-                append("Uploaded.\n")
-                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
-                    append(if (linkCopied) "Link copied." else "Link ready.")
-                }
-            },
-            style = MaterialTheme.typography.displaySmall
-        )
-    }
-}
-
 @Composable
 private fun UploadProgressRow(uiState: UploadUiState, isBatch: Boolean) {
     LumenCard(modifier = Modifier.fillMaxWidth(), contentPadding = 16.dp) {
@@ -785,7 +763,7 @@ private fun DestinationRow(
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(if (selected) Lumen.tokens.tint else Color.Transparent)
-            .clickable(role = Role.Button, onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -808,7 +786,7 @@ private fun DestinationRow(
             )
             Text(text = subtitle, style = monoStyle(11), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        RadioButton(selected = selected, onClick = onClick)
+        RadioButton(selected = selected, onClick = null)
     }
 }
 

@@ -48,15 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.ui.lumen.AccentGlow
@@ -67,6 +63,7 @@ import com.xerahs.android.core.ui.lumen.HostChip
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.SuccessBadge
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
 
@@ -126,34 +123,10 @@ fun ShareCard(
             }
 
             // Badge and headline
-            Box(
-                modifier = Modifier
-                    .size(74.dp)
-                    .background(Lumen.tokens.tint, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .scale(circleScale.value)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-
-            Text(
-                buildAnnotatedString {
-                    append("Uploaded.\n")
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) { append("Link ready.") }
-                },
-                style = MaterialTheme.typography.displaySmall
+            SuccessBadge(
+                headline = "Uploaded.",
+                subline = "Link ready.",
+                scale = circleScale.value
             )
 
             // Link card
