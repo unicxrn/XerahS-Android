@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -349,7 +350,8 @@ fun MainScreen(
         Screen.Settings.route
     )
 
-    Box(Modifier.fillMaxSize()) {
+    // Surface supplies the background and the default content colour that the removed Scaffold used to.
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.fillMaxSize()) {
         XerahSNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
@@ -379,5 +381,5 @@ fun MainScreen(
                 }
             })
         }
-    }
+    } }
 }
