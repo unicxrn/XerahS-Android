@@ -21,7 +21,8 @@ data class HomeUiState(
     val sections: List<TimelineSection> = emptyList(),
     val itemsById: Map<String, HistoryItem> = emptyMap(),
     val query: String = "",
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val todayCount: Int = 0
 )
 
 sealed interface HomeMessage {
@@ -73,9 +74,15 @@ class HomeViewModel @Inject constructor(
             visible.map { StampedId(it.id, it.timestamp) },
             System.currentTimeMillis()
         )
+        val startOfDay = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val todayCount = allItems.count { it.timestamp >= startOfDay }
         _uiState.value = _uiState.value.copy(
             sections = sections,
-            itemsById = visible.associateBy { it.id }
+            itemsById = visible.associateBy { it.id },
+            todayCount = todayCount
         )
     }
 

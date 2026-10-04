@@ -166,7 +166,8 @@ fun XerahSNavGraph(
             HomeScreen(
                 onCreate = { navController.navigate(Screen.Capture.route) },
                 onOpen = { id -> navController.navigate(Screen.ShareResult.createRoute(id)) },
-                onSettings = { navController.navigate(Screen.Settings.route) }
+                onSettings = { navController.navigate(Screen.Settings.route) },
+                onStats = { navController.navigate(Screen.Statistics.route) }
             )
         }
 
