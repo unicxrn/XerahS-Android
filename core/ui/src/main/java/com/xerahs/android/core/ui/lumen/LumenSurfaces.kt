@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +37,7 @@ fun LumenCard(
     radius: Dp = 26.dp,
     contentPadding: Dp = 0.dp,
     color: Color = MaterialTheme.colorScheme.surface,
+    elevation: Dp = 14.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -43,7 +45,7 @@ fun LumenCard(
     val shape = RoundedCornerShape(radius)
     Column(
         modifier
-            .shadow(if (t.isDark) 0.dp else 14.dp, shape, ambientColor = t.shadow, spotColor = t.shadow)
+            .shadow(if (t.isDark) 0.dp else elevation, shape, ambientColor = t.shadow, spotColor = t.shadow)
             .clip(shape)
             .background(color)
             .border(1.dp, t.hairline, shape)
@@ -66,9 +68,10 @@ fun BezelCard(
             .clip(shell)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .border(1.dp, Lumen.tokens.hairline, shell)
-            .padding(5.dp)
+            .padding(5.dp),
+        propagateMinConstraints = true
     ) {
-        LumenCard(radius = 25.dp, onClick = onClick, content = content)
+        LumenCard(modifier = Modifier.fillMaxWidth(), radius = 25.dp, elevation = 0.dp, onClick = onClick, content = content)
     }
 }
 
@@ -102,8 +105,8 @@ fun AccentGlow(modifier: Modifier = Modifier, size: Dp = 360.dp) {
 
 /** Screenshot-style corner brackets over an image preview. */
 @Composable
-fun BoxScope.CaptureCorners(color: Color = Color.White.copy(alpha = 0.9f), inset: Dp = 10.dp, arm: Dp = 16.dp) {
-    Canvas(Modifier.matchParentSize().padding(inset)) {
+fun BoxScope.CaptureCorners(modifier: Modifier = Modifier, color: Color = Color.White.copy(alpha = 0.9f), inset: Dp = 10.dp, arm: Dp = 16.dp) {
+    Canvas(modifier.matchParentSize().padding(inset)) {
         val a = arm.toPx()
         val w = size.width
         val h = size.height

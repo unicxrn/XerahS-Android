@@ -22,15 +22,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,7 +77,7 @@ fun PillCta(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector = Icons.Default.ArrowForward,
+    icon: ImageVector = Icons.AutoMirrored.Filled.ArrowForward,
     enabled: Boolean = true,
     loading: Boolean = false,
     container: Color = MaterialTheme.colorScheme.primary,
@@ -90,16 +95,18 @@ fun PillCta(
             .clip(CircleShape)
             .background(if (enabled) container else container.copy(alpha = 0.4f))
             .clickable(interactionSource = source, indication = null, enabled = enabled && !loading, role = Role.Button, onClick = onClick)
+            .then(if (loading) Modifier.semantics { stateDescription = "Loading" } else Modifier)
             .padding(start = 24.dp, end = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = content, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val foreground = if (enabled) content else content.copy(alpha = 0.6f)
+        Text(text, color = foreground, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Box(
             Modifier.size(46.dp).offset(x = nudge, y = -nudge / 2).clip(CircleShape).background(content.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
-            if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = content, strokeWidth = 2.dp)
-            else Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
+            if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = foreground, strokeWidth = 2.dp)
+            else Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -124,11 +131,12 @@ fun LumenSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: 
     val x by animateDpAsState(if (checked) 20.dp else 0.dp, spring(dampingRatio = 0.7f), label = "switch-knob")
     Box(
         modifier
+            .minimumInteractiveComponentSize()
             .size(width = 50.dp, height = 30.dp)
             .clip(CircleShape)
             .background(if (enabled) track else track.copy(alpha = 0.4f))
             .border(1.dp, Lumen.tokens.hairline, CircleShape)
-            .clickable(enabled = enabled, role = Role.Switch) { onCheckedChange(!checked) }
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
             .padding(3.dp)
     ) {
         Box(Modifier.offset(x = x).size(24.dp).clip(CircleShape).background(Color.White))
@@ -142,7 +150,7 @@ data class SegmentOption<T>(val value: T, val label: String, val icon: ImageVect
 fun <T> SegmentedTiles(options: List<SegmentOption<T>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(24.dp)).padding(4.dp),
+            .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(24.dp)).padding(4.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         options.forEach { o ->
@@ -150,8 +158,7 @@ fun <T> SegmentedTiles(options: List<SegmentOption<T>>, selected: T, onSelect: (
             Column(
                 Modifier.weight(1f).height(72.dp).clip(RoundedCornerShape(20.dp))
                     .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
-                    .clickable(role = Role.RadioButton) { onSelect(o.value) }
-                    .semantics { contentDescription = o.label + if (on) ", selected" else "" },
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(o.value) }),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -167,9 +174,9 @@ fun <T> SegmentedTiles(options: List<SegmentOption<T>>, selected: T, onSelect: (
 @Composable
 fun CircleIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Box(
-        modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface)
+        modifier.minimumInteractiveComponentSize().size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface)
             .border(1.dp, Lumen.tokens.hairline, CircleShape)
-            .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center
     ) {
@@ -186,11 +193,12 @@ fun LumenTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    windowInsets: WindowInsets = WindowInsets.statusBars,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(windowInsets)
             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
