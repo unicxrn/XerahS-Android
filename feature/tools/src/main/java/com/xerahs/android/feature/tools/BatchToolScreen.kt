@@ -61,8 +61,12 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, shape = CircleShape) {
-                Text("Choose images")
+            if (uris.isEmpty()) {
+                PillCta(text = "Choose images", onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
+            } else {
+                OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, shape = CircleShape) {
+                    Text("Choose images")
+                }
             }
             if (uris.isNotEmpty()) Text("${uris.size} images selected")
 

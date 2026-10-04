@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -74,6 +74,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,8 +91,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -126,6 +130,11 @@ fun AnnotationScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+
+    // Measured height of the floating bottom controls (toolbar + primary action), used to keep
+    // the canvas bezel's bottom inset in sync instead of a hard-coded constant.
+    var bottomControlsHeight by remember { mutableStateOf(0.dp) }
 
     var currentBitmap by remember(imagePath) {
         mutableStateOf(BitmapFactory.decodeFile(imagePath))
@@ -382,16 +391,17 @@ fun AnnotationScreen(
             )
         } else {
             // Bezel frame around the canvas. Insets: 64dp + status bar on top (clears the
-            // chrome bar), 14dp on the sides, and 144dp on the bottom (62dp toolbar + 10dp
-            // spacer + 60dp pill + 12dp column padding) + the nav bar inset, so the frame sits
-            // above the floating toolbar instead of behind it. The bezel's clip/padding is on
-            // this wrapping Box, not inside AnnotationCanvas's own modifier, so the canvas keeps
-            // computing its fit-scale and touch mapping from its own actual (inset) size.
+            // chrome bar), 14dp on the sides, and the measured height of the floating bottom
+            // controls (toolbar + primary action, which already includes the nav bar inset) plus
+            // 12dp, so the frame sits above the floating toolbar instead of behind it. The
+            // bezel's clip/padding is on this wrapping Box, not inside AnnotationCanvas's own
+            // modifier, so the canvas keeps computing its fit-scale and touch mapping from its
+            // own actual (inset) size.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))
-                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = 144.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
                     .clip(RoundedCornerShape(30.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(30.dp))
@@ -479,10 +489,17 @@ fun AnnotationScreen(
             }
         }
 
-        // Transparent top bar overlay
-        Row(
+        // Transparent top bar overlay. Wrapped in BoxWithConstraints so the filename can be
+        // dropped entirely on narrow widths, guaranteeing the trailing action buttons always
+        // get their full intrinsic size and never clip.
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .fillMaxWidth()
+        ) {
+        val showFilename = maxWidth >= 300.dp
+        Row(
+            modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -494,14 +511,18 @@ fun AnnotationScreen(
                 contentDescription = "Back",
                 onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() }
             )
-            Text(
-                text = File(imagePath).name,
-                style = monoStyle(12),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            if (showFilename) {
+                Text(
+                    text = File(imagePath).name,
+                    style = monoStyle(12),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = true)
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f, fill = true))
+            }
 
             if (uiState.isCropMode) {
                 Button(
@@ -518,7 +539,7 @@ fun AnnotationScreen(
             } else {
                 Row(
                     modifier = Modifier
-                        .height(44.dp)
+                        .height(48.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surface)
                         .border(1.dp, Lumen.tokens.hairline, CircleShape),
@@ -527,24 +548,25 @@ fun AnnotationScreen(
                     IconButton(
                         onClick = viewModel::undo,
                         enabled = uiState.undoStack.isNotEmpty(),
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
                     }
                     IconButton(
                         onClick = viewModel::redo,
                         enabled = uiState.redoStack.isNotEmpty(),
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                     }
                 }
                 Box(
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(Lumen.tokens.tint)
-                        .clickable(onClick = { showEffects = true }),
+                        .clickable(onClick = { showEffects = true }, role = Role.Button),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.AutoFixHigh, contentDescription = "Effects", tint = Lumen.tokens.ink)
@@ -573,6 +595,7 @@ fun AnnotationScreen(
                 }
             }
         }
+        }
 
         // Bottom controls: floating tool bar + primary action
         if (!uiState.isCropMode) {
@@ -582,7 +605,10 @@ fun AnnotationScreen(
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 12.dp)
+                    .onSizeChanged { size ->
+                        bottomControlsHeight = with(density) { size.height.toDp() }
+                    },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Compact floating tool bar
@@ -891,7 +917,9 @@ private fun ColorSwatchRow(
         colors.forEach { color ->
             val selected = color.toArgb() == strokeColor
             Box(
-                modifier = Modifier.size(34.dp),
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable(onClick = { onColorSelected(color.toArgb()) }, role = Role.Button),
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {
@@ -907,17 +935,16 @@ private fun ColorSwatchRow(
                         .clip(CircleShape)
                         .background(color)
                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                        .clickable { onColorSelected(color.toArgb()) }
                 )
             }
         }
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(36.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                .clickable { showColorPicker = true },
+                .clickable(onClick = { showColorPicker = true }, role = Role.Button),
             contentAlignment = Alignment.Center
         ) {
             Icon(
