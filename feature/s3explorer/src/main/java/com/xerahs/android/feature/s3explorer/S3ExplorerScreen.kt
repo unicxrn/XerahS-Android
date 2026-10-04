@@ -990,7 +990,7 @@ private fun ImagePreviewDialog(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val obj = imageObjects[page]
-                val (url, headers) = remember(obj.key) { viewModel.getSignedUrl(obj.key) }
+                val url = remember(obj.key) { viewModel.getPresignedUrl(obj.key) }
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offsetX by remember { mutableFloatStateOf(0f) }
                 var offsetY by remember { mutableFloatStateOf(0f) }
@@ -998,7 +998,6 @@ private fun ImagePreviewDialog(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
-                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
                         .diskCacheKey(obj.key)
                         .memoryCacheKey(obj.key)
                         .crossfade(true)

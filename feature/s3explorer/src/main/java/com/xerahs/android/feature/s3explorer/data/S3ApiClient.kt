@@ -214,6 +214,28 @@ class S3ApiClient @Inject constructor(
         return Pair(url, headers)
     }
 
+    fun buildPresignedUrl(
+        config: UploadConfig.S3Config,
+        objectKey: String,
+        expiresSeconds: Long = 3600
+    ): String {
+        val (host, baseUrl) = resolveHostAndBaseUrl(config)
+        val encodedKey = objectKey.split("/").joinToString("/") { segment ->
+            java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        }
+        val url = "$baseUrl/$encodedKey"
+
+        return AwsV4Signer.presign(
+            method = "GET",
+            url = url,
+            accessKeyId = config.accessKeyId,
+            secretAccessKey = config.secretAccessKey,
+            region = config.region,
+            host = host,
+            expiresSeconds = expiresSeconds
+        )
+    }
+
     suspend fun downloadObject(
         config: UploadConfig.S3Config,
         objectKey: String
