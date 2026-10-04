@@ -87,6 +87,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -897,7 +898,7 @@ private fun VideoThumbnailTile(size: Dp) {
     Box(modifier = Modifier.size(size)) {
         IconTile(
             icon = Icons.Default.Movie,
-            modifier = Modifier.size(size)
+            size = size
         )
         Box(
             modifier = Modifier
@@ -1052,6 +1053,7 @@ private fun ImagePreviewDialog(
                 pageCount = { imageObjects.size }
             )
             val currentObj = imageObjects.getOrNull(pagerState.currentPage) ?: return@Dialog
+            var videoControlsVisible by remember(currentObj.key) { mutableStateOf(true) }
 
             HorizontalPager(
                 state = pagerState,
@@ -1078,7 +1080,10 @@ private fun ImagePreviewDialog(
                     S3VideoPlayer(
                         url = url,
                         isCurrent = isCurrent,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onControlsVisibilityChanged = { visible ->
+                            if (obj.key == currentObj.key) videoControlsVisible = visible
+                        }
                     )
                     return@HorizontalPager
                 }
@@ -1156,7 +1161,10 @@ private fun ImagePreviewDialog(
                 Icon(Icons.Default.Close, contentDescription = "Close")
             }
 
-            // Info overlay at bottom
+            // Info overlay at bottom. On video pages the seek row lives in the same
+            // corner, so hide this while the video controls are visible.
+            val hideInfoOverlayForVideo = currentObj.isVideo && videoControlsVisible
+            if (!hideInfoOverlayForVideo) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1230,6 +1238,7 @@ private fun ImagePreviewDialog(
                     }
                 }
             }
+            }
         }
     }
 }
@@ -1238,10 +1247,12 @@ private fun ImagePreviewDialog(
 private fun S3VideoPlayer(
     url: String,
     isCurrent: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onControlsVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isCurrentState = rememberUpdatedState(isCurrent)
 
     val exoPlayer = remember(url) {
         ExoPlayer.Builder(context).build().apply {
@@ -1252,8 +1263,14 @@ private fun S3VideoPlayer(
     var prepared by remember(url) { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
+    var userPaused by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(showControls) {
+        onControlsVisibilityChanged(showControls)
+    }
 
     DisposableEffect(exoPlayer, lifecycleOwner) {
         val listener = object : Player.Listener {
@@ -1271,7 +1288,9 @@ private fun S3VideoPlayer(
         val lifecycleObserver = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> exoPlayer.pause()
-                Lifecycle.Event.ON_START -> if (isCurrent) exoPlayer.play()
+                Lifecycle.Event.ON_START -> {
+                    if (isCurrentState.value && !userPaused) exoPlayer.play()
+                }
                 else -> Unit
             }
         }
@@ -1290,15 +1309,15 @@ private fun S3VideoPlayer(
                 exoPlayer.prepare()
                 prepared = true
             }
-            exoPlayer.playWhenReady = true
+            if (!userPaused) exoPlayer.playWhenReady = true
         } else {
             exoPlayer.playWhenReady = false
             exoPlayer.pause()
         }
     }
 
-    LaunchedEffect(isPlaying) {
-        while (isPlaying) {
+    LaunchedEffect(isPlaying, isDragging) {
+        while (isPlaying && !isDragging) {
             positionMs = exoPlayer.currentPosition
             delay(500)
         }
@@ -1332,7 +1351,13 @@ private fun S3VideoPlayer(
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.5f))
                     .clickable(role = Role.Button) {
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                        if (isPlaying) {
+                            exoPlayer.pause()
+                            userPaused = true
+                        } else {
+                            exoPlayer.play()
+                            userPaused = false
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -1351,13 +1376,19 @@ private fun S3VideoPlayer(
                     .background(Color.Black.copy(alpha = 0.4f))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
+                val sliderMax = durationMs.coerceAtLeast(1L).toFloat()
+                val displayedPositionMs = if (isDragging) positionMs else positionMs.coerceAtMost(durationMs)
                 Slider(
-                    value = positionMs.toFloat().coerceIn(0f, durationMs.coerceAtLeast(1L).toFloat()),
+                    value = displayedPositionMs.toFloat().coerceIn(0f, sliderMax),
                     onValueChange = { value ->
+                        isDragging = true
                         positionMs = value.toLong()
-                        exoPlayer.seekTo(value.toLong())
                     },
-                    valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+                    onValueChangeFinished = {
+                        exoPlayer.seekTo(positionMs)
+                        isDragging = false
+                    },
+                    valueRange = 0f..sliderMax,
                     colors = SliderDefaults.colors(
                         activeTrackColor = Color.White,
                         thumbColor = Color.White,
@@ -1415,43 +1446,62 @@ private suspend fun downloadToDevice(
     viewModel: S3ExplorerViewModel,
     obj: S3Object
 ) {
-    val result: Result<Unit> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
-            put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
-        val uri = context.contentResolver.insert(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
-        )
-        val out = uri?.let { context.contentResolver.openOutputStream(it) }
-        if (out == null) {
-            Result.Error(IllegalStateException("Could not open output stream"))
+    val outcome = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
+                put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+            ) ?: throw IllegalStateException("Could not create download entry")
+
+            val result = context.contentResolver.openOutputStream(uri)?.use { out ->
+                viewModel.downloadObjectToStream(obj.key, out)
+            } ?: Result.Error(IllegalStateException("Could not open output stream"))
+
+            when (result) {
+                is Result.Success -> {
+                    val clearPending = ContentValues().apply {
+                        put(MediaStore.Downloads.IS_PENDING, 0)
+                    }
+                    context.contentResolver.update(uri, clearPending, null, null)
+                }
+                is Result.Error -> {
+                    context.contentResolver.delete(uri, null, null)
+                    throw result.exception
+                }
+                is Result.Loading -> Unit
+            }
+            Unit
         } else {
-            out.use { viewModel.downloadObjectToStream(obj.key, it) }
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS
+            )
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val file = File(downloadsDir, obj.name)
+            val result = FileOutputStream(file).use { out ->
+                viewModel.downloadObjectToStream(obj.key, out)
+            }
+            if (result is Result.Error) {
+                file.delete()
+                throw result.exception
+            }
+            Unit
         }
-    } else {
-        @Suppress("DEPRECATION")
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_DOWNLOADS
-        )
-        if (!downloadsDir.exists()) downloadsDir.mkdirs()
-        val file = File(downloadsDir, obj.name)
-        FileOutputStream(file).use { viewModel.downloadObjectToStream(obj.key, it) }
     }
 
-    when (result) {
-        is Result.Success -> {
-            Toast.makeText(context, "Downloaded ${obj.name}", Toast.LENGTH_SHORT).show()
-        }
-        is Result.Error -> {
-            Toast.makeText(
-                context,
-                "Download failed: ${result.message ?: result.exception.message}",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        is Result.Loading -> {}
+    outcome.onSuccess {
+        Toast.makeText(context, "Downloaded ${obj.name}", Toast.LENGTH_SHORT).show()
+    }.onFailure { error ->
+        Toast.makeText(
+            context,
+            "Download failed: ${error.message}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }
 

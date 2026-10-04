@@ -48,7 +48,8 @@ class S3ApiClient @Inject constructor(
                 HostAndBaseUrl(host, "$endpoint/${config.bucket}")
             } else {
                 val host = "${config.bucket}.${endpointUri.host}$portSuffix"
-                HostAndBaseUrl(host, "$scheme://$host")
+                val path = endpointUri.path ?: ""
+                HostAndBaseUrl(host, "$scheme://$host$path")
             }
         } else {
             if (config.bucket.contains('.')) {

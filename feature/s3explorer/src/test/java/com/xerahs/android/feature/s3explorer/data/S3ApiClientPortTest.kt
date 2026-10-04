@@ -57,6 +57,22 @@ class S3ApiClientPortTest {
         assertEquals("minio.example.com", headers["host"])
     }
 
+    @Test fun virtualHostedEndpointKeepsCustomPath() {
+        val config = UploadConfig.S3Config(
+            accessKeyId = "key",
+            secretAccessKey = "secret",
+            region = "us-east-1",
+            bucket = "bucket",
+            endpoint = "https://gw.example.com/s3",
+            usePathStyle = false
+        )
+
+        val (url, headers) = client.buildSignedUrl(config, "a/x.png")
+
+        assertEquals("https://bucket.gw.example.com/s3/a/x.png", url)
+        assertEquals("bucket.gw.example.com", headers["host"])
+    }
+
     @Test fun presignedUrlAlsoCarriesThePort() {
         val config = UploadConfig.S3Config(
             accessKeyId = "key",
