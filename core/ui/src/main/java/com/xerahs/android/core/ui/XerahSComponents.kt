@@ -54,7 +54,7 @@ fun SettingsGroupCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    LumenCard(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp), content = content)
+    LumenCard(modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp), content = content)
 }
 
 @Composable

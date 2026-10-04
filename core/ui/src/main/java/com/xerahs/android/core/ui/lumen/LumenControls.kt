@@ -164,7 +164,7 @@ fun <T> SegmentedTiles(options: List<SegmentOption<T>>, selected: T, onSelect: (
             val on = o.value == selected
             Column(
                 Modifier.weight(1f).height(72.dp).clip(RoundedCornerShape(20.dp))
-                    .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
+                    .background(if (on) { if (Lumen.tokens.isDark) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surface } else Color.Transparent)
                     .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(o.value) }),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center

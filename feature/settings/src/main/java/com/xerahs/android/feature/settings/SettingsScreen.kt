@@ -91,7 +91,7 @@ fun SettingsHubScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(vertical = 12.dp)
         ) {
             SectionHeader("General")
 
