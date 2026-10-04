@@ -60,6 +60,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    implementation(project(":core:ui"))
     implementation(project(":feature:capture"))
     implementation(project(":feature:annotation"))
     implementation(project(":feature:upload"))
