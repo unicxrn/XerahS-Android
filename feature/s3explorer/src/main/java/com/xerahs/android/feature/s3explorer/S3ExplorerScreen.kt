@@ -95,6 +95,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.xerahs.android.core.common.Result
 import com.xerahs.android.core.common.formatSize
@@ -1001,6 +1003,17 @@ private fun ImagePreviewDialog(
                         .diskCacheKey(obj.key)
                         .memoryCacheKey(obj.key)
                         .crossfade(true)
+                        .apply {
+                            if (obj.extension == "gif") {
+                                decoderFactory(
+                                    if (Build.VERSION.SDK_INT >= 28) {
+                                        ImageDecoderDecoder.Factory()
+                                    } else {
+                                        GifDecoder.Factory()
+                                    }
+                                )
+                            }
+                        }
                         .build(),
                     contentDescription = "Preview",
                     modifier = Modifier
