@@ -1,5 +1,10 @@
 package com.xerahs.android.core.ui.lumen
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -21,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.CenterFocusWeak
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -119,24 +123,45 @@ fun IconTile(
     }
 }
 
-/** App brand mark: a rounded primary tile with the focus-mark icon, plus the wordmark. */
+/** The XerahS "Signal" logo: lime-to-mint capture corners and a shutter dot on ink. Fixed brand colours. */
+@Composable
+fun LogoMark(modifier: Modifier = Modifier, size: Dp = 34.dp) {
+    Canvas(modifier.size(size).clearAndSetSemantics { }) {
+        val s = this.size.width / 108f
+        val corner = CornerRadius(30f * s)
+        drawRoundRect(
+            brush = Brush.linearGradient(listOf(Color(0xFF1C1C26), Color(0xFF09090C)), Offset.Zero, Offset(this.size.width, this.size.height)),
+            cornerRadius = corner
+        )
+        drawRoundRect(
+            brush = Brush.radialGradient(
+                listOf(Color(0x61B8F23A), Color(0x00B8F23A)),
+                center = Offset(30f * s, 24f * s),
+                radius = 81f * s
+            ),
+            cornerRadius = corner
+        )
+        // The mark is drawn 1.25x larger than on the launcher icon, which reserves a safe zone.
+        withTransform({ scale(1.25f * s, 1.25f * s, pivot = Offset.Zero); translate(-10.8f, -10.8f) }) {
+            drawPath(
+                LogoBrackets,
+                brush = Brush.linearGradient(listOf(Color(0xFFDDFB6A), Color(0xFF4FE3B2)), Offset(30f, 30f), Offset(78f, 78f)),
+                style = Stroke(width = 6.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+            drawCircle(Color.White, radius = 7.5f, center = Offset(54f, 54f))
+        }
+    }
+}
+
+private val LogoBrackets: Path = PathParser().parsePathString(
+    "M30 44V35a5 5 0 0 1 5-5h9 M64 30h9a5 5 0 0 1 5 5v9 M78 64v9a5 5 0 0 1-5 5h-9 M44 78h-9a5 5 0 0 1-5-5v-9"
+).toPath()
+
+/** Logo plus the "XerahS" wordmark. */
 @Composable
 fun BrandMark(modifier: Modifier = Modifier, size: Dp = 34.dp) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(RoundedCornerShape(size * 0.32f))
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CenterFocusWeak,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(size * 0.59f)
-            )
-        }
+        LogoMark(size = size)
         Text("XerahS", style = MaterialTheme.typography.titleLarge)
     }
 }

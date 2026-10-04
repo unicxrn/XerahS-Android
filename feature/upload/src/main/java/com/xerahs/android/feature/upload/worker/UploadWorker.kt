@@ -342,7 +342,7 @@ class UploadWorker @AssistedInject constructor(
     @SuppressLint("SpecifyForegroundServiceType")
     private fun createForegroundInfo(text: String, current: Int, total: Int): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD)
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
+            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
             .setContentTitle("XerahS Upload")
             .setContentText(text)
             .setProgress(total, current, current == 0)
@@ -367,7 +367,7 @@ class UploadWorker @AssistedInject constructor(
 
         val title = if (count > 1) "$count uploads complete" else "Upload complete"
         val builder = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
+            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
             .setContentTitle(title)
             .setContentText(first)
             .setAutoCancel(true)
