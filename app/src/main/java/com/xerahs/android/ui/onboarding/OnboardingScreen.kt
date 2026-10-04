@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,10 +28,8 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,10 +41,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.ui.lumen.AccentGlow
+import com.xerahs.android.core.ui.lumen.IconTile
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.PillCta
 
 private data class DestinationOption(
     val label: String,
@@ -95,10 +100,41 @@ fun OnboardingScreen(
 ) {
     var selected by remember { mutableStateOf(UploadDestination.IMGUR) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+    ) {
+        AccentGlow(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 80.dp, y = (-100).dp)
+        )
+        OnboardingContent(
+            selected = selected,
+            onSelect = {
+                selected = it
+                onSelectDestination(it)
+            },
+            onComplete = {
+                onSelectDestination(selected)
+                onComplete()
+            },
+            onSkip = onComplete
+        )
+    }
+}
+
+@Composable
+private fun OnboardingContent(
+    selected: UploadDestination,
+    onSelect: (UploadDestination) -> Unit,
+    onComplete: () -> Unit,
+    onSkip: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .statusBarsPadding()
     ) {
         // Subtle Skip at the top
@@ -109,7 +145,7 @@ fun OnboardingScreen(
             contentAlignment = Alignment.CenterEnd
         ) {
             TextButton(
-                onClick = onComplete,
+                onClick = onSkip,
                 modifier = Modifier.heightIn(min = 48.dp)
             ) {
                 Text(
@@ -130,9 +166,12 @@ fun OnboardingScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Wordmark
+            // Wordmark, last syllable in the accent ink
             Text(
-                text = "XerahS",
+                text = buildAnnotatedString {
+                    append("Xerah")
+                    withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("S") }
+                },
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -166,10 +205,7 @@ fun OnboardingScreen(
                 DestinationRow(
                     option = option,
                     isSelected = selected == option.destination,
-                    onClick = {
-                        selected = option.destination
-                        onSelectDestination(option.destination)
-                    }
+                    onClick = { onSelect(option.destination) }
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
@@ -185,21 +221,7 @@ fun OnboardingScreen(
                 .padding(horizontal = 28.dp, vertical = 20.dp),
             contentAlignment = Alignment.Center
         ) {
-            Button(
-                onClick = {
-                    onSelectDestination(selected)
-                    onComplete()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Text(
-                    text = "Get started",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+            PillCta(text = "Get started", onClick = onComplete)
         }
     }
 }
@@ -210,16 +232,8 @@ private fun DestinationRow(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
-    }
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Lumen.tokens.hairline
+    val containerColor = if (isSelected) Lumen.tokens.tint else MaterialTheme.colorScheme.surface
 
     Row(
         modifier = Modifier
@@ -236,28 +250,12 @@ private fun DestinationRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = if (isSelected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = option.icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-        }
+        IconTile(
+            icon = option.icon,
+            size = 40.dp,
+            container = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Column(
             modifier = Modifier

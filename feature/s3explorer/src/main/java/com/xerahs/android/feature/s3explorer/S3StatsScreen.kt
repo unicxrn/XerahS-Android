@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
@@ -30,14 +29,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.feature.s3explorer.model.AgeDistributionBucket
 import com.xerahs.android.feature.s3explorer.model.BucketAnalytics
 import com.xerahs.android.feature.s3explorer.model.CostEstimation
@@ -79,16 +77,7 @@ fun S3StatsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Bucket Stats") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+        topBar = { LumenTopBar(title = "Bucket Stats", onBack = onBack) }
     ) { innerPadding ->
         Column(
             modifier = Modifier

@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRight
@@ -54,7 +55,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,7 +64,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,7 +72,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -105,6 +103,11 @@ import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.s3explorer.model.S3Folder
 import com.xerahs.android.feature.s3explorer.model.S3Object
 import com.xerahs.android.feature.s3explorer.model.SortDirection
@@ -319,10 +322,8 @@ fun S3ExplorerScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("S3 Explorer") },
-                actions = {
-                    if (uiState.isConfigured) {
+            LumenTopBar(title = "Cloud") {
+                if (uiState.isConfigured) {
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
                                 Icon(Icons.Default.Sort, contentDescription = "Sort")
@@ -397,8 +398,7 @@ fun S3ExplorerScreen(
                         }
                     }
                 }
-            )
-        }
+            }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -421,9 +421,11 @@ fun S3ExplorerScreen(
                             subtitle = "Set up your S3 credentials to browse your bucket"
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = onNavigateToSettings) {
-                            Text("Configure S3")
-                        }
+                        PillCta(
+                            text = "Configure S3",
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             } else if (uiState.isConfigured) {
@@ -437,7 +439,7 @@ fun S3ExplorerScreen(
                     placeholder = { Text("Search files...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
-                    shape = MaterialTheme.shapes.large
+                    shape = CircleShape
                 )
 
                 // Stats row
@@ -671,12 +673,7 @@ private fun BreadcrumbBar(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        "Bucket",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = FontFamily.Monospace
-                        )
-                    )
+                    Eyebrow("Bucket")
                 }
             }
         }
@@ -694,14 +691,9 @@ private fun BreadcrumbBar(
                     else MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.clickable { onNavigateToBreadcrumb(index) }
                 ) {
-                    Text(
+                    Eyebrow(
                         text = segment,
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -714,13 +706,18 @@ private fun FolderListItem(
     folder: S3Folder,
     onClick: () -> Unit
 ) {
-    Column {
+    LumenCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        radius = 16.dp,
+        onClick = onClick
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp)
-                .height(56.dp),
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -732,9 +729,7 @@ private fun FolderListItem(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = folder.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
+                style = monoStyle(14),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -746,10 +741,6 @@ private fun FolderListItem(
                 modifier = Modifier.size(20.dp)
             )
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 52.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        )
     }
 }
 
@@ -803,19 +794,21 @@ private fun FileListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Column {
+    LumenCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        radius = 16.dp,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-                .background(
-                    if (isSelected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                    else Color.Transparent
-                )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelected) {
@@ -864,27 +857,19 @@ private fun FileListItem(
                 ) {
                     Text(
                         text = obj.size.formatSize(),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
+                        style = monoStyle(12),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (obj.lastModified > 0) {
                         Text(
                             text = obj.lastModified.toShortDate(),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace
-                            ),
+                            style = monoStyle(12),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 68.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        )
     }
 }
 
