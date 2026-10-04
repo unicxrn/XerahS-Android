@@ -5,7 +5,7 @@ Full visual redesign of XerahS Android, based on Option D "Lumen" from the redes
 ## Goals
 
 - Modern, premium look that still feels like XerahS.
-- Works with every theme setting we have today: System / Light / Dark, true black, the six preset accents, the custom accent, saved custom themes and Material You.
+- Works with every theme setting we have today: System / Light / Dark, true black, the seven accent presets (Signal Lime default, Cyan, Violet, Blue, Amber, Pink, Green), the custom accent, saved custom themes and Material You.
 - Same navigation routes, data, settings keys and upload behaviour. Visual change only, apart from the bottom bar.
 
 ## Theme layer
@@ -54,17 +54,17 @@ The `BottomAppBar` and FAB in `MainActivity` are replaced by `LumenNavPill`, sho
 
 ## Screens
 
-**Home.** Glow, brand mark, "N uploads today" eyebrow, the "Capture. Upload. Share in a tap." hero, a bento of Upload (accent, large), Clipboard and Annotate, a bezel card for the latest upload (preview with capture corners, mono link, host chip, copy button), then recent uploads with host chips. Empty state when there is no history yet.
+**Home.** Glow, brand mark, "N uploads today" eyebrow, the "Capture. Upload. Share in a tap." hero, a bento of Upload (accent, large, opens the picker), Search (toggles the search field) and Stats (opens Statistics), a bezel card for the latest upload (preview with capture corners, mono link, host chip, copy button), then recent uploads with host chips. Empty state when there is no history yet.
 
-**Upload.** File header (thumbnail, name, mono metadata), "Upload to" card listing profiles with host dots and a radio, "After upload" pill chips, and a `PillCta` to upload. Batch mode shows a file count in the header. Progress and conflict handling keep working as today.
+**Upload.** File header (thumbnail, name, mono metadata), "Upload to" card listing profiles with host dots and a radio, album and tag pill chips, and a `PillCta` to upload. (Per-upload after-upload chips are out of scope; after-upload stays a setting.) Batch mode shows a file count in the header. Progress and conflict handling keep working as today.
 
-**Uploaded.** The success state of the upload screen: accent check badge, "Uploaded. Link copied." headline, a bezel link card with a copy button, Share / Open / QR tiles, a detail list (host, size, time, delete URL saved) and Delete from host when the host supports it.
+**Uploaded.** The success state of the upload screen and the share card opened from Home: accent check badge, "Uploaded. Link copied." headline, a bezel link card with a copy button, Share / Open / QR tiles, a detail list (host, size, time, delete URL saved) and Delete from host when the host supports it.
 
-**Tools.** Title and an accent hero card for batch resize and convert, then a two-column grid: Color picker, QR, Hash, Shorten URL. Tool screens get `LumenTopBar` and Lumen cards.
+**Tools.** Title and an accent hero card for batch resize and convert, then a two-column grid: Color picker, QR, Hash. Tool screens get `LumenTopBar` and Lumen cards.
 
-**Editor.** Top bar with back, mono file name, an Undo/Redo pill and an Effects button. Canvas in a bezel frame. A colour swatch row with stroke width, a floating pill toolbar with the active tool in accent, and a `PillCta` to continue. Step markers use the accent colour.
+**Editor.** Top bar with back, mono file name, an Undo/Redo pill and an Effects button. Canvas in a bezel frame. A colour swatch row with stroke width, a floating pill toolbar with the active tool in accent, and a `PillCta` to continue.
 
-**Appearance.** Live preview bezel, System / Light / Dark `SegmentedTiles`, six accent swatches plus a custom swatch, and toggles for Material You and True black. Accent swatches are disabled, with a note, while Material You is on. The theme editor reuses the swatches and preview.
+**Appearance.** Live preview bezel, System / Light / Dark `SegmentedTiles`, the seven preset swatches plus a custom swatch, and toggles for Material You and True black. Accent swatches are disabled, with a note, while Material You is on. The theme editor reuses the swatches and preview.
 
 **Everything else.** History, S3 explorer and stats, Settings and all its sub-screens, destination config, profiles, uploader import, backup, statistics, security, storage, onboarding and app update move to `LumenTopBar`, Lumen cards and pills. Their layout and behaviour stay as they are.
 
