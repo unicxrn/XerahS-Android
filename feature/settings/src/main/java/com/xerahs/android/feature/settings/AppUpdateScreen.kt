@@ -56,6 +56,7 @@ import com.xerahs.android.core.ui.lumen.monoStyle
 @Composable
 fun AppUpdateScreen(
     onBack: () -> Unit,
+    onOpenLicenses: () -> Unit = {},
     viewModel: AppUpdateViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -216,7 +217,7 @@ fun AppUpdateScreen(
             // About section
             SectionHeader("About")
 
-            OpenSourceLicensesRow(modifier = Modifier.padding(horizontal = 20.dp))
+            OpenSourceLicensesRow(onClick = onOpenLicenses, modifier = Modifier.padding(horizontal = 20.dp))
 
             // Changelog section
             SectionHeader("Changelog")

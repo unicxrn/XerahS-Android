@@ -24,6 +24,7 @@ import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
 import com.xerahs.android.feature.settings.AppUpdateScreen
+import com.xerahs.android.feature.settings.LicensesScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
 import com.xerahs.android.feature.settings.StatisticsScreen
 import com.xerahs.android.feature.settings.StorageSettingsScreen
@@ -123,6 +124,7 @@ sealed class Screen(val route: String) {
         fun createRoute(profileId: String?) = "settings/profiles/edit/${profileId ?: "new"}"
     }
     data object AppUpdate : Screen("settings/updates")
+    data object Licenses : Screen("settings/licenses")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
@@ -464,8 +466,13 @@ fun XerahSNavGraph(
 
         composable(Screen.AppUpdate.route) {
             AppUpdateScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenLicenses = { navController.navigate(Screen.Licenses.route) }
             )
+        }
+
+        composable(Screen.Licenses.route) {
+            LicensesScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Screen.ImgurConfig.route) {

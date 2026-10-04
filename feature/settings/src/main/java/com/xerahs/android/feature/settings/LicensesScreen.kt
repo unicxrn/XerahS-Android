@@ -10,14 +10,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.FontDownload
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -37,9 +36,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.xerahs.android.core.ui.lumen.CircleIconButton
+import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.IconTile
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.monoStyle
@@ -57,14 +54,12 @@ private val fontLicenses = listOf(
     FontLicense("JetBrains Mono", "licenses/jetbrainsmono-OFL.txt")
 )
 
-/** Settings row that opens the [LicensesDialog]. Use on the Updates screen. */
+/** Settings row that opens [LicensesScreen]. Use on the Updates screen. */
 @Composable
-fun OpenSourceLicensesRow(modifier: Modifier = Modifier) {
-    var showDialog by remember { mutableStateOf(false) }
-
+fun OpenSourceLicensesRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
     LumenCard(
         modifier = modifier.fillMaxWidth(),
-        onClick = { showDialog = true }
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -88,45 +83,27 @@ fun OpenSourceLicensesRow(modifier: Modifier = Modifier) {
             )
         }
     }
-
-    if (showDialog) {
-        LicensesDialog(onDismiss = { showDialog = false })
-    }
 }
 
+/** Lists the bundled font licenses (SIL OFL 1.1). */
 @Composable
-private fun LicensesDialog(onDismiss: () -> Unit) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+fun LicensesScreen(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
+        LumenTopBar(title = "Licenses", onBack = onBack)
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircleIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Close", onDismiss)
-                Spacer(modifier = Modifier.size(12.dp))
-                Text("Open-source licenses", style = MaterialTheme.typography.titleMedium)
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                fontLicenses.forEach { font ->
-                    LicenseSection(font)
-                }
+            fontLicenses.forEach { font ->
+                LicenseSection(font)
             }
         }
     }
@@ -142,7 +119,7 @@ private fun LicenseSection(font: FontLicense) {
         if (expanded && text == null) {
             text = withContext(Dispatchers.IO) {
                 runCatching {
-                    context.assets.open(font.assetPath).bufferedReader().use { it.readText() }
+                    reflowLicense(context.assets.open(font.assetPath).bufferedReader().use { it.readText() })
                 }.getOrElse { "Couldn't load license text: ${it.message ?: "unknown error"}" }
             }
         }
@@ -190,3 +167,12 @@ private fun LicenseSection(font: FontLicense) {
         }
     }
 }
+
+// The OFL files are hard-wrapped at ~80 columns; join wrapped lines so the text flows on narrow screens.
+private fun reflowLicense(raw: String): String =
+    raw.replace("\r\n", "\n")
+        .split(Regex("\n\\s*\n"))
+        .joinToString("\n\n") { paragraph ->
+            paragraph.lines().joinToString(" ") { it.trim() }.replace(Regex("-{10,}"), "")
+                .replace(Regex(" {2,}"), " ").trim()
+        }
