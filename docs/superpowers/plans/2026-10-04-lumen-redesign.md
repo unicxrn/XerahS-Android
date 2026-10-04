@@ -1254,7 +1254,7 @@ private fun BrandMark() {
 }
 ```
 
-Content padding is `PaddingValues(start = 20.dp, end = 20.dp, bottom = 112.dp)` with 20dp spacing between hero blocks. The `stickyHeader` items need `Modifier.padding(horizontal = -0)`; instead, apply the horizontal padding per item rather than through `contentPadding` if the sticky header must span the full width.
+Use `contentPadding = PaddingValues(bottom = 112.dp)` and apply `Modifier.padding(horizontal = 20.dp)` to each item instead of horizontal content padding, so sticky headers still span the full width. Leave 20dp between hero blocks.
 
 - [ ] **Step 4: Build, check on the emulator, commit**
 
