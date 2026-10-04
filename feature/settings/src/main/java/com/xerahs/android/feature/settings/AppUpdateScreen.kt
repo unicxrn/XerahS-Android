@@ -77,7 +77,7 @@ fun AppUpdateScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "v${state.currentVersion}",
-                            style = monoStyle(12),
+                            style = monoStyle(16),
                             color = MaterialTheme.colorScheme.primary
                         )
 
@@ -159,45 +159,57 @@ fun AppUpdateScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        OutlinedButton(
+                        PillCta(
+                            text = if (state.isDownloading) "Downloading..." else "Download & install",
                             onClick = { viewModel.downloadAndInstall() },
+                            icon = Icons.Default.Download,
+                            enabled = !state.isDownloading,
+                            loading = state.isDownloading
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = { viewModel.checkForUpdate() },
                             shape = CircleShape,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !state.isDownloading
+                            enabled = !state.isChecking
                         ) {
                             Icon(
-                                Icons.Default.Download,
+                                Icons.Default.Refresh,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (state.isDownloading) "Downloading..." else "Download & install")
+                            Text("Check for updates")
                         }
-                    } else if (!state.isChecking && state.latestRelease != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "You're on the latest version",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    } else {
+                        if (!state.isChecking && state.latestRelease != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "You're on the latest version",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
+
+                        PillCta(
+                            text = "Check for updates",
+                            onClick = { viewModel.checkForUpdate() },
+                            icon = Icons.Default.Refresh,
+                            enabled = !state.isChecking,
+                            loading = state.isChecking
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    PillCta(
-                        text = "Check for updates",
-                        onClick = { viewModel.checkForUpdate() },
-                        icon = Icons.Default.Refresh,
-                        enabled = !state.isChecking
-                    )
                 }
             }
 

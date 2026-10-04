@@ -191,21 +191,20 @@ fun BackupSettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 PillCta(
                     text = "Export encrypted backup",
                     onClick = { viewModel.requestExportPassphrase() },
                     icon = Icons.Default.Upload,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
                     onClick = { importLauncher.launch(arrayOf("*/*")) },
                     shape = CircleShape,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))

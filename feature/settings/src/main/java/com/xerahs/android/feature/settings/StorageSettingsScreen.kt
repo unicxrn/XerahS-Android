@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -23,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
-import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.monoStyle
 import java.io.File
 
@@ -165,13 +167,19 @@ fun StorageSettingsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                PillCta(
-                    text = "Clear All",
+                OutlinedButton(
                     onClick = { showClearConfirm = "All Storage" },
-                    icon = Icons.Default.DeleteSweep,
-                    container = MaterialTheme.colorScheme.errorContainer,
-                    content = MaterialTheme.colorScheme.onErrorContainer
-                )
+                    shape = CircleShape,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Clear All")
+                }
             }
         }
     }

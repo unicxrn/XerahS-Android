@@ -49,7 +49,7 @@ fun ConflictResolutionScreen(
     var resolutionVersion by remember { mutableStateOf(0) }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Review Import", onBack = onCancel) },
+        topBar = { LumenTopBar(title = "Review Import", onBack = onCancel, backLabel = "Cancel") },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
                 Column(

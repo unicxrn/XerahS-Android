@@ -193,6 +193,7 @@ fun LumenTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    backLabel: String = "Back",
     windowInsets: WindowInsets = WindowInsets.statusBars,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
@@ -203,7 +204,7 @@ fun LumenTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (onBack != null) CircleIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
+        if (onBack != null) CircleIconButton(Icons.AutoMirrored.Filled.ArrowBack, backLabel, onBack)
         Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
