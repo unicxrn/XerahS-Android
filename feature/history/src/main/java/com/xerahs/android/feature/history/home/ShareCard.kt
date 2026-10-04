@@ -1,5 +1,7 @@
 package com.xerahs.android.feature.history.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -10,24 +12,31 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,17 +47,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.xerahs.android.core.domain.model.HistoryItem
-import com.xerahs.android.core.ui.FileTypeTile
+import com.xerahs.android.core.ui.lumen.AccentGlow
+import com.xerahs.android.core.ui.lumen.BezelCard
+import com.xerahs.android.core.ui.lumen.CircleIconButton
+import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.HostChip
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.hostColor
+import com.xerahs.android.core.ui.lumen.monoStyle
 
 /**
  * The "Link copied" moment - the emotional payoff after a successful share.
@@ -67,6 +85,7 @@ fun ShareCard(
     isShortening: Boolean = false
 ) {
     val effectiveLink = shortUrl ?: item.url ?: item.filePath
+    val context = LocalContext.current
 
     var showQr by remember { mutableStateOf(false) }
 
@@ -84,17 +103,36 @@ fun ShareCard(
         }
     }
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Header
+    Box(modifier.fillMaxSize()) {
+        AccentGlow(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 120.dp, y = (-140).dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            // Top row
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onDone)
+            }
+
+            // Badge and headline
+            Box(
+                modifier = Modifier
+                    .size(74.dp)
+                    .background(Lumen.tokens.tint, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(58.dp)
                         .scale(circleScale.value)
                         .background(MaterialTheme.colorScheme.primary, CircleShape),
                     contentAlignment = Alignment.Center
@@ -103,173 +141,115 @@ fun ShareCard(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = "Link copied",
-                    style = MaterialTheme.typography.titleMedium
-                )
             }
 
-            Spacer(Modifier.size(16.dp))
+            Text(
+                buildAnnotatedString {
+                    append("Uploaded.\n")
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) { append("Link ready.") }
+                },
+                style = MaterialTheme.typography.displaySmall
+            )
 
-            // Thumbnail
-            val thumbModifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-            if (item.isImage) {
-                AsyncImage(
-                    model = item.thumbnailPath ?: item.filePath,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = thumbModifier
-                )
-            } else {
-                FileTypeTile(item.mimeType, thumbModifier, iconSize = 56.dp)
-            }
-
-            Spacer(Modifier.size(16.dp))
-
-            // URL row
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onCopy(effectiveLink) },
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = MaterialTheme.shapes.small
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = effectiveLink,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (shortUrl != null) {
-                        Spacer(Modifier.size(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = CircleShape
-                        ) {
-                            Text(
-                                text = "shortened",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
+            // Link card
+            BezelCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Eyebrow(if (shortUrl != null) "Short link" else "Link")
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            text = effectiveLink,
+                            style = monoStyle(20),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (shortUrl == null) {
+                            if (isShortening) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.size(8.dp))
+                                    Text("Shortening…", style = MaterialTheme.typography.labelMedium)
+                                }
+                            } else {
+                                TextButton(onClick = onShorten) {
+                                    Text("Shorten")
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.size(8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = CircleShape
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(Modifier.size(4.dp))
-                            Text(
-                                text = "Copied",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.size(12.dp))
-
-            // Destination + size meta
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(item.uploadDestination.dotColor(), CircleShape)
-                )
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = item.uploadDestination.displayName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = formatFileSize(item.fileSize),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(Modifier.size(20.dp))
-
-            // Actions
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = onShare,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    Text("Share")
-                }
-                if (isShortening) {
+                    Spacer(Modifier.size(12.dp))
                     Box(
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .clickable { onCopy(effectiveLink) },
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    }
-                } else if (shortUrl == null) {
-                    IconButton(onClick = onShorten) {
                         Icon(
-                            imageVector = Icons.Default.ContentCut,
-                            contentDescription = "Shorten link"
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy link",
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
-                IconButton(onClick = { showQr = true }) {
-                    Icon(
-                        imageVector = Icons.Default.QrCode2,
-                        contentDescription = "Show QR code"
-                    )
+            }
+
+            // Action tiles
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionTile(
+                    icon = Icons.Default.Share,
+                    label = "Share",
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionTile(
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    label = "Open",
+                    onClick = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(effectiveLink)))
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                ActionTile(
+                    icon = Icons.Default.QrCode2,
+                    label = "QR code",
+                    onClick = { showQr = true },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Details
+            Column {
+                DetailRow(label = "Host") {
+                    HostChip(item.uploadDestination.displayName, item.uploadDestination.hostColor())
                 }
-                TextButton(onClick = onDone) {
-                    Text("Done")
+                HorizontalDivider(color = Lumen.tokens.hairline)
+                DetailRow(label = "Size") {
+                    Text(formatFileSize(item.fileSize), style = monoStyle(12))
+                }
+                HorizontalDivider(color = Lumen.tokens.hairline)
+                DetailRow(label = "Time") {
+                    Text(relativeTime(item.timestamp), style = monoStyle(12))
+                }
+                if (item.deleteUrl != null) {
+                    HorizontalDivider(color = Lumen.tokens.hairline)
+                    DetailRow(label = "Delete URL") {
+                        Text("saved", style = monoStyle(12))
+                    }
                 }
             }
+
+            Spacer(Modifier.size(4.dp))
+
+            PillCta(text = "Done", onClick = onDone, icon = Icons.Default.Check)
         }
     }
 
@@ -286,9 +266,7 @@ fun ShareCard(
                     QrImage(content = effectiveLink)
                     Text(
                         text = effectiveLink,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
+                        style = monoStyle(12),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -304,3 +282,46 @@ fun ShareCard(
         )
     }
 }
+
+@Composable
+private fun ActionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LumenCard(
+        modifier = modifier.height(72.dp),
+        radius = 22.dp,
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = Lumen.tokens.ink)
+            Spacer(Modifier.size(4.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        value()
+    }
+}
+
+private fun relativeTime(timestamp: Long): String =
+    android.text.format.DateUtils.getRelativeTimeSpanString(
+        timestamp,
+        System.currentTimeMillis(),
+        android.text.format.DateUtils.MINUTE_IN_MILLIS
+    ).toString()

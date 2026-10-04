@@ -199,8 +199,6 @@ fun XerahSNavGraph(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
             ) {
                 if (item != null) {
                     ShareCard(
@@ -226,7 +224,7 @@ fun XerahSNavGraph(
                         onDone = { navController.popBackStack() }
                     )
                 } else {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
             }
         }
