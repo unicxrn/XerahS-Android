@@ -12,26 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,26 +34,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenSwitch
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.feature.settings.AfterUploadActionChips
 import com.xerahs.android.feature.settings.destinations.NativeDestinationFields
-
-// Destination data-dot color reused from management screen logic
-private fun destDotColor(dest: UploadDestination): Color = when (dest) {
-    UploadDestination.IMGUR -> Color(0xFF1BB76E)
-    UploadDestination.S3 -> Color(0xFFFF9900)
-    UploadDestination.FTP -> Color(0xFF2E86DE)
-    UploadDestination.SFTP -> Color(0xFF6B7C93)
-    UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
-    UploadDestination.LOCAL -> Color(0xFF8E8E93)
-    UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
-    UploadDestination.IMMICH -> Color(0xFF4250AF)
-    UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,16 +56,9 @@ fun ProfileEditorScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (state.isEditing) "Edit Profile" else "New Profile") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate back"
-                        )
-                    }
-                }
+            LumenTopBar(
+                title = if (state.isEditing) "Edit Profile" else "New Profile",
+                onBack = onBack
             )
         }
     ) { innerPadding ->
@@ -99,6 +75,7 @@ fun ProfileEditorScreen(
                 onValueChange = { viewModel.updateEditorName(it) },
                 label = { Text("Profile Name") },
                 singleLine = true,
+                shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -116,12 +93,13 @@ fun ProfileEditorScreen(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Destination") },
+                    shape = RoundedCornerShape(18.dp),
                     leadingIcon = {
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(destDotColor(state.destination))
+                                .background(state.destination.hostColor())
                         )
                     },
                     trailingIcon = {
@@ -144,7 +122,7 @@ fun ProfileEditorScreen(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(destDotColor(dest))
+                                            .background(dest.hostColor())
                                     )
                                     Spacer(modifier = Modifier.size(8.dp))
                                     Text(dest.displayName)
@@ -180,13 +158,13 @@ fun ProfileEditorScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(
+                LumenSwitch(
                     checked = state.isDefault,
                     onCheckedChange = { viewModel.updateEditorDefault(it) }
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = Lumen.tokens.hairline)
             Spacer(modifier = Modifier.height(16.dp))
 
             // --- Section label ---
@@ -214,34 +192,18 @@ fun ProfileEditorScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Use default after-upload actions", Modifier.weight(1f))
-                Switch(checked = state.afterUploadActions == null, onCheckedChange = viewModel::setUseDefaultActions)
+                LumenSwitch(checked = state.afterUploadActions == null, onCheckedChange = viewModel::setUseDefaultActions)
             }
             state.afterUploadActions?.let { AfterUploadActionChips(it, viewModel::toggleAfterUploadAction) }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // --- Save button (primary, full-width) ---
-            Button(
+            PillCta(
+                text = "Save Profile",
                 onClick = { viewModel.saveProfile(onComplete = onBack) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Icon(
-                    Icons.Default.Save,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "Save Profile",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -262,7 +224,7 @@ private fun ImgurFields(state: ProfileEditorUiState, viewModel: ProfileManagemen
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Switch(
+        LumenSwitch(
             checked = state.imgurUseAnonymous,
             onCheckedChange = { viewModel.updateImgurUseAnonymous(it) }
         )
@@ -273,6 +235,7 @@ private fun ImgurFields(state: ProfileEditorUiState, viewModel: ProfileManagemen
         onValueChange = { viewModel.updateImgurClientId(it) },
         label = { Text("Client ID") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -281,6 +244,7 @@ private fun ImgurFields(state: ProfileEditorUiState, viewModel: ProfileManagemen
         onValueChange = { viewModel.updateImgurClientSecret(it) },
         label = { Text("Client Secret") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
     )
@@ -293,6 +257,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3AccessKeyId(it) },
         label = { Text("Access Key ID") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -301,6 +266,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3SecretAccessKey(it) },
         label = { Text("Secret Access Key") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
     )
@@ -310,6 +276,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3Region(it) },
         label = { Text("Region") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -318,6 +285,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3Bucket(it) },
         label = { Text("Bucket") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -326,6 +294,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3Endpoint(it) },
         label = { Text("Custom Endpoint (optional)") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -334,6 +303,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3CustomUrl(it) },
         label = { Text("Custom URL (optional)") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -342,6 +312,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3Prefix(it) },
         label = { Text("Key Prefix") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -350,6 +321,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
         onValueChange = { viewModel.updateS3Acl(it) },
         label = { Text("ACL (optional)") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -365,7 +337,7 @@ private fun S3Fields(state: ProfileEditorUiState, viewModel: ProfileManagementVi
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Switch(
+        LumenSwitch(
             checked = state.s3UsePathStyle,
             onCheckedChange = { viewModel.updateS3UsePathStyle(it) }
         )
@@ -379,6 +351,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpHost(it) },
         label = { Text("Host") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -387,6 +360,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpPort(it) },
         label = { Text("Port") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth()
     )
@@ -396,6 +370,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpUsername(it) },
         label = { Text("Username") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -404,6 +379,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpPassword(it) },
         label = { Text("Password") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
     )
@@ -413,6 +389,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpRemotePath(it) },
         label = { Text("Remote Path") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -421,6 +398,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
         onValueChange = { viewModel.updateFtpHttpUrl(it) },
         label = { Text("HTTP URL Prefix") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -436,7 +414,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Switch(
+        LumenSwitch(
             checked = state.ftpUseFtps,
             onCheckedChange = { viewModel.updateFtpUseFtps(it) }
         )
@@ -453,7 +431,7 @@ private fun FtpFields(state: ProfileEditorUiState, viewModel: ProfileManagementV
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Switch(
+        LumenSwitch(
             checked = state.ftpUsePassive,
             onCheckedChange = { viewModel.updateFtpUsePassive(it) }
         )
@@ -467,6 +445,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpHost(it) },
         label = { Text("Host") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -475,6 +454,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpPort(it) },
         label = { Text("Port") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth()
     )
@@ -484,6 +464,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpUsername(it) },
         label = { Text("Username") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -492,6 +473,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpPassword(it) },
         label = { Text("Password") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
     )
@@ -501,6 +483,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpKeyPath(it) },
         label = { Text("Key Path (optional)") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -509,6 +492,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpKeyPassphrase(it) },
         label = { Text("Key Passphrase (optional)") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
     )
@@ -518,6 +502,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpRemotePath(it) },
         label = { Text("Remote Path") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(8.dp))
@@ -526,6 +511,7 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         onValueChange = { viewModel.updateSftpHttpUrl(it) },
         label = { Text("HTTP URL Prefix") },
         singleLine = true,
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -537,6 +523,7 @@ private fun CustomHttpFields(state: ProfileEditorUiState, viewModel: ProfileMana
         onValueChange = { viewModel.updateCustomUploaderSxcu(it) },
         label = { Text("Custom uploader (.sxcu JSON)") },
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        shape = RoundedCornerShape(18.dp),
         isError = state.customUploaderError != null,
         supportingText = {
             Text(state.customUploaderError ?: "Paste or edit a ShareX custom uploader definition")

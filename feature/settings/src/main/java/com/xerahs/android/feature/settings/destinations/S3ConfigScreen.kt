@@ -7,32 +7,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +38,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 import com.xerahs.android.core.ui.StatusBanner
+import com.xerahs.android.core.ui.lumen.LumenSwitch
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,16 +78,7 @@ fun S3ConfigScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Amazon S3 Configuration") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
+        topBar = { LumenTopBar(title = "Amazon S3 Configuration", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -140,6 +126,7 @@ fun S3ConfigScreen(
                                 onValueChange = { r2AccountId = it },
                                 label = { Text("Account ID") },
                                 singleLine = true,
+                                shape = RoundedCornerShape(18.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -188,6 +175,7 @@ fun S3ConfigScreen(
                         value = accessKeyId, onValueChange = { accessKeyId = it },
                         label = { Text("Access Key ID") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
                         isError = accessKeyId.isBlank(),
                         supportingText = if (accessKeyId.isBlank()) {{ Text("Required") }} else null
                     )
@@ -195,6 +183,7 @@ fun S3ConfigScreen(
                         value = secretAccessKey, onValueChange = { secretAccessKey = it },
                         label = { Text("Secret Access Key") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
                         isError = secretAccessKey.isBlank(),
                         supportingText = if (secretAccessKey.isBlank()) {{ Text("Required") }} else null
                     )
@@ -211,12 +200,14 @@ fun S3ConfigScreen(
                     OutlinedTextField(
                         value = region, onValueChange = { region = it },
                         label = { Text("Region") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
                     )
                     OutlinedTextField(
                         value = bucket, onValueChange = { bucket = it },
                         label = { Text("Bucket") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
                         isError = bucket.isBlank(),
                         supportingText = if (bucket.isBlank()) {{ Text("Required") }} else null
                     )
@@ -224,7 +215,8 @@ fun S3ConfigScreen(
                         value = endpoint, onValueChange = { endpoint = it },
                         label = { Text("S3 API Endpoint (optional)") },
                         supportingText = { Text("For MinIO, DigitalOcean Spaces, etc.") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
                     )
                 }
             }
@@ -240,18 +232,21 @@ fun S3ConfigScreen(
                         value = customUrl, onValueChange = { customUrl = it },
                         label = { Text("Custom URL (optional)") },
                         supportingText = { Text("Public URL for images, e.g. https://i.example.com") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
                     )
                     OutlinedTextField(
                         value = prefix, onValueChange = { prefix = it },
                         label = { Text("Upload Path (optional)") },
                         supportingText = { Text("Tokens: {yyyy}, {yy}, {MM}, {dd}, {month}\ne.g. uploads/{yyyy}/{MM}") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
                     )
                     OutlinedTextField(
                         value = acl, onValueChange = { acl = it },
                         label = { Text("ACL") },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = RoundedCornerShape(18.dp)
                     )
                 }
             }
@@ -263,7 +258,7 @@ fun S3ConfigScreen(
                     headlineContent = { Text("Path-style URLs") },
                     supportingContent = { Text("Use path-style instead of virtual-hosted") },
                     trailingContent = {
-                        Switch(checked = usePathStyle, onCheckedChange = { usePathStyle = it })
+                        LumenSwitch(checked = usePathStyle, onCheckedChange = { usePathStyle = it })
                     }
                 )
             }
@@ -271,7 +266,8 @@ fun S3ConfigScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             val canSave = accessKeyId.isNotBlank() && secretAccessKey.isNotBlank() && bucket.isNotBlank()
-            Button(
+            PillCta(
+                text = "Save",
                 onClick = {
                     coroutineScope.launch {
                         viewModel.saveConfig(
@@ -284,17 +280,14 @@ fun S3ConfigScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.large,
+                    .padding(horizontal = 16.dp),
                 enabled = canSave
-            ) {
-                Text("Save")
-            }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedButton(
+            PillCta(
+                text = "Test Connection",
                 onClick = {
                     isTesting = true
                     coroutineScope.launch {
@@ -308,17 +301,10 @@ fun S3ConfigScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.large,
-                enabled = canSave && !isTesting
-            ) {
-                if (isTesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text("Test Connection")
-            }
+                    .padding(horizontal = 16.dp),
+                enabled = canSave && !isTesting,
+                loading = isTesting
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }

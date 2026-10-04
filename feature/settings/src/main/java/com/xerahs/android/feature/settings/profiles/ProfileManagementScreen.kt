@@ -1,6 +1,5 @@
 package com.xerahs.android.feature.settings.profiles
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,10 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
@@ -32,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,27 +36,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
-
-// Destination data-dot colors per spec
-private val destinationDotColor: (UploadDestination) -> Color = { dest ->
-    when (dest) {
-        UploadDestination.IMGUR -> Color(0xFF1BB76E)
-        UploadDestination.S3 -> Color(0xFFFF9900)
-        UploadDestination.FTP -> Color(0xFF2E86DE)
-        UploadDestination.SFTP -> Color(0xFF6B7C93)
-        UploadDestination.CUSTOM_HTTP -> Color(0xFF8E8E93)
-        UploadDestination.LOCAL -> Color(0xFF8E8E93)
-        UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
-        UploadDestination.IMMICH -> Color(0xFF4250AF)
-        UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
-    }
-}
+import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.HostChip
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.hostColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,19 +77,7 @@ fun ProfileManagementScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Upload Profiles") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate back"
-                        )
-                    }
-                }
-            )
-        },
+        topBar = { LumenTopBar(title = "Upload Profiles", onBack = onBack) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
@@ -184,7 +154,7 @@ fun ProfileManagementScreen(
                                 )
                             )
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
+                                color = Lumen.tokens.hairline,
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
@@ -199,7 +169,7 @@ fun ProfileManagementScreen(
                                 onDelete = { deleteConfirmProfile = profile }
                             )
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                color = Lumen.tokens.hairline,
                                 modifier = Modifier.padding(start = 16.dp)
                             )
                         }
@@ -226,17 +196,7 @@ private fun ProfileRow(
             .height(64.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Destination data-dot
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(destinationDotColor(profile.destination))
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Name + destination label
+        // Name + destination chip
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -246,14 +206,11 @@ private fun ProfileRow(
                 )
                 if (profile.isDefault) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    DefaultPill()
+                    Eyebrow("Default", color = Lumen.tokens.ink)
                 }
             }
-            Text(
-                text = profile.destination.displayName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(4.dp))
+            HostChip(profile.destination.displayName, profile.destination.hostColor())
         }
 
         // Delete trailing action
@@ -268,21 +225,5 @@ private fun ProfileRow(
                 modifier = Modifier.size(20.dp)
             )
         }
-    }
-}
-
-@Composable
-private fun DefaultPill() {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text = "Default",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
-        )
     }
 }

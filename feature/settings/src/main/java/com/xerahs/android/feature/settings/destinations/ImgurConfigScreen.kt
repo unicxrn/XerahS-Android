@@ -8,24 +8,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +34,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
 import com.xerahs.android.core.ui.StatusBanner
+import com.xerahs.android.core.ui.lumen.LumenSwitch
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,16 +60,7 @@ fun ImgurConfigScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Imgur Configuration") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
+        topBar = { LumenTopBar(title = "Imgur Configuration", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -106,7 +95,7 @@ fun ImgurConfigScreen(
                     headlineContent = { Text("Anonymous Upload") },
                     supportingContent = { Text("Upload without an Imgur account") },
                     trailingContent = {
-                        Switch(checked = useAnonymous, onCheckedChange = { useAnonymous = it })
+                        LumenSwitch(checked = useAnonymous, onCheckedChange = { useAnonymous = it })
                     }
                 )
             }
@@ -123,6 +112,7 @@ fun ImgurConfigScreen(
                         onValueChange = { clientId = it },
                         label = { Text("Client ID") },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
                         singleLine = true,
                         isError = clientId.isBlank(),
                         supportingText = if (clientId.isBlank()) {{ Text("Required") }} else null
@@ -132,6 +122,7 @@ fun ImgurConfigScreen(
                         onValueChange = { clientSecret = it },
                         label = { Text("Client Secret") },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
                         singleLine = true,
                         isError = !useAnonymous && clientSecret.isBlank(),
                         supportingText = if (!useAnonymous && clientSecret.isBlank()) {{ Text("Required for authenticated upload") }} else null
@@ -150,7 +141,8 @@ fun ImgurConfigScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             val canSave = clientId.isNotBlank() && (useAnonymous || clientSecret.isNotBlank())
-            Button(
+            PillCta(
+                text = "Save",
                 onClick = {
                     coroutineScope.launch {
                         viewModel.saveConfig(clientId, clientSecret, useAnonymous)
@@ -159,13 +151,9 @@ fun ImgurConfigScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.large,
+                    .padding(horizontal = 16.dp),
                 enabled = canSave
-            ) {
-                Text("Save")
-            }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }
