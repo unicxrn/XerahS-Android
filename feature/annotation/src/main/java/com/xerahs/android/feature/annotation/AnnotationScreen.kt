@@ -603,12 +603,13 @@ fun AnnotationScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp)
+                    // Measured before the paddings so the height includes the nav-bar inset.
                     .onSizeChanged { size ->
                         bottomControlsHeight = with(density) { size.height.toDp() }
-                    },
+                    }
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Compact floating tool bar

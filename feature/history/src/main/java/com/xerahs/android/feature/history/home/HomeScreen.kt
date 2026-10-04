@@ -138,7 +138,7 @@ fun HomeScreen(
 
             item(key = "hero") {
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Eyebrow("● ${uiState.todayCount} uploads today")
+                    Eyebrow("● ${uiState.todayCount} ${if (uiState.todayCount == 1) "upload" else "uploads"} today")
                     Spacer(Modifier.size(8.dp))
                     Text(
                         buildAnnotatedString {
@@ -289,8 +289,8 @@ fun HomeScreen(
                                 CaptureCorners()
                                 Box(
                                     modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(8.dp)
+                                        .align(Alignment.TopStart)
+                                        .padding(start = 34.dp, top = 12.dp)
                                         .clip(CircleShape)
                                         .background(Color.Black.copy(alpha = 0.35f))
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
@@ -305,7 +305,10 @@ fun HomeScreen(
 
                             Spacer(Modifier.size(12.dp))
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.padding(start = 16.dp, end = 10.dp, bottom = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = latest.url ?: latest.fileName,
@@ -501,7 +504,8 @@ private fun TimelineRow(
 }
 
 private fun relativeTime(timestamp: Long): String =
-    android.text.format.DateUtils.getRelativeTimeSpanString(
+    if (System.currentTimeMillis() - timestamp < android.text.format.DateUtils.MINUTE_IN_MILLIS) "Just now"
+    else android.text.format.DateUtils.getRelativeTimeSpanString(
         timestamp,
         System.currentTimeMillis(),
         android.text.format.DateUtils.MINUTE_IN_MILLIS

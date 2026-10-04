@@ -131,7 +131,10 @@ fun ShareCard(
 
             // Link card
             BezelCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(start = 18.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Eyebrow(if (shortUrl != null) "Short link" else "Link")
                         Spacer(Modifier.size(4.dp))
