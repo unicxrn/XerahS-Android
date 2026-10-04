@@ -40,7 +40,7 @@ fun ToolsScreen(onOpen: (ToolId) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("Tools") }) }) { padding ->
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 112.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().padding(padding)

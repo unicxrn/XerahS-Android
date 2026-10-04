@@ -556,7 +556,7 @@ fun S3ExplorerScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 112.dp)
                         ) {
                             itemsIndexed(
                                 uiState.filteredFolders,
@@ -599,7 +599,7 @@ fun S3ExplorerScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             contentPadding = PaddingValues(
                                 start = 8.dp, end = 8.dp,
-                                top = 4.dp, bottom = 16.dp
+                                top = 4.dp, bottom = 112.dp
                             )
                         ) {
                             itemsIndexed(

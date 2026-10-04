@@ -134,7 +134,7 @@ fun SettingsHubScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 112.dp)
             )
         }
     }
