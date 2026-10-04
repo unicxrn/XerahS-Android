@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +53,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -68,14 +72,18 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,12 +99,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -112,6 +125,7 @@ import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
 import com.xerahs.android.core.ui.lumen.CircleIconButton
 import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.IconTile
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.PillCta
@@ -125,6 +139,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sort
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -835,6 +850,8 @@ private fun FileListItem(
                         .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
+            } else if (obj.isVideo) {
+                VideoThumbnailTile(size = 40.dp)
             } else {
                 Icon(
                     Icons.Default.Description,
@@ -874,6 +891,32 @@ private fun FileListItem(
     }
 }
 
+/** Video icon tile with a small play badge, used where there's no thumbnail to decode. */
+@Composable
+private fun VideoThumbnailTile(size: Dp) {
+    Box(modifier = Modifier.size(size)) {
+        IconTile(
+            icon = Icons.Default.Movie,
+            modifier = Modifier.size(size)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(size * 0.42f)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(size * 0.24f)
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileGridItem(
@@ -907,6 +950,24 @@ private fun FileGridItem(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+            } else if (obj.isVideo) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    VideoThumbnailTile(size = 48.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = obj.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             } else {
                 Column(
                     modifier = Modifier
@@ -999,9 +1060,24 @@ private fun ImagePreviewDialog(
                 val obj = imageObjects[page]
                 val url = remember(obj.key) { viewModel.getPresignedUrl(obj.key) }
 
+                if (url.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Couldn't load preview",
+                            color = Color.White
+                        )
+                    }
+                    return@HorizontalPager
+                }
+
                 if (obj.isVideo) {
+                    val isCurrent = pagerState.settledPage == page
                     S3VideoPlayer(
                         url = url,
+                        isCurrent = isCurrent,
                         modifier = Modifier.fillMaxSize()
                     )
                     return@HorizontalPager
@@ -1011,14 +1087,15 @@ private fun ImagePreviewDialog(
                 var offsetX by remember { mutableFloatStateOf(0f) }
                 var offsetY by remember { mutableFloatStateOf(0f) }
 
+                val isGif = obj.extension == "gif"
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
                         .diskCacheKey(obj.key)
-                        .memoryCacheKey(obj.key)
+                        .memoryCacheKey(if (isGif) "${obj.key}#anim" else obj.key)
                         .crossfade(true)
                         .apply {
-                            if (obj.extension == "gif") {
+                            if (isGif) {
                                 decoderFactory(
                                     if (Build.VERSION.SDK_INT >= 28) {
                                         ImageDecoderDecoder.Factory()
@@ -1160,31 +1237,148 @@ private fun ImagePreviewDialog(
 @Composable
 private fun S3VideoPlayer(
     url: String,
+    isCurrent: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     val exoPlayer = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
-            prepare()
-            playWhenReady = true
         }
     }
 
-    DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer.release() }
+    var prepared by remember(url) { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
+
+    DisposableEffect(exoPlayer, lifecycleOwner) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onEvents(player: Player, events: Player.Events) {
+                val d = player.duration
+                if (d > 0) durationMs = d
+            }
+        }
+        exoPlayer.addListener(listener)
+
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> exoPlayer.pause()
+                Lifecycle.Event.ON_START -> if (isCurrent) exoPlayer.play()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
     }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            val view = android.view.LayoutInflater.from(ctx)
-                .inflate(R.layout.view_s3_video_player, null) as PlayerView
-            view.player = exoPlayer
-            view
-        },
-        update = { view -> view.player = exoPlayer }
-    )
+    LaunchedEffect(isCurrent) {
+        if (isCurrent) {
+            if (!prepared) {
+                exoPlayer.prepare()
+                prepared = true
+            }
+            exoPlayer.playWhenReady = true
+        } else {
+            exoPlayer.playWhenReady = false
+            exoPlayer.pause()
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            positionMs = exoPlayer.currentPosition
+            delay(500)
+        }
+    }
+
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(onTap = { showControls = !showControls })
+        }
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                val view = android.view.LayoutInflater.from(ctx)
+                    .inflate(R.layout.view_s3_video_player, null) as PlayerView
+                view.useController = false
+                view.isClickable = false
+                view.isFocusable = false
+                view.player = exoPlayer
+                view
+            },
+            update = { view -> view.player = exoPlayer },
+            onRelease = { it.player = null }
+        )
+
+        if (showControls) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(role = Role.Button) {
+                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Slider(
+                    value = positionMs.toFloat().coerceIn(0f, durationMs.coerceAtLeast(1L).toFloat()),
+                    onValueChange = { value ->
+                        positionMs = value.toLong()
+                        exoPlayer.seekTo(value.toLong())
+                    },
+                    valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = Color.White,
+                        thumbColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+                Text(
+                    text = "${formatElapsed(positionMs)} / ${formatElapsed(durationMs)}",
+                    style = monoStyle(12),
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+private fun formatElapsed(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
 }
 
 @Composable
@@ -1221,32 +1415,33 @@ private suspend fun downloadToDevice(
     viewModel: S3ExplorerViewModel,
     obj: S3Object
 ) {
-    when (val result = viewModel.downloadObject(obj.key)) {
+    val result: Result<Unit> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
+            put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+        )
+        val out = uri?.let { context.contentResolver.openOutputStream(it) }
+        if (out == null) {
+            Result.Error(IllegalStateException("Could not open output stream"))
+        } else {
+            out.use { viewModel.downloadObjectToStream(obj.key, it) }
+        }
+    } else {
+        @Suppress("DEPRECATION")
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DOWNLOADS
+        )
+        if (!downloadsDir.exists()) downloadsDir.mkdirs()
+        val file = File(downloadsDir, obj.name)
+        FileOutputStream(file).use { viewModel.downloadObjectToStream(obj.key, it) }
+    }
+
+    when (result) {
         is Result.Success -> {
-            val bytes = result.data
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
-                    put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val uri = context.contentResolver.insert(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
-                )
-                uri?.let {
-                    context.contentResolver.openOutputStream(it)?.use { out ->
-                        out.write(bytes)
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS
-                )
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val file = File(downloadsDir, obj.name)
-                FileOutputStream(file).use { it.write(bytes) }
-            }
             Toast.makeText(context, "Downloaded ${obj.name}", Toast.LENGTH_SHORT).show()
         }
         is Result.Error -> {
@@ -1274,6 +1469,11 @@ private fun guessMimeType(extension: String): String = when (extension) {
     "js" -> "application/javascript"
     "zip" -> "application/zip"
     "mp4" -> "video/mp4"
+    "webm" -> "video/webm"
+    "mkv" -> "video/x-matroska"
+    "mov" -> "video/quicktime"
+    "m4v" -> "video/x-m4v"
+    "3gp" -> "video/3gpp"
     "mp3" -> "audio/mpeg"
     else -> "application/octet-stream"
 }

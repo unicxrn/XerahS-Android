@@ -125,6 +125,9 @@ object AwsV4Signer {
         now: java.time.Instant = java.time.Instant.now(),
         service: String = "s3"
     ): String {
+        require(expiresSeconds in 1..604800) { "expiresSeconds must be between 1 and 604800" }
+        require('?' !in url) { "url must not already contain a query string" }
+
         val dateTimeFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
             .withZone(java.time.ZoneOffset.UTC)
         val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd", Locale.US)
@@ -171,16 +174,21 @@ object AwsV4Signer {
             sha256Hex(canonicalRequest.toByteArray(Charsets.UTF_8))
         ).joinToString("\n")
 
-        val signingKey = deriveSigningKey(secretAccessKey, date, region)
+        val signingKey = deriveSigningKey(secretAccessKey, date, region, service)
         val signature = hmacSha256Hex(signingKey, stringToSign)
 
         return "$url?$canonicalQueryString&X-Amz-Signature=$signature"
     }
 
-    private fun deriveSigningKey(secretKey: String, date: String, region: String): ByteArray {
+    private fun deriveSigningKey(
+        secretKey: String,
+        date: String,
+        region: String,
+        service: String = SERVICE
+    ): ByteArray {
         val kDate = hmacSha256("AWS4$secretKey".toByteArray(Charsets.UTF_8), date)
         val kRegion = hmacSha256(kDate, region)
-        val kService = hmacSha256(kRegion, SERVICE)
+        val kService = hmacSha256(kRegion, service)
         return hmacSha256(kService, TERMINATOR)
     }
 
@@ -202,19 +210,32 @@ object AwsV4Signer {
     private fun ByteArray.toHex(): String =
         joinToString("") { "%02x".format(it) }
 
-    private fun uriEncode(path: String, preserveSlashes: Boolean): String {
+    internal fun uriEncode(path: String, preserveSlashes: Boolean): String {
         val encoded = StringBuilder()
-        for (ch in path) {
-            when {
-                ch.isLetterOrDigit() || ch == '_' || ch == '-' || ch == '~' || ch == '.' -> encoded.append(ch)
-                ch == '/' && preserveSlashes -> encoded.append(ch)
-                else -> {
-                    val bytes = ch.toString().toByteArray(Charsets.UTF_8)
-                    for (b in bytes) {
-                        encoded.append("%%%02X".format(b))
+        var i = 0
+        while (i < path.length) {
+            val codePoint = path.codePointAt(i)
+            val charCount = Character.charCount(codePoint)
+            if (charCount == 1) {
+                val ch = path[i]
+                when {
+                    ch in 'A'..'Z' || ch in 'a'..'z' || ch in '0'..'9' ||
+                        ch == '_' || ch == '-' || ch == '~' || ch == '.' -> encoded.append(ch)
+                    ch == '/' && preserveSlashes -> encoded.append(ch)
+                    else -> {
+                        val bytes = ch.toString().toByteArray(Charsets.UTF_8)
+                        for (b in bytes) {
+                            encoded.append("%%%02X".format(b))
+                        }
                     }
                 }
+            } else {
+                val bytes = String(Character.toChars(codePoint)).toByteArray(Charsets.UTF_8)
+                for (b in bytes) {
+                    encoded.append("%%%02X".format(b))
+                }
             }
+            i += charCount
         }
         return encoded.toString()
     }

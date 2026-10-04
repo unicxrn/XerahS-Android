@@ -359,4 +359,12 @@ class S3ExplorerViewModel @Inject constructor(
         val config = s3Config ?: return Result.Error(IllegalStateException("S3 not configured"))
         return s3ApiClient.downloadObject(config, objectKey)
     }
+
+    suspend fun downloadObjectToStream(
+        objectKey: String,
+        outputStream: java.io.OutputStream
+    ): Result<Unit> {
+        val config = s3Config ?: return Result.Error(IllegalStateException("S3 not configured"))
+        return s3ApiClient.downloadObjectToStream(config, objectKey, outputStream)
+    }
 }
