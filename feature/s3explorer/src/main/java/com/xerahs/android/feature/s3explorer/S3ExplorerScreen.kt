@@ -7,6 +7,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -56,8 +57,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -65,8 +64,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,6 +104,7 @@ import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.CircleIconButton
 import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
@@ -325,9 +327,7 @@ fun S3ExplorerScreen(
             LumenTopBar(title = "Cloud") {
                 if (uiState.isConfigured) {
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort")
-                            }
+                            CircleIconButton(Icons.Default.Sort, "Sort", { showSortMenu = true })
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
@@ -355,17 +355,14 @@ fun S3ExplorerScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { viewModel.toggleViewMode() }) {
-                            Icon(
-                                if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
+                        CircleIconButton(
+                            icon = if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
                                 else Icons.AutoMirrored.Filled.ViewList,
-                                contentDescription = "Toggle view"
-                            )
-                        }
+                            contentDescription = "Toggle view",
+                            onClick = { viewModel.toggleViewMode() }
+                        )
                         Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                            }
+                            CircleIconButton(Icons.Default.MoreVert, "More options", { showOverflowMenu = true })
                             DropdownMenu(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false }
@@ -490,12 +487,13 @@ fun S3ExplorerScreen(
                             TextButton(onClick = { viewModel.clearSelection() }) {
                                 Text("Clear")
                             }
-                            FilledTonalButton(
+                            OutlinedButton(
                                 onClick = { showDeleteConfirm = true },
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
+                                shape = CircleShape,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                             ) {
                                 Icon(
                                     Icons.Default.Delete,
@@ -535,7 +533,7 @@ fun S3ExplorerScreen(
                                     subtitle = uiState.error
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                FilledTonalButton(onClick = { viewModel.refresh() }) {
+                                OutlinedButton(onClick = { viewModel.refresh() }, shape = CircleShape) {
                                     Text("Retry")
                                 }
                             }
@@ -661,7 +659,9 @@ private fun BreadcrumbBar(
                 shape = MaterialTheme.shapes.small,
                 color = if (pathSegments.isEmpty()) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.clickable { onNavigateToRoot() }
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(role = Role.Button) { onNavigateToRoot() }
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -689,10 +689,13 @@ private fun BreadcrumbBar(
                     shape = MaterialTheme.shapes.small,
                     color = if (index == pathSegments.lastIndex) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.clickable { onNavigateToBreadcrumb(index) }
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(role = Role.Button) { onNavigateToBreadcrumb(index) }
                 ) {
                     Eyebrow(
                         text = segment,
+                        uppercase = false,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -729,7 +732,7 @@ private fun FolderListItem(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = folder.name,
-                style = monoStyle(14),
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -749,19 +752,14 @@ private fun FolderGridItem(
     folder: S3Folder,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    LumenCard(
+        modifier = Modifier.aspectRatio(1f),
+        radius = 16.dp,
+        contentPadding = 8.dp,
+        onClick = onClick
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -774,9 +772,7 @@ private fun FolderGridItem(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = folder.name,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -798,9 +794,12 @@ private fun FileListItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
+                onLongClickLabel = "Select",
+                role = Role.Button
             ),
         radius = 16.dp,
         color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
@@ -882,18 +881,18 @@ private fun FileGridItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Card(
+    LumenCard(
         modifier = Modifier
             .aspectRatio(1f)
+            .clip(RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
+                onLongClickLabel = "Select",
+                role = Role.Button
             ),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        radius = 16.dp,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (obj.isImage) {
@@ -928,9 +927,7 @@ private fun FileGridItem(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = obj.name,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center

@@ -2,7 +2,6 @@ package com.xerahs.android.ui.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -49,9 +51,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.lumen.AccentGlow
-import com.xerahs.android.core.ui.lumen.IconTile
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.hostColor
 
 private data class DestinationOption(
     val label: String,
@@ -234,6 +236,7 @@ private fun DestinationRow(
 ) {
     val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Lumen.tokens.hairline
     val containerColor = if (isSelected) Lumen.tokens.tint else MaterialTheme.colorScheme.surface
+    val hostColor = option.destination.hostColor()
 
     Row(
         modifier = Modifier
@@ -246,16 +249,19 @@ private fun DestinationRow(
                 color = borderColor,
                 shape = RoundedCornerShape(16.dp)
             )
-            .clickable(onClick = onClick)
+            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconTile(
-            icon = option.icon,
-            size = 40.dp,
-            container = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(hostColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(hostColor))
+        }
 
         Column(
             modifier = Modifier
@@ -279,7 +285,7 @@ private fun DestinationRow(
         if (isSelected) {
             Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
+                contentDescription = null,
                 modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.primary
             )

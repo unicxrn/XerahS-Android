@@ -56,11 +56,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
-/** Small uppercase mono label above a section or heading. */
+/** Small mono label above a section or heading, uppercased by default. */
 @Composable
-fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+fun Eyebrow(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    uppercase: Boolean = true,
+) {
     Text(
-        text.uppercase(),
+        if (uppercase) text.uppercase() else text,
         modifier = modifier,
         style = TextStyle(fontFamily = Lumen.tokens.mono, fontSize = 11.sp, letterSpacing = 0.06.em, fontWeight = FontWeight.Medium),
         color = color

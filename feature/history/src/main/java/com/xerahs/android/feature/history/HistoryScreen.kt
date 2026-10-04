@@ -1,6 +1,7 @@
 package com.xerahs.android.feature.history
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,6 +60,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -91,6 +93,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -119,6 +122,7 @@ import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.hostColor
+import com.xerahs.android.core.ui.lumen.monoStyle
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -478,23 +482,24 @@ fun HistoryScreen(
                             .padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        FilledTonalButton(
+                        OutlinedButton(
                             onClick = { showBulkDeleteConfirm = true },
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            shape = CircleShape,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Delete")
                         }
-                        FilledTonalButton(onClick = { showBulkAlbumDialog = true }) {
+                        OutlinedButton(onClick = { showBulkAlbumDialog = true }, shape = CircleShape) {
                             Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Album")
                         }
-                        FilledTonalButton(onClick = { showBulkTagsDialog = true }) {
+                        OutlinedButton(onClick = { showBulkTagsDialog = true }, shape = CircleShape) {
                             Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Tags")
@@ -998,9 +1003,12 @@ private fun HistoryItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(20.dp))
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
+                onLongClickLabel = "Select",
+                role = Role.Button
             ),
         radius = 20.dp,
         color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
@@ -1083,7 +1091,7 @@ private fun HistoryItemCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = item.timestamp.toShortDate(),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = monoStyle(12),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
