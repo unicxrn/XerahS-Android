@@ -18,6 +18,7 @@ import com.xerahs.android.feature.capture.CaptureScreen
 import com.xerahs.android.feature.history.HistoryScreen
 import com.xerahs.android.feature.history.home.HomeScreen
 import com.xerahs.android.feature.history.home.ShareCard
+import com.xerahs.android.feature.history.home.ShareEvent
 import com.xerahs.android.feature.history.home.ShareViewModel
 import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
@@ -196,6 +197,31 @@ fun XerahSNavGraph(
             val item = s.item
             val context = LocalContext.current
             val clipboard = LocalClipboardManager.current
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                vm.events.collect { event ->
+                    when (event) {
+                        is ShareEvent.Deleted -> {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Deleted from ${item?.uploadDestination?.displayName.orEmpty()}",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            navController.popBackStack(Screen.Home.route, inclusive = false)
+                        }
+                        is ShareEvent.OpenUrl -> {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(event.url)))
+                            }
+                        }
+                    }
+                }
+            }
+            androidx.compose.runtime.LaunchedEffect(s.error) {
+                s.error?.let {
+                    android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+                    vm.clearError()
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -222,6 +248,9 @@ fun XerahSNavGraph(
                         onShorten = vm::shorten,
                         shortUrl = s.shortUrl,
                         isShortening = s.isShortening,
+                        canDeleteFromHost = s.canDeleteFromHost,
+                        isDeleting = s.isDeleting,
+                        onDeleteFromHost = vm::deleteFromHost,
                         onDone = { navController.popBackStack() }
                     )
                 } else {

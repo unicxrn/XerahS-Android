@@ -30,13 +30,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.BezelCard
 import com.xerahs.android.core.ui.lumen.CircleIconButton
@@ -83,12 +88,16 @@ fun ShareCard(
     reduceMotion: Boolean = false,
     onShorten: () -> Unit = {},
     shortUrl: String? = null,
-    isShortening: Boolean = false
+    isShortening: Boolean = false,
+    canDeleteFromHost: Boolean = false,
+    isDeleting: Boolean = false,
+    onDeleteFromHost: () -> Unit = {}
 ) {
     val effectiveLink = shortUrl ?: item.url ?: item.filePath
     val context = LocalContext.current
 
     var showQr by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     // Animated scale for the check circle - scale in from 0.6 to 1.0 on first composition.
     val circleScale = remember { Animatable(if (reduceMotion) 1f else 0.6f) }
@@ -230,6 +239,30 @@ fun ShareCard(
                 }
             }
 
+            if (canDeleteFromHost) {
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    shape = CircleShape,
+                    enabled = !isDeleting,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.size(8.dp))
+                    Text("Delete from host")
+                }
+            }
+
             Spacer(Modifier.size(4.dp))
 
             PillCta(text = "Done", onClick = onDone, icon = Icons.Default.Check)
@@ -261,6 +294,28 @@ fun ShareCard(
                 TextButton(onClick = { showQr = false }) {
                     Text("Done")
                 }
+            }
+        )
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete from host?") },
+            text = {
+                Text(
+                    if (item.uploadDestination == UploadDestination.CUSTOM_HTTP) {
+                        "Opens the host's deletion page."
+                    } else {
+                        "This removes the file from ${item.uploadDestination.displayName} and from your history."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
             }
         )
     }
