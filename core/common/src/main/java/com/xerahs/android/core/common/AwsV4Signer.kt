@@ -114,6 +114,69 @@ object AwsV4Signer {
         )
     }
 
+    fun presign(
+        method: String,
+        url: String,
+        accessKeyId: String,
+        secretAccessKey: String,
+        region: String,
+        host: String,
+        expiresSeconds: Long = 3600,
+        now: java.time.Instant = java.time.Instant.now(),
+        service: String = "s3"
+    ): String {
+        val dateTimeFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'", Locale.US)
+            .withZone(java.time.ZoneOffset.UTC)
+        val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd", Locale.US)
+            .withZone(java.time.ZoneOffset.UTC)
+
+        val dateTime = dateTimeFormat.format(now)
+        val date = dateFormat.format(now)
+
+        val scope = "$date/$region/$service/$TERMINATOR"
+        val credential = "$accessKeyId/$scope"
+
+        val uri = java.net.URI(url)
+        val path = uri.path.ifEmpty { "/" }
+
+        val queryParams = sortedMapOf(
+            "X-Amz-Algorithm" to ALGORITHM,
+            "X-Amz-Credential" to credential,
+            "X-Amz-Date" to dateTime,
+            "X-Amz-Expires" to expiresSeconds.toString(),
+            "X-Amz-SignedHeaders" to "host"
+        )
+
+        val canonicalQueryString = queryParams.entries.joinToString("&") {
+            "${uriEncode(it.key, false)}=${uriEncode(it.value, false)}"
+        }
+
+        val canonicalHeaders = "host:$host\n"
+        val signedHeaders = "host"
+        val payloadHash = "UNSIGNED-PAYLOAD"
+
+        val canonicalRequest = listOf(
+            method,
+            uriEncode(path, true),
+            canonicalQueryString,
+            canonicalHeaders,
+            signedHeaders,
+            payloadHash
+        ).joinToString("\n")
+
+        val stringToSign = listOf(
+            ALGORITHM,
+            dateTime,
+            scope,
+            sha256Hex(canonicalRequest.toByteArray(Charsets.UTF_8))
+        ).joinToString("\n")
+
+        val signingKey = deriveSigningKey(secretAccessKey, date, region)
+        val signature = hmacSha256Hex(signingKey, stringToSign)
+
+        return "$url?$canonicalQueryString&X-Amz-Signature=$signature"
+    }
+
     private fun deriveSigningKey(secretKey: String, date: String, region: String): ByteArray {
         val kDate = hmacSha256("AWS4$secretKey".toByteArray(Charsets.UTF_8), date)
         val kRegion = hmacSha256(kDate, region)
