@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.Eyebrow
@@ -61,7 +64,12 @@ fun ToolsScreen(onOpen: (ToolId) -> Unit) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 112.dp),
+                .padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 12.dp,
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 112.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("Tools", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(bottom = 8.dp))
@@ -94,7 +102,7 @@ private fun ToolHero(tool: ToolId, onClick: () -> Unit) {
         Column(
             Modifier.fillMaxWidth().heightIn(min = 150.dp).clip(RoundedCornerShape(25.dp))
                 .background(Brush.linearGradient(listOf(accent, lerp(accent, Color.Black, 0.35f))))
-                .clickable(onClick = onClick).padding(18.dp)
+                .clickable(role = Role.Button, onClick = onClick).padding(18.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Eyebrow("Batch", color = on.copy(alpha = 0.8f), modifier = Modifier.weight(1f))

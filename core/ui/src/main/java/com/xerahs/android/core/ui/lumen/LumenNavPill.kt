@@ -9,7 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
@@ -30,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
@@ -46,7 +46,8 @@ fun LumenNavPill(items: List<NavPillItem>, selectedKey: String?, onSelect: (Stri
             .clip(CircleShape)
             .background(t.navContainer)
             .border(1.dp, t.hairline, CircleShape)
-            .padding(7.dp),
+            .padding(7.dp)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -56,13 +57,13 @@ fun LumenNavPill(items: List<NavPillItem>, selectedKey: String?, onSelect: (Stri
             val fg = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
             Row(
                 Modifier.height(48.dp).widthIn(min = 48.dp).clip(CircleShape).background(bg)
-                    .clickable(role = Role.Tab) { onSelect(item.key) }
-                    .semantics { contentDescription = item.label; selected = on }
+                    .selectable(selected = on, role = Role.Tab, onClick = { onSelect(item.key) })
+                    .then(if (!on) Modifier.semantics { contentDescription = item.label } else Modifier)
                     .padding(horizontal = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(item.icon, null, tint = fg, modifier = Modifier.size(21.dp))
+                Icon(item.icon, contentDescription = null, tint = fg, modifier = Modifier.size(21.dp))
                 AnimatedVisibility(on, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Text(item.label, style = MaterialTheme.typography.labelLarge, color = fg)
                 }

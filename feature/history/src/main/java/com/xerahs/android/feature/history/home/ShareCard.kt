@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.BezelCard
@@ -66,6 +67,7 @@ import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.SuccessBadge
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
+import com.xerahs.android.core.ui.lumen.relativeTime
 
 /**
  * The "Link copied" moment - the emotional payoff after a successful share.
@@ -187,16 +189,18 @@ fun ShareCard(
                     onClick = onShare,
                     modifier = Modifier.weight(1f)
                 )
-                ActionTile(
-                    icon = Icons.AutoMirrored.Filled.OpenInNew,
-                    label = "Open",
-                    onClick = {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(effectiveLink)))
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
+                if (item.url != null) {
+                    ActionTile(
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        label = "Open",
+                        onClick = {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(effectiveLink)))
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 ActionTile(
                     icon = Icons.Default.QrCode2,
                     label = "QR code",
@@ -212,7 +216,7 @@ fun ShareCard(
                 }
                 HorizontalDivider(color = Lumen.tokens.hairline)
                 DetailRow(label = "Size") {
-                    Text(formatFileSize(item.fileSize), style = monoStyle(12))
+                    Text(item.fileSize.formatSize(), style = monoStyle(12))
                 }
                 HorizontalDivider(color = Lumen.tokens.hairline)
                 DetailRow(label = "Time") {
@@ -297,10 +301,3 @@ private fun DetailRow(label: String, value: @Composable () -> Unit) {
         value()
     }
 }
-
-private fun relativeTime(timestamp: Long): String =
-    android.text.format.DateUtils.getRelativeTimeSpanString(
-        timestamp,
-        System.currentTimeMillis(),
-        android.text.format.DateUtils.MINUTE_IN_MILLIS
-    ).toString()

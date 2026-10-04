@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -104,58 +103,60 @@ class MainActivity : FragmentActivity() {
                 oledBlack = oledBlack,
                 customThemeSeedColor = customThemeSeedColor
             ) {
-                val onboardingState = onboardingCompleted
-                if (onboardingState == null) {
-                    // Settings still loading: show only the background. Composing Home here would
-                    // consume a pending share before onboarding takes over.
-                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-                } else Crossfade(
-                    targetState = onboardingState,
-                    animationSpec = tween(500),
-                    label = "onboarding-crossfade"
-                ) { completed ->
-                    if (!completed) {
-                        OnboardingScreen(
-                            onComplete = { mainViewModel.completeOnboarding() },
-                            onSelectDestination = { dest ->
-                                mainViewModel.setDefaultDestination(dest)
-                            }
-                        )
-                    } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
-                        // Lock overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.padding(16.dp))
-                                Text(
-                                    text = "XerahS is locked",
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                                Spacer(modifier = Modifier.padding(8.dp))
-                                OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
-                                    Text("Unlock")
+                // Surface supplies the background and the default content colour for everything
+                // below: the loading placeholder, onboarding, the lock screen and the main app.
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val onboardingState = onboardingCompleted
+                    if (onboardingState == null) {
+                        // Settings still loading: show only the background. Composing Home here would
+                        // consume a pending share before onboarding takes over.
+                        Box(Modifier.fillMaxSize())
+                    } else Crossfade(
+                        targetState = onboardingState,
+                        animationSpec = tween(500),
+                        label = "onboarding-crossfade"
+                    ) { completed ->
+                        if (!completed) {
+                            OnboardingScreen(
+                                onComplete = { mainViewModel.completeOnboarding() },
+                                onSelectDestination = { dest ->
+                                    mainViewModel.setDefaultDestination(dest)
+                                }
+                            )
+                        } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
+                            // Lock overlay
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.padding(16.dp))
+                                    Text(
+                                        text = "XerahS is locked",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                    Spacer(modifier = Modifier.padding(8.dp))
+                                    OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
+                                        Text("Unlock")
+                                    }
                                 }
                             }
+                        } else {
+                            MainScreen(
+                                sharedPaths = pendingSharedPaths,
+                                onSharedHandled = { pendingSharedPaths = null },
+                                launchCapture = pendingLaunchCapture,
+                                onLaunchCaptureHandled = { pendingLaunchCapture = false },
+                                importUri = pendingImportUri,
+                                onImportHandled = { pendingImportUri = null }
+                            )
                         }
-                    } else {
-                        MainScreen(
-                            sharedPaths = pendingSharedPaths,
-                            onSharedHandled = { pendingSharedPaths = null },
-                            launchCapture = pendingLaunchCapture,
-                            onLaunchCaptureHandled = { pendingLaunchCapture = false },
-                            importUri = pendingImportUri,
-                            onImportHandled = { pendingImportUri = null }
-                        )
                     }
                 }
             }
@@ -350,8 +351,7 @@ fun MainScreen(
         Screen.Settings.route
     )
 
-    // Surface supplies the background and the default content colour that the removed Scaffold used to.
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
         XerahSNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
@@ -381,5 +381,5 @@ fun MainScreen(
                 }
             })
         }
-    } }
+    }
 }

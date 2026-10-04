@@ -20,15 +20,6 @@ val InterTightFamily = FontFamily(
     Font(R.font.inter_tight_variable, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
 )
 
-/** Monospace style for URLs, sizes, hashes, dimensions, S3 keys. */
-val MonoMeta = TextStyle(
-    fontFamily = JetBrainsMonoFamily,
-    fontWeight = FontWeight.Normal,
-    fontSize = 13.sp,
-    lineHeight = 18.sp,
-    letterSpacing = 0.sp,
-)
-
 val XerahSTypography = Typography(
     displayLarge = TextStyle(fontFamily = InterTightFamily, fontWeight = FontWeight.Bold, fontSize = 52.sp, lineHeight = 54.sp, letterSpacing = (-0.045).em),
     displayMedium = TextStyle(fontFamily = InterTightFamily, fontWeight = FontWeight.Bold, fontSize = 44.sp, lineHeight = 46.sp, letterSpacing = (-0.045).em),

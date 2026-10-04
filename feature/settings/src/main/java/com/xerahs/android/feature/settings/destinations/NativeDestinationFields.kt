@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -30,9 +33,23 @@ fun NativeDestinationFields(
         NativeDestinationForms.fields(destination).forEach { field ->
             val value = values[field.key] ?: field.default
             if (field.kind == FormField.Kind.SWITCH) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val checked = value.toBoolean()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = checked,
+                            role = Role.Switch,
+                            onValueChange = { onChange(field.key, it.toString()) }
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(field.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    LumenSwitch(checked = value.toBoolean(), onCheckedChange = { onChange(field.key, it.toString()) })
+                    LumenSwitch(
+                        checked = checked,
+                        onCheckedChange = { onChange(field.key, it.toString()) },
+                        modifier = Modifier.clearAndSetSemantics {}
+                    )
                 }
             } else {
                 OutlinedTextField(

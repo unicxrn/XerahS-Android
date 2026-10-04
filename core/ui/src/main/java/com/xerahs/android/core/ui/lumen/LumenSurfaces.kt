@@ -1,9 +1,10 @@
 package com.xerahs.android.core.ui.lumen
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** Surface card: hairline outline plus a soft, accent-tinted shadow. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LumenCard(
     modifier: Modifier = Modifier,
@@ -53,6 +55,8 @@ fun LumenCard(
     color: Color = MaterialTheme.colorScheme.surface,
     elevation: Dp = 14.dp,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val t = Lumen.tokens
@@ -63,7 +67,16 @@ fun LumenCard(
             .clip(shape)
             .background(color)
             .border(1.dp, t.hairline, shape)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null || onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick ?: {},
+                        onLongClick = onLongClick,
+                        onLongClickLabel = onLongClickLabel,
+                        role = Role.Button
+                    )
+                } else Modifier
+            )
             .padding(contentPadding),
         content = content
     )

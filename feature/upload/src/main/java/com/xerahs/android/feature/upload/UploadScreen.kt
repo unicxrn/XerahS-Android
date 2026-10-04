@@ -80,6 +80,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.domain.model.AfterUploadAction
@@ -319,10 +320,10 @@ fun UploadScreen(
             val metadata = remember(imagePath, imagePaths) {
                 if (isBatch) {
                     val totalBytes = imagePaths.sumOf { java.io.File(it).length() }
-                    "${imagePaths.size} files  ·  ${formatFileSize(totalBytes)}"
+                    "${imagePaths.size} files  ·  ${totalBytes.formatSize()}"
                 } else {
                     val file = java.io.File(imagePath)
-                    val sizeText = if (file.exists()) formatFileSize(file.length()) else null
+                    val sizeText = if (file.exists()) file.length().formatSize() else null
                     listOfNotNull(mimeType, sizeText, dimensions).joinToString("  ·  ")
                 }
             }
@@ -790,13 +791,5 @@ private fun DestinationRow(
             Text(text = subtitle, style = monoStyle(11), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         RadioButton(selected = selected, onClick = null)
-    }
-}
-
-private fun formatFileSize(bytes: Long): String {
-    return when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
-        else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
     }
 }

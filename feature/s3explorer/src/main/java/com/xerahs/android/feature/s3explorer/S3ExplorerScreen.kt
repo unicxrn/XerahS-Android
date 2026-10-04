@@ -10,7 +10,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -793,16 +792,12 @@ private fun FileListItem(
     LumenCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                onLongClickLabel = "Select",
-                role = Role.Button
-            ),
+            .padding(horizontal = 16.dp, vertical = 2.dp),
         radius = 16.dp,
-        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onLongClickLabel = "Select"
     ) {
         Row(
             modifier = Modifier
@@ -882,17 +877,12 @@ private fun FileGridItem(
     onLongClick: () -> Unit
 ) {
     LumenCard(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(16.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                onLongClickLabel = "Select",
-                role = Role.Button
-            ),
+        modifier = Modifier.aspectRatio(1f),
         radius = 16.dp,
-        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onLongClickLabel = "Select"
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (obj.isImage) {

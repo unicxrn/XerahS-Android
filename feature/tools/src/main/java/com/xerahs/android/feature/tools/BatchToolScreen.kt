@@ -112,35 +112,44 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            PillCta(
-                text = "Process",
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
-                        val done = mutableListOf<File>(); var saved = 0; var failed = 0
-                        withContext(Dispatchers.Default) {
-                            uris.forEachIndexed { i, uri ->
-                                ensureActive()
-                                runCatching {
-                                    val f = BatchImageProcessor.process(context, uri, options, outDir, i)
-                                    val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
-                                    f to gallerySaved
-                                }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
-                                    .onFailure { failed++ }
-                            }
-                        }
-                        results = done; busy = false
-                        message = buildString {
-                            append("Processed ${done.size}")
-                            if (saved > 0) append(", saved $saved to Pictures/XerahS")
-                            if (failed > 0) append(", $failed failed")
+            val processOnClick: () -> Unit = {
+                scope.launch {
+                    busy = true
+                    val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
+                    val done = mutableListOf<File>(); var saved = 0; var failed = 0
+                    withContext(Dispatchers.Default) {
+                        uris.forEachIndexed { i, uri ->
+                            ensureActive()
+                            runCatching {
+                                val f = BatchImageProcessor.process(context, uri, options, outDir, i)
+                                val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
+                                f to gallerySaved
+                            }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
+                                .onFailure { failed++ }
                         }
                     }
-                },
-                enabled = uris.isNotEmpty() && !busy,
-                loading = busy
-            )
+                    results = done; busy = false
+                    message = buildString {
+                        append("Processed ${done.size}")
+                        if (saved > 0) append(", saved $saved to Pictures/XerahS")
+                        if (failed > 0) append(", $failed failed")
+                    }
+                }
+            }
+
+            if (results.isNotEmpty()) {
+                // Upload is the one accent CTA once results exist; Process drops to an outline.
+                OutlinedButton(onClick = processOnClick, enabled = uris.isNotEmpty() && !busy, shape = CircleShape) {
+                    Text("Process")
+                }
+            } else {
+                PillCta(
+                    text = "Process",
+                    onClick = processOnClick,
+                    enabled = uris.isNotEmpty() && !busy,
+                    loading = busy
+                )
+            }
 
             message?.let { Text(it) }
             if (results.isNotEmpty()) {

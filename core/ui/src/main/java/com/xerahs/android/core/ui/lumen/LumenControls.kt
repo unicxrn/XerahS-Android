@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,6 +78,15 @@ fun Eyebrow(
 fun monoStyle(size: Int = 13): TextStyle =
     TextStyle(fontFamily = Lumen.tokens.mono, fontSize = size.sp, fontWeight = FontWeight.Medium)
 
+/** Relative time string ("Just now" under a minute, otherwise e.g. "5 min. ago"). */
+fun relativeTime(timestamp: Long): String =
+    if (System.currentTimeMillis() - timestamp < android.text.format.DateUtils.MINUTE_IN_MILLIS) "Just now"
+    else android.text.format.DateUtils.getRelativeTimeSpanString(
+        timestamp,
+        System.currentTimeMillis(),
+        android.text.format.DateUtils.MINUTE_IN_MILLIS
+    ).toString()
+
 /** Full-width accent pill with the trailing icon nested in its own circle. Presses scale to 0.98. */
 @Composable
 fun PillCta(
@@ -122,7 +132,7 @@ fun PillCta(
 @Composable
 fun HostChip(label: String, color: Color, modifier: Modifier = Modifier) {
     Row(
-        modifier.height(24.dp).clip(CircleShape).background(color.copy(alpha = 0.14f)).padding(start = 7.dp, end = 9.dp),
+        modifier.heightIn(min = 24.dp).clip(CircleShape).background(color.copy(alpha = 0.14f)).padding(start = 7.dp, end = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -133,7 +143,13 @@ fun HostChip(label: String, color: Color, modifier: Modifier = Modifier) {
 
 /** Accent switch: 50x30 track, white knob that springs across. */
 @Composable
-fun LumenSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun LumenSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    contentDescription: String? = null,
+) {
     val track by animateColorAsState(if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest, label = "switch-track")
     val x by animateDpAsState(if (checked) 20.dp else 0.dp, spring(dampingRatio = 0.7f), label = "switch-knob")
     Box(
@@ -144,6 +160,10 @@ fun LumenSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: 
             .background(if (enabled) track else track.copy(alpha = 0.4f))
             .border(1.dp, Lumen.tokens.hairline, CircleShape)
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+            .then(
+                if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription }
+                else Modifier
+            )
             .padding(3.dp)
     ) {
         Box(Modifier.offset(x = x).size(24.dp).clip(CircleShape).background(Color.White))

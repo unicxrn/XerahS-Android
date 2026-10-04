@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xerahs.android.core.ui.lumen.BezelCard
 import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.IconTile
 import com.xerahs.android.core.ui.lumen.LumenCard
@@ -123,14 +122,6 @@ fun StatusBanner(
             }
         }
     }
-}
-
-@Composable
-fun GradientBorderCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    BezelCard(modifier = modifier.fillMaxWidth(), content = content)
 }
 
 @Composable

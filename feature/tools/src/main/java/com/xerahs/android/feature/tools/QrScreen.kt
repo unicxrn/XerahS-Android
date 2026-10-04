@@ -67,7 +67,15 @@ fun QrScreen(onBack: () -> Unit) {
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            PillCta(text = "Choose image", onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
+            val chooseOnClick: () -> Unit = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            if (result != null) {
+                // Copy is the one accent CTA once a result exists; Choose image drops to an outline.
+                OutlinedButton(onClick = chooseOnClick, shape = CircleShape) {
+                    Text("Choose image")
+                }
+            } else {
+                PillCta(text = "Choose image", onClick = chooseOnClick)
+            }
             if (notFound) Text("No QR code found", color = MaterialTheme.colorScheme.error)
             result?.let { text ->
                 LumenCard(contentPadding = 16.dp) {

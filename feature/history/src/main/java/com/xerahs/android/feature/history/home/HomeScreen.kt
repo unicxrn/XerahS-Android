@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -86,6 +88,7 @@ import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
+import com.xerahs.android.core.ui.lumen.relativeTime
 import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -120,7 +123,9 @@ fun HomeScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 112.dp)
+            contentPadding = PaddingValues(
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 112.dp
+            )
         ) {
             item(key = "header") {
                 Row(
@@ -164,7 +169,7 @@ fun HomeScreen(
                             .fillMaxSize()
                             .clip(RoundedCornerShape(26.dp))
                             .background(MaterialTheme.colorScheme.primary)
-                            .clickable(onClick = onCreate)
+                            .clickable(role = Role.Button, onClick = onCreate)
                             .padding(16.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxSize()) {
@@ -502,11 +507,3 @@ private fun TimelineRow(
         )
     }
 }
-
-private fun relativeTime(timestamp: Long): String =
-    if (System.currentTimeMillis() - timestamp < android.text.format.DateUtils.MINUTE_IN_MILLIS) "Just now"
-    else android.text.format.DateUtils.getRelativeTimeSpanString(
-        timestamp,
-        System.currentTimeMillis(),
-        android.text.format.DateUtils.MINUTE_IN_MILLIS
-    ).toString()
