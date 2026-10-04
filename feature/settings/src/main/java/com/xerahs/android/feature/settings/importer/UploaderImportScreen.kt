@@ -11,19 +11,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +49,8 @@ import com.xerahs.android.core.common.sxcu.SxcuPreset
 import com.xerahs.android.core.common.sxcu.SxcuPresets
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.ui.SettingsGroupCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,6 +101,7 @@ fun UploaderImportScreen(
                             onValueChange = { answers[f.key] = it },
                             label = { Text(f.label) },
                             singleLine = true,
+                            shape = RoundedCornerShape(18.dp),
                             visualTransformation = if (f.secret) PasswordVisualTransformation() else VisualTransformation.None,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -129,14 +130,7 @@ fun UploaderImportScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Import uploader") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-                }
-            )
-        }
+        topBar = { LumenTopBar(title = "Import uploader", onBack = onBack) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -149,10 +143,14 @@ fun UploaderImportScreen(
             when (val s = state) {
                 UploaderImportState.Idle -> {
                     Text("Import a ShareX custom uploader (.sxcu) or a XerahS destination config (.xsdc). Each one becomes an upload profile.")
+                    PillCta(
+                        text = "Choose file",
+                        onClick = { picker.launch(arrayOf("*/*")) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Choose file") }
-                        OutlinedButton(onClick = { viewModel.loadText(clipboard.getText()?.text) }) { Text("Paste .sxcu") }
-                        OutlinedButton(onClick = { pickPreset = true }) { Text("Add from preset") }
+                        OutlinedButton(onClick = { viewModel.loadText(clipboard.getText()?.text) }, shape = CircleShape) { Text("Paste .sxcu") }
+                        OutlinedButton(onClick = { pickPreset = true }, shape = CircleShape) { Text("Add from preset") }
                     }
                 }
                 UploaderImportState.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -166,16 +164,19 @@ fun UploaderImportScreen(
                         onValueChange = { passphrase = it },
                         label = { Text("Passphrase") },
                         singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         isError = s.error != null,
                         supportingText = s.error?.let { { Text(it) } },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Button(
+                    PillCta(
+                        text = "Decrypt",
                         enabled = passphrase.isNotEmpty(),
-                        onClick = { viewModel.submitPassphrase(passphrase.toCharArray()); passphrase = "" }
-                    ) { Text("Decrypt") }
+                        onClick = { viewModel.submitPassphrase(passphrase.toCharArray()); passphrase = "" },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
                 is UploaderImportState.Preview -> {
                     s.items.forEachIndexed { index, item ->
@@ -200,18 +201,20 @@ fun UploaderImportScreen(
                     if (s.skipped.isNotEmpty()) {
                         Text("Skipped: ${s.skipped.joinToString()}", style = MaterialTheme.typography.bodySmall)
                     }
-                    Button(
+                    PillCta(
+                        text = "Import",
                         enabled = s.items.any { it.selected },
-                        onClick = { if (viewModel.needsInsecureConfirmation()) confirmInsecure = true else viewModel.import() }
-                    ) { Text("Import") }
+                        onClick = { if (viewModel.needsInsecureConfirmation()) confirmInsecure = true else viewModel.import() },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
                 is UploaderImportState.Done -> {
                     Text(if (s.count == 1) "Imported 1 profile." else "Imported ${s.count} profiles.")
-                    Button(onClick = onDone) { Text("Done") }
+                    PillCta(text = "Done", onClick = onDone, modifier = Modifier.fillMaxWidth())
                 }
                 is UploaderImportState.Error -> {
                     Text(s.message, color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(onClick = viewModel::reset) { Text("Try another file") }
+                    OutlinedButton(onClick = viewModel::reset, shape = CircleShape) { Text("Try another file") }
                 }
             }
         }

@@ -8,12 +8,12 @@ import com.xerahs.android.core.domain.repository.OpenInBrowserException
 import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,7 +21,8 @@ data class HomeUiState(
     val sections: List<TimelineSection> = emptyList(),
     val itemsById: Map<String, HistoryItem> = emptyMap(),
     val query: String = "",
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val todayCount: Int = 0
 )
 
 sealed interface HomeMessage {
@@ -38,8 +39,8 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    private val _messages = MutableSharedFlow<HomeMessage>(extraBufferCapacity = 1)
-    val messages: SharedFlow<HomeMessage> = _messages.asSharedFlow()
+    private val _messages = Channel<HomeMessage>(Channel.BUFFERED)
+    val messages: Flow<HomeMessage> = _messages.receiveAsFlow()
 
     /** All loaded items, newest-first irrelevant - grouping re-sorts. Kept for in-memory filtering. */
     private var allItems: List<HistoryItem> = emptyList()
@@ -73,9 +74,15 @@ class HomeViewModel @Inject constructor(
             visible.map { StampedId(it.id, it.timestamp) },
             System.currentTimeMillis()
         )
+        val startOfDay = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val todayCount = allItems.count { it.timestamp >= startOfDay }
         _uiState.value = _uiState.value.copy(
             sections = sections,
-            itemsById = visible.associateBy { it.id }
+            itemsById = visible.associateBy { it.id },
+            todayCount = todayCount
         )
     }
 
@@ -87,15 +94,15 @@ class HomeViewModel @Inject constructor(
                 onSuccess = {
                     try {
                         historyRepository.deleteHistoryItem(item.id)
-                        _messages.emit(HomeMessage.Toast("Deleted from ${item.uploadDestination.displayName}"))
+                        _messages.send(HomeMessage.Toast("Deleted from ${item.uploadDestination.displayName}"))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        _messages.emit(HomeMessage.Toast("Deleted from host, but couldn't update history: ${e.message ?: "unknown error"}"))
+                        _messages.send(HomeMessage.Toast("Deleted from host, but couldn't update history: ${e.message ?: "unknown error"}"))
                     }
                 },
                 onFailure = { e ->
-                    _messages.emit(
+                    _messages.send(
                         if (e is OpenInBrowserException) HomeMessage.OpenUrl(e.url)
                         else HomeMessage.Toast("Couldn't delete: ${e.message ?: "unknown error"}")
                     )

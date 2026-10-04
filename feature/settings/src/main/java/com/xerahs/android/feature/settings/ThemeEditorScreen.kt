@@ -1,10 +1,6 @@
 package com.xerahs.android.feature.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,27 +10,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -44,10 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.domain.model.CustomTheme
+import com.xerahs.android.core.ui.lumen.BezelCard
+import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 
 private val presetColors = listOf(
     0xFFE91E63.toInt(), // Pink
@@ -97,19 +91,132 @@ fun ThemeEditorScreen(
 
     val seedColor = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 0.8f))
 
+    val sliderColors = SliderDefaults.colors(
+        thumbColor = MaterialTheme.colorScheme.primary,
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        inactiveTrackColor = Lumen.tokens.tint
+    )
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (existingTheme != null) "Edit Theme" else "New Theme") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        topBar = { LumenTopBar("Custom theme", onBack = onBack) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Theme Name") },
+                singleLine = true,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Eyebrow("Preset colors")
+                FlowRow(
+                    modifier = Modifier.selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    presetColors.forEachIndexed { index, color ->
+                        val isSelected = seedColor == color
+                        AccentSwatch(
+                            color = Color(color),
+                            selected = isSelected,
+                            contentDescription = "Preset color ${index + 1}",
+                            onClick = {
+                                val hsv = floatArrayOf(0f, 0f, 0f)
+                                android.graphics.Color.colorToHSV(color, hsv)
+                                hue = hsv[0]
+                                saturation = hsv[1]
+                            }
+                        )
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Eyebrow("Hue · ${hue.toInt()}°")
+                Slider(
+                    value = hue,
+                    onValueChange = { hue = it },
+                    valueRange = 0f..360f,
+                    colors = sliderColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Eyebrow("Saturation · ${(saturation * 100).toInt()}%")
+                Slider(
+                    value = saturation,
+                    onValueChange = { saturation = it },
+                    valueRange = 0.1f..1f,
+                    colors = sliderColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            BezelCard {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    Eyebrow("Preview")
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ColorPreviewChip("Primary", Color(seedColor), Modifier.weight(1f))
+                        ColorPreviewChip(
+                            "Secondary",
+                            Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 30f) % 360f, saturation * 0.5f, 0.7f))),
+                            Modifier.weight(1f)
+                        )
+                        ColorPreviewChip(
+                            "Tertiary",
+                            Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 60f) % 360f, saturation * 0.5f, 0.7f))),
+                            Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Sample card
+                    LumenCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = 16.dp,
+                        color = Color(
+                            android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation * 0.05f, 0.94f))
+                        )
+                    ) {
+                        Text(
+                            text = "Sample Card",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color(seedColor)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This is how content will look with your custom theme.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            // The card's container is always a near-white pastel, regardless
+                            // of app theme, so the body text needs an explicit dark colour
+                            // rather than onSurface (which can be near-white in dark mode).
+                            color = Color.Black.copy(alpha = 0.72f)
+                        )
+                    }
+                }
+            }
+
+            PillCta(
+                text = "Save theme",
+                icon = Icons.Default.Check,
                 onClick = {
                     val theme = CustomTheme(
                         id = existingTheme?.id ?: generateId(),
@@ -117,138 +224,8 @@ fun ThemeEditorScreen(
                         seedColor = seedColor
                     )
                     onSave(theme)
-                },
-                icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                text = { Text("Save") }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Theme Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Preset Colors", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                presetColors.forEach { color ->
-                    val isSelected = seedColor == color
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .then(
-                                if (isSelected) Modifier.border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.outline,
-                                    CircleShape
-                                ) else Modifier
-                            )
-                            .padding(2.dp)
-                            .clickable {
-                                val hsv = floatArrayOf(0f, 0f, 0f)
-                                android.graphics.Color.colorToHSV(color, hsv)
-                                hue = hsv[0]
-                                saturation = hsv[1]
-                            }
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(36.dp),
-                            shape = CircleShape,
-                            color = Color(color)
-                        ) {}
-                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Hue: ${hue.toInt()}", style = MaterialTheme.typography.titleSmall)
-            Slider(
-                value = hue,
-                onValueChange = { hue = it },
-                valueRange = 0f..360f,
-                modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                "Saturation: ${(saturation * 100).toInt()}%",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Slider(
-                value = saturation,
-                onValueChange = { saturation = it },
-                valueRange = 0.1f..1f,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Preview", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Color preview strip
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ColorPreviewChip("Primary", Color(seedColor), Modifier.weight(1f))
-                ColorPreviewChip(
-                    "Secondary",
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 30f) % 360f, saturation * 0.5f, 0.7f))),
-                    Modifier.weight(1f)
-                )
-                ColorPreviewChip(
-                    "Tertiary",
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 60f) % 360f, saturation * 0.5f, 0.7f))),
-                    Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Sample card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(
-                        android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation * 0.05f, 0.94f))
-                    )
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Sample Card",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(seedColor)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "This is how content will look with your custom theme.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }

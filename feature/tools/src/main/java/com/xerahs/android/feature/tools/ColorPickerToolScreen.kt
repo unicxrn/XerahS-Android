@@ -20,17 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,12 +42,15 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.image.ColorFormat
 import com.xerahs.android.core.common.image.FitMapping
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,29 +81,27 @@ fun ColorPickerToolScreen(onBack: () -> Unit, viewModel: ColorPickerToolViewMode
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Color picker") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-        })
-    }) { padding ->
+    Scaffold(topBar = { LumenTopBar(title = "Color picker", onBack = onBack) }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Choose image") }
+            PillCta(text = "Choose image", onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             bitmap?.let { bmp ->
-                Box(
-                    Modifier.fillMaxWidth().height(360.dp)
-                        .onSizeChanged { viewSize = it }
-                        .pointerInput(bmp) {
-                            detectTapGestures { offset ->
-                                FitMapping.toBitmap(offset.x, offset.y, viewSize.width, viewSize.height, bmp.width, bmp.height)
-                                    ?.let { (x, y) -> picked = bmp.getPixel(x, y) or 0xFF000000.toInt(); viewModel.remember(picked!!) }
+                LumenCard(contentPadding = 0.dp) {
+                    Box(
+                        Modifier.fillMaxWidth().height(360.dp)
+                            .onSizeChanged { viewSize = it }
+                            .pointerInput(bmp) {
+                                detectTapGestures { offset ->
+                                    FitMapping.toBitmap(offset.x, offset.y, viewSize.width, viewSize.height, bmp.width, bmp.height)
+                                        ?.let { (x, y) -> picked = bmp.getPixel(x, y) or 0xFF000000.toInt(); viewModel.remember(picked!!) }
+                                }
                             }
-                        }
-                ) {
-                    Image(bmp.asImageBitmap(), contentDescription = "Image", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    ) {
+                        Image(bmp.asImageBitmap(), contentDescription = "Image", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    }
                 }
                 Text("Tap the image to pick a colour", style = MaterialTheme.typography.bodySmall)
             }
@@ -114,8 +109,8 @@ fun ColorPickerToolScreen(onBack: () -> Unit, viewModel: ColorPickerToolViewMode
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(48.dp).background(Color(c), MaterialTheme.shapes.small))
                     Column(Modifier.weight(1f)) {
-                        Text(ColorFormat.hex(c), fontFamily = FontFamily.Monospace)
-                        Text(ColorFormat.rgb(c), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                        Text(ColorFormat.hex(c), style = monoStyle(13))
+                        Text(ColorFormat.rgb(c), style = monoStyle(13), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { clipboard.setText(AnnotatedString(ColorFormat.hex(c))) }) { Text("Copy HEX") }
                 }

@@ -14,10 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.FileHasher
 import com.xerahs.android.core.common.FileHashes
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -73,30 +72,27 @@ fun HashScreen(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Hash checker") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-        })
-    }) { padding ->
+    Scaffold(topBar = { LumenTopBar(title = "Hash checker", onBack = onBack) }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Choose file") }
-            if (busy) CircularProgressIndicator()
+            PillCta(text = "Choose file", onClick = { picker.launch(arrayOf("*/*")) }, loading = busy)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             fileName?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
             hashes?.let { h ->
                 listOf("MD5" to h.md5, "SHA-1" to h.sha1, "SHA-256" to h.sha256).forEach { (label, value) ->
                     val matched = compare.isNotBlank() && FileHasher.matches(compare, value)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(if (matched) "$label (match)" else label, style = MaterialTheme.typography.labelLarge,
-                                color = if (matched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                            SelectionContainer { Text(value, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
-                        }
-                        IconButton(onClick = { clipboard.setText(AnnotatedString(value)) }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy $label")
+                    LumenCard(contentPadding = 16.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(if (matched) "$label (match)" else label, style = MaterialTheme.typography.labelLarge,
+                                    color = if (matched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                SelectionContainer { Text(value, style = monoStyle(13)) }
+                            }
+                            IconButton(onClick = { clipboard.setText(AnnotatedString(value)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy $label")
+                            }
                         }
                     }
                 }

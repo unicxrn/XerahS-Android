@@ -11,20 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.image.Watermark
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -58,17 +56,17 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
         uris = picked
     }
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Resize & convert") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-        })
-    }) { padding ->
+    Scaffold(topBar = { LumenTopBar(title = "Resize & convert", onBack = onBack) }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                Text("Choose images")
+            if (uris.isEmpty()) {
+                PillCta(text = "Choose images", onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
+            } else {
+                OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, shape = CircleShape) {
+                    Text("Choose images")
+                }
             }
             if (uris.isNotEmpty()) Text("${uris.size} images selected")
 
@@ -114,37 +112,48 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Button(
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
-                        val done = mutableListOf<File>(); var saved = 0; var failed = 0
-                        withContext(Dispatchers.Default) {
-                            uris.forEachIndexed { i, uri ->
-                                ensureActive()
-                                runCatching {
-                                    val f = BatchImageProcessor.process(context, uri, options, outDir, i)
-                                    val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
-                                    f to gallerySaved
-                                }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
-                                    .onFailure { failed++ }
-                            }
-                        }
-                        results = done; busy = false
-                        message = buildString {
-                            append("Processed ${done.size}")
-                            if (saved > 0) append(", saved $saved to Pictures/XerahS")
-                            if (failed > 0) append(", $failed failed")
+            val processOnClick: () -> Unit = {
+                scope.launch {
+                    busy = true
+                    val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
+                    val done = mutableListOf<File>(); var saved = 0; var failed = 0
+                    withContext(Dispatchers.Default) {
+                        uris.forEachIndexed { i, uri ->
+                            ensureActive()
+                            runCatching {
+                                val f = BatchImageProcessor.process(context, uri, options, outDir, i)
+                                val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
+                                f to gallerySaved
+                            }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
+                                .onFailure { failed++ }
                         }
                     }
-                },
-                enabled = uris.isNotEmpty() && !busy
-            ) { Text("Process") }
+                    results = done; busy = false
+                    message = buildString {
+                        append("Processed ${done.size}")
+                        if (saved > 0) append(", saved $saved to Pictures/XerahS")
+                        if (failed > 0) append(", $failed failed")
+                    }
+                }
+            }
+
+            if (results.isNotEmpty()) {
+                // Upload is the one accent CTA once results exist; Process drops to an outline.
+                OutlinedButton(onClick = processOnClick, enabled = uris.isNotEmpty() && !busy, shape = CircleShape) {
+                    Text("Process")
+                }
+            } else {
+                PillCta(
+                    text = "Process",
+                    onClick = processOnClick,
+                    enabled = uris.isNotEmpty() && !busy,
+                    loading = busy
+                )
+            }
 
             message?.let { Text(it) }
             if (results.isNotEmpty()) {
-                Button(onClick = { onUpload(results.map { it.absolutePath }) }) { Text("Upload") }
+                PillCta(text = "Upload", onClick = { onUpload(results.map { it.absolutePath }) })
             }
         }
     }

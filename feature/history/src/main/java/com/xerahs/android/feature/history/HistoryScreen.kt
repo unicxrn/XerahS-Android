@@ -1,10 +1,10 @@
 package com.xerahs.android.feature.history
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -28,9 +28,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -48,19 +48,18 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -72,7 +71,6 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -116,6 +114,13 @@ import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.FileTypeTile
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.CircleIconButton
+import com.xerahs.android.core.ui.lumen.HostChip
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.hostColor
+import com.xerahs.android.core.ui.lumen.monoStyle
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -444,39 +449,23 @@ fun HistoryScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (uiState.isSelectionMode) {
-                TopAppBar(
-                    title = { Text("${uiState.selectedIds.size} selected") },
-                    navigationIcon = {
-                        IconButton(onClick = { viewModel.toggleSelectionMode() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Exit selection")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { viewModel.selectAll() }) {
-                            Icon(Icons.Default.SelectAll, contentDescription = "Select All")
-                        }
-                        IconButton(
-                            onClick = { viewModel.clearSelection() },
-                            enabled = uiState.selectedIds.isNotEmpty()
-                        ) {
-                            Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Deselect All")
-                        }
-                    }
-                )
+                LumenTopBar(
+                    title = "${uiState.selectedIds.size} selected",
+                    onBack = { viewModel.toggleSelectionMode() },
+                    backLabel = "Exit selection"
+                ) {
+                    CircleIconButton(Icons.Default.SelectAll, "Select All", { viewModel.selectAll() })
+                    CircleIconButton(
+                        Icons.Default.CheckBoxOutlineBlank,
+                        "Deselect All",
+                        { viewModel.clearSelection() },
+                        enabled = uiState.selectedIds.isNotEmpty()
+                    )
+                }
             } else {
-                TopAppBar(
-                    title = { Text("History") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showClearConfirmDialog = true }) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = "Clear History")
-                        }
-                    }
-                )
+                LumenTopBar(title = "History", onBack = onBack) {
+                    CircleIconButton(Icons.Default.DeleteSweep, "Clear History", { showClearConfirmDialog = true })
+                }
             }
         },
         bottomBar = {
@@ -491,23 +480,24 @@ fun HistoryScreen(
                             .padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        FilledTonalButton(
+                        OutlinedButton(
                             onClick = { showBulkDeleteConfirm = true },
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            shape = CircleShape,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Delete")
                         }
-                        FilledTonalButton(onClick = { showBulkAlbumDialog = true }) {
+                        OutlinedButton(onClick = { showBulkAlbumDialog = true }, shape = CircleShape) {
                             Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Album")
                         }
-                        FilledTonalButton(onClick = { showBulkTagsDialog = true }) {
+                        OutlinedButton(onClick = { showBulkTagsDialog = true }, shape = CircleShape) {
                             Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Tags")
@@ -532,7 +522,7 @@ fun HistoryScreen(
                 placeholder = { Text("Search history...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
-                shape = MaterialTheme.shapes.large
+                shape = CircleShape
             )
 
             // Stats summary row
@@ -575,6 +565,8 @@ fun HistoryScreen(
                         selected = true,
                         onClick = { viewModel.setFilter(null) },
                         label = { Text(uiState.filterDestination!!.displayName) },
+                        shape = CircleShape,
+                        colors = lumenFilterChipColors(),
                         trailingIcon = {
                             Icon(
                                 Icons.Default.Delete,
@@ -590,6 +582,8 @@ fun HistoryScreen(
                         selected = true,
                         onClick = { viewModel.setAlbumFilter(null) },
                         label = { Text(albumName) },
+                        shape = CircleShape,
+                        colors = lumenFilterChipColors(),
                         trailingIcon = {
                             Icon(
                                 Icons.Default.Delete,
@@ -605,6 +599,8 @@ fun HistoryScreen(
                         selected = true,
                         onClick = { viewModel.toggleTagFilter(tagId) },
                         label = { Text(tagName) },
+                        shape = CircleShape,
+                        colors = lumenFilterChipColors(),
                         trailingIcon = {
                             Icon(
                                 Icons.Default.Delete,
@@ -619,6 +615,8 @@ fun HistoryScreen(
                         selected = true,
                         onClick = { viewModel.setDateFilter(DateFilter.ALL) },
                         label = { Text(uiState.dateFilter.displayName) },
+                        shape = CircleShape,
+                        colors = lumenFilterChipColors(),
                         trailingIcon = {
                             Icon(
                                 Icons.Default.Delete,
@@ -641,6 +639,16 @@ fun HistoryScreen(
                         label = {
                             Text(if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters")
                         },
+                        shape = CircleShape,
+                        colors = lumenFilterChipColors(),
+                        border = if (activeFilterCount == 0) {
+                            FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = false,
+                                borderColor = Lumen.tokens.hairline,
+                                borderWidth = 1.dp
+                            )
+                        } else null,
                         leadingIcon = {
                             Icon(
                                 Icons.Default.FilterList,
@@ -972,26 +980,11 @@ private fun SwipeToDeleteItem(
     }
 }
 
-// Destination brand colors
-private val ImgurAccent = Color(0xFF1BB76E)
-private val S3Accent = Color(0xFFFF9900)
-private val FtpAccent = Color(0xFF2196F3)
-private val SftpAccent = Color(0xFF607D8B)
-private val LocalAccent = Color(0xFF9E9E9E)
-
-private fun destinationAccentColor(destination: UploadDestination): Color {
-    return when (destination) {
-        UploadDestination.IMGUR -> ImgurAccent
-        UploadDestination.S3 -> S3Accent
-        UploadDestination.FTP -> FtpAccent
-        UploadDestination.SFTP -> SftpAccent
-        UploadDestination.CUSTOM_HTTP -> Color(0xFFFF9800)
-        UploadDestination.LOCAL -> LocalAccent
-        UploadDestination.NEXTCLOUD -> Color(0xFF0082C9)
-        UploadDestination.IMMICH -> Color(0xFF4250AF)
-        UploadDestination.GITHUB_GIST -> Color(0xFF6E7681)
-    }
-}
+@Composable
+private fun lumenFilterChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = Lumen.tokens.tint,
+    selectedLabelColor = Lumen.tokens.ink
+)
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -1004,122 +997,97 @@ private fun HistoryItemCard(
     onShare: () -> Unit,
     isSelected: Boolean = false
 ) {
-    Card(
+    LumenCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        shape = MaterialTheme.shapes.large,
-        colors = if (isSelected) CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        ) else CardDefaults.cardColors()
+            .padding(horizontal = 16.dp),
+        radius = 20.dp,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onLongClickLabel = "Select"
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            // Accent strip
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(88.dp)
-                    .background(destinationAccentColor(item.uploadDestination))
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                // Selection checkbox or thumbnail
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier.size(64.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Checkbox(
-                            checked = true,
-                            onCheckedChange = { onClick() }
-                        )
-                    }
-                } else if (item.thumbnailPath != null) {
-                    AsyncImage(
-                        model = item.thumbnailPath,
-                        contentDescription = "Thumbnail",
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
+            // Selection checkbox or thumbnail
+            if (isSelected) {
+                Box(
+                    modifier = Modifier.size(64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Checkbox(
+                        checked = true,
+                        onCheckedChange = { onClick() }
                     )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
+                }
+            } else if (item.thumbnailPath != null) {
+                AsyncImage(
+                    model = item.thumbnailPath,
+                    contentDescription = "Thumbnail",
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = item.fileName,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    HostChip(item.uploadDestination.displayName, item.uploadDestination.hostColor())
+                }
+
+                // Album badge
+                if (albumName != null) {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.padding(top = 2.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        Text(
+                            text = albumName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = item.fileName,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        // Destination badge
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                text = item.uploadDestination.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    // Album badge
-                    if (albumName != null) {
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            modifier = Modifier.padding(top = 2.dp)
-                        ) {
-                            Text(
-                                text = albumName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = item.timestamp.toShortDate(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = item.timestamp.toShortDate(),
+                    style = monoStyle(12),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                     // Tag chips
                     if (item.tags.isNotEmpty()) {
@@ -1173,7 +1141,6 @@ private fun HistoryItemCard(
                     }
                 }
             }
-        }
     }
 }
 

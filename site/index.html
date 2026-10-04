@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>XerahS for Android</title>
+  <meta name="description" content="A ShareX-style uploader for Android. Pick a file, mark it up, send it to Imgur, S3, Nextcloud or your own server, and the link is already on your clipboard.">
+  <meta name="theme-color" content="#07070a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="XerahS for Android">
+  <meta property="og:description" content="Capture. Upload. Share in a tap. A free, open source uploader for Android.">
+  <meta property="og:image" content="assets/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="assets/fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav" data-nav>
+    <a class="nav__brand" href="#top" aria-label="XerahS home">
+      <img src="assets/img/logo.svg" width="30" height="30" alt="">
+      <span>XerahS</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#themes">Themes</a>
+      <a href="#changelog">Changelog</a>
+    </nav>
+    <a class="nav__cta" href="#download">Download</a>
+    <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" data-menu-toggle>
+      <span></span><span></span>
+    </button>
+  </header>
+
+  <div class="menu" data-menu hidden>
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#themes">Themes</a>
+    <a href="#changelog">Changelog</a>
+    <a href="#download">Download</a>
+  </div>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero__glow" aria-hidden="true"></div>
+      <div class="hero__grid" aria-hidden="true"></div>
+
+      <div class="wrap hero__inner">
+        <div class="hero__copy">
+          <a class="tag" href="#changelog" data-reveal>
+            <span class="tag__dot"></span>
+            <span data-latest-version>v0.6.0</span> is out
+          </a>
+          <h1 class="hero__title" data-reveal>
+            Capture. Upload.<br><span class="accent">Share in a tap.</span>
+          </h1>
+          <p class="hero__lede" data-reveal>
+            XerahS is a ShareX-style uploader for Android. Pick a screenshot or any other file, mark it up if you want, and the link is on your clipboard before you've switched apps.
+          </p>
+          <div class="hero__actions" data-reveal>
+            <a class="btn btn--primary" href="https://github.com/unicxrn/XerahS-Android/releases/latest" data-apk-link>
+              Download APK
+              <span class="btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14"/></svg></span>
+            </a>
+            <a class="btn btn--ghost" href="https://github.com/unicxrn/XerahS-Android">
+              Source on GitHub
+              <span class="btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></span>
+            </a>
+          </div>
+          <p class="hero__meta" data-reveal>
+            <span>Android 8.0+</span><span>Free and open source</span><span data-apk-size>No account needed</span>
+          </p>
+        </div>
+
+        <div class="hero__stage" data-tilt>
+          <svg class="hero__corners" viewBox="0 0 400 760" aria-hidden="true">
+            <path d="M8 96V40a32 32 0 0 1 32-32h56"/>
+            <path d="M304 8h56a32 32 0 0 1 32 32v56"/>
+            <path d="M392 664v56a32 32 0 0 1-32 32h-56"/>
+            <path d="M96 752H40a32 32 0 0 1-32-32v-56"/>
+          </svg>
+          <div class="phone phone--hero">
+            <video class="phone__screen" autoplay muted loop playsinline preload="metadata" poster="assets/video/flow-poster.webp" aria-label="Recording of XerahS: the home screen, then a finished upload with its link">
+              <source src="assets/video/flow.webm" type="video/webm">
+              <source src="assets/video/flow.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="float float--toast" aria-hidden="true">
+            <span class="float__check"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+            Link copied
+          </div>
+          <div class="float float--chip float--imgur" aria-hidden="true"><i></i>Imgur</div>
+          <div class="float float--chip float--s3" aria-hidden="true"><i></i>Amazon S3</div>
+          <div class="float float--chip float--nc" aria-hidden="true"><i></i>Nextcloud</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hosts" aria-label="Supported destinations">
+      <p class="hosts__label">Sends files to</p>
+      <div class="marquee">
+        <div class="marquee__track">
+          <span style="--c:#1bb76e">Imgur</span>
+          <span style="--c:#ff9900">Amazon S3</span>
+          <span style="--c:#f38020">Cloudflare R2</span>
+          <span style="--c:#c72e49">MinIO</span>
+          <span style="--c:#0082c9">Nextcloud</span>
+          <span style="--c:#4250af">Immich</span>
+          <span style="--c:#6e7681">GitHub Gist</span>
+          <span style="--c:#2e86de">FTP and FTPS</span>
+          <span style="--c:#6b7c93">SFTP</span>
+          <span style="--c:#b8f23a">ShareX custom uploaders</span>
+          <span style="--c:#8e8e93">Your phone</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="how" id="how">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <span class="eyebrow">How it works</span>
+          <h2>Four steps, and you'll<br>skip most of them.</h2>
+        </div>
+
+        <div class="how__layout">
+          <div class="how__sticky">
+            <div class="phone phone--how">
+              <img class="phone__screen is-active" src="assets/shots/home_dark.webp" alt="XerahS home screen with recent uploads" data-step-shot="0" width="720" height="1600">
+              <img class="phone__screen" src="assets/shots/editor_dark.webp" alt="The editor with a box, an arrow and numbered steps on a photo" data-step-shot="1" width="720" height="1600" loading="lazy">
+              <img class="phone__screen" src="assets/shots/upload_dark.webp" alt="Upload screen with Imgur picked as the destination" data-step-shot="2" width="720" height="1600" loading="lazy">
+              <img class="phone__screen" src="assets/shots/share_dark.webp" alt="Finished upload with the link, share and QR code buttons" data-step-shot="3" width="720" height="1600" loading="lazy">
+            </div>
+            <div class="how__rail" aria-hidden="true"><span data-rail></span></div>
+          </div>
+
+          <ol class="how__steps">
+            <li class="step is-active" data-step="0">
+              <span class="step__num">01</span>
+              <h3>Pick anything</h3>
+              <p>Images, PDFs, videos, whatever is on your phone. Share a file into XerahS from another app, tap the Quick Settings tile, or open the app and choose from your gallery.</p>
+            </li>
+            <li class="step" data-step="1">
+              <span class="step__num">02</span>
+              <h3>Mark it up</h3>
+              <p>Twelve tools: boxes, arrows, numbered steps, text, a magnifier, and blur or pixelate for the parts nobody else needs to see. Crop it, add a border or shadow, or pull the text out with on-device OCR.</p>
+            </li>
+            <li class="step" data-step="2">
+              <span class="step__num">03</span>
+              <h3>Send it where you want</h3>
+              <p>Imgur for the quick ones, your own bucket or Nextcloud for the rest. Each destination keeps its own settings, and profiles let you switch between them with one tap.</p>
+            </li>
+            <li class="step" data-step="3">
+              <span class="step__num">04</span>
+              <h3>The link is already copied</h3>
+              <p>By the time the upload finishes, the link is on your clipboard. Share it, open it, show it as a QR code, or shorten it first.</p>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <span class="eyebrow">Features</span>
+          <h2>Built for people who<br>share a lot of screenshots.</h2>
+        </div>
+
+        <div class="bento">
+          <article class="card card--wide" data-reveal>
+            <div class="card__core card__core--split">
+              <div>
+                <h3>Your ShareX uploaders work here</h3>
+                <p>Import a .sxcu file from the desktop and it runs on your phone, including {json:}, {regex:}, {xml:} and input prompts. Encrypted .xsdc configs from XerahS import too.</p>
+              </div>
+              <pre class="code" aria-label="Example .sxcu uploader"><code><span class="k">"Name"</span>: <span class="s">"XBackBone"</span>,
+<span class="k">"RequestURL"</span>: <span class="s">"https://img.example.dev/upload"</span>,
+<span class="k">"FileFormName"</span>: <span class="s">"upload"</span>,
+<span class="k">"URL"</span>: <span class="s">"{json:url}"</span>,
+<span class="k">"DeletionURL"</span>: <span class="s">"{json:delete}"</span></code></pre>
+            </div>
+          </article>
+
+          <article class="card card--tall" data-reveal>
+            <div class="card__core">
+              <h3>History you can search</h3>
+              <p>Every upload keeps its link, host and thumbnail. Sort them into albums and tags, and delete a file from the host when you're done with it.</p>
+              <div class="card__shot card__shot--list"><img src="assets/shots/home_violet.webp" alt="Upload history in the violet theme" width="720" height="1600" loading="lazy"></div>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>Browse your bucket</h3>
+              <p>The S3 explorer lists, searches, renames and downloads your files. GIFs animate and videos play right in the preview.</p>
+              <ul class="files" aria-hidden="true">
+                <li><span class="files__ext files__ext--gif">GIF</span>launch-teaser.gif<em>2.4 MB</em></li>
+                <li><span class="files__ext files__ext--mp4">MP4</span>bug-repro.mp4<em>18.1 MB</em></li>
+                <li><span class="files__ext">PNG</span>upload-fn.png<em>35 KB</em></li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>It notices repeats</h3>
+              <p>Upload the same image twice and XerahS offers the link you already have, based on a SHA-256 check of the file.</p>
+              <div class="dup" aria-hidden="true">
+                <span class="dup__title">Already uploaded</span>
+                <span class="dup__meta">sunset-roof.jpg · 3 hours ago</span>
+                <span class="dup__btns"><b>Copy existing</b><i>Upload anyway</i></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>Your keys stay on the phone</h3>
+              <p>Passwords and API keys live in Android's encrypted storage. Backups are locked with a passphrase you pick, and you can put the whole app behind your fingerprint.</p>
+              <div class="lock" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="3"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></div>
+            </div>
+          </article>
+
+          <article class="card card--wide card--tools" data-reveal>
+            <div class="card__core card__core--split">
+              <div>
+                <h3>A few tools for the rest</h3>
+                <p>Resize or convert a stack of images at once and add a watermark on the way. Read a QR code from a picture, check a file's hash, or grab a color.</p>
+              </div>
+              <div class="card__shot card__shot--crop"><img src="assets/shots/tools_dark.webp" alt="The Tools screen" width="720" height="1600" loading="lazy"></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="themes" id="themes">
+      <div class="wrap themes__inner">
+        <div class="themes__copy">
+          <span class="eyebrow" data-reveal>Themes</span>
+          <h2 data-reveal>Seven accents,<br>or your wallpaper's.</h2>
+          <p data-reveal>Pick an accent and the whole app retints with it, backgrounds and cards included. Every color goes through a contrast check, so text stays readable in light and dark. Prefer your wallpaper colors? Turn on Material You. On an OLED screen, true black is one switch away.</p>
+          <div class="swatches" data-reveal aria-hidden="true">
+            <i style="--c:#b8f23a"></i><i style="--c:#2be0e0"></i><i style="--c:#6d3bf0"></i><i style="--c:#3b82f6"></i><i style="--c:#ffb020"></i><i style="--c:#ff5c8a"></i><i style="--c:#34d17a"></i>
+          </div>
+        </div>
+        <div class="themes__stage" data-reveal>
+          <div class="phone phone--theme">
+            <video class="phone__screen" autoplay muted loop playsinline preload="none" poster="assets/video/theme-poster.webp" aria-label="Recording of the Appearance screen cycling through accent colors and switching to light mode">
+              <source src="assets/video/theme.webm" type="video/webm">
+              <source src="assets/video/theme.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="phone phone--ghost" aria-hidden="true">
+            <img class="phone__screen" src="assets/shots/home_light.webp" alt="" width="720" height="1600" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="gallery" aria-labelledby="gallery-title">
+      <div class="wrap">
+        <div class="section-head section-head--row" data-reveal>
+          <div>
+            <span class="eyebrow">Screens</span>
+            <h2 id="gallery-title">A closer look</h2>
+          </div>
+          <div class="gallery__nav">
+            <button type="button" aria-label="Previous screens" data-gallery-prev><svg viewBox="0 0 24 24"><path d="M15 18 9 12l6-6"/></svg></button>
+            <button type="button" aria-label="Next screens" data-gallery-next><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="gallery__track" data-gallery tabindex="0" aria-label="App screenshots, scroll sideways">
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/home_dark.webp" alt="Home in dark mode" width="720" height="1600" loading="lazy"></div><figcaption>Home</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/editor_dark.webp" alt="The editor" width="720" height="1600" loading="lazy"></div><figcaption>Editor</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/share_violet.webp" alt="A finished upload in violet" width="720" height="1600" loading="lazy"></div><figcaption>Link ready</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/home_light.webp" alt="Home in light mode" width="720" height="1600" loading="lazy"></div><figcaption>Light mode</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/tools_dark.webp" alt="The Tools screen" width="720" height="1600" loading="lazy"></div><figcaption>Tools</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/stats_dark.webp" alt="Upload statistics" width="720" height="1600" loading="lazy"></div><figcaption>Statistics</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/appearance_violet.webp" alt="Appearance settings with the violet accent" width="720" height="1600" loading="lazy"></div><figcaption>Appearance</figcaption></figure>
+        <figure><div class="phone phone--sm"><img class="phone__screen" src="assets/shots/appearance_light.webp" alt="Appearance settings in light mode" width="720" height="1600" loading="lazy"></div><figcaption>Light theme</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="changelog" id="changelog">
+      <div class="wrap wrap--narrow">
+        <div class="section-head" data-reveal>
+          <span class="eyebrow">Changelog</span>
+          <h2>What's new</h2>
+          <p class="section-head__sub">Pulled live from GitHub Releases.</p>
+        </div>
+        <div class="releases" data-releases>
+          <p class="releases__empty">Loading releases…</p>
+        </div>
+        <a class="releases__all" href="https://github.com/unicxrn/XerahS-Android/releases">All releases on GitHub</a>
+      </div>
+    </section>
+
+    <section class="download" id="download">
+      <div class="wrap">
+        <div class="download__card" data-reveal>
+          <div class="download__core">
+            <div class="download__glow" aria-hidden="true"></div>
+            <img class="download__logo" src="assets/img/logo.svg" width="88" height="88" alt="">
+            <h2>Get XerahS</h2>
+            <p>It isn't on the Play Store yet, so it comes as an APK from GitHub. New versions show up in the app under Settings, Updates.</p>
+            <a class="btn btn--primary btn--lg" href="https://github.com/unicxrn/XerahS-Android/releases/latest" data-apk-link>
+              <span>Download <span data-latest-version>v0.6.0</span></span>
+              <span class="btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14"/></svg></span>
+            </a>
+            <ol class="download__steps">
+              <li><b>1</b>Download the APK on your phone.</li>
+              <li><b>2</b>Open it. If Android asks, allow installs from your browser.</li>
+              <li><b>3</b>Pick where uploads go, and you're set.</li>
+            </ol>
+            <p class="download__note">Still early, so expect the odd rough edge. Bug reports are welcome on <a href="https://github.com/unicxrn/XerahS-Android/issues">GitHub Issues</a>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/img/logo.svg" width="28" height="28" alt="">
+        <span>XerahS for Android</span>
+      </div>
+      <nav class="footer__links" aria-label="Project links">
+        <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/releases">Releases</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/issues">Issues</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+      <p class="footer__note">An unofficial app inspired by <a href="https://xerahs.com/">XerahS</a> and <a href="https://getsharex.com/">ShareX</a>. It isn't affiliated with or endorsed by either project, and it uses none of their code.</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js" defer></script>
+</body>
+</html>

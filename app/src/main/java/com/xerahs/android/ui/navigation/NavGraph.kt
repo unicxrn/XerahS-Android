@@ -18,11 +18,13 @@ import com.xerahs.android.feature.capture.CaptureScreen
 import com.xerahs.android.feature.history.HistoryScreen
 import com.xerahs.android.feature.history.home.HomeScreen
 import com.xerahs.android.feature.history.home.ShareCard
+import com.xerahs.android.feature.history.home.ShareEvent
 import com.xerahs.android.feature.history.home.ShareViewModel
 import com.xerahs.android.feature.settings.AppearanceSettingsScreen
 import com.xerahs.android.feature.settings.BackupSettingsScreen
 import com.xerahs.android.feature.settings.SecuritySettingsScreen
 import com.xerahs.android.feature.settings.AppUpdateScreen
+import com.xerahs.android.feature.settings.LicensesScreen
 import com.xerahs.android.feature.settings.SettingsHubScreen
 import com.xerahs.android.feature.settings.StatisticsScreen
 import com.xerahs.android.feature.settings.StorageSettingsScreen
@@ -51,13 +53,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -118,6 +124,7 @@ sealed class Screen(val route: String) {
         fun createRoute(profileId: String?) = "settings/profiles/edit/${profileId ?: "new"}"
     }
     data object AppUpdate : Screen("settings/updates")
+    data object Licenses : Screen("settings/licenses")
     data object UploadBatch : Screen("upload-batch/{imagePaths}") {
         fun createRoute(imagePaths: List<String>) =
             "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
@@ -163,7 +170,8 @@ fun XerahSNavGraph(
             HomeScreen(
                 onCreate = { navController.navigate(Screen.Capture.route) },
                 onOpen = { id -> navController.navigate(Screen.ShareResult.createRoute(id)) },
-                onSettings = { navController.navigate(Screen.Settings.route) }
+                onSettings = { navController.navigate(Screen.Settings.route) },
+                onStats = { navController.navigate(Screen.Statistics.route) }
             )
         }
 
@@ -191,12 +199,35 @@ fun XerahSNavGraph(
             val item = s.item
             val context = LocalContext.current
             val clipboard = LocalClipboardManager.current
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                vm.events.collect { event ->
+                    when (event) {
+                        is ShareEvent.Deleted -> {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Deleted from ${event.host}",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            navController.popBackStack(Screen.Home.route, inclusive = false)
+                        }
+                        is ShareEvent.OpenUrl -> {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(event.url)))
+                            }
+                        }
+                    }
+                }
+            }
+            androidx.compose.runtime.LaunchedEffect(s.error) {
+                s.error?.let {
+                    android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+                    vm.clearError()
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
             ) {
                 if (item != null) {
                     ShareCard(
@@ -219,10 +250,13 @@ fun XerahSNavGraph(
                         onShorten = vm::shorten,
                         shortUrl = s.shortUrl,
                         isShortening = s.isShortening,
+                        canDeleteFromHost = s.canDeleteFromHost,
+                        isDeleting = s.isDeleting,
+                        onDeleteFromHost = vm::deleteFromHost,
                         onDone = { navController.popBackStack() }
                     )
                 } else {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -432,8 +466,13 @@ fun XerahSNavGraph(
 
         composable(Screen.AppUpdate.route) {
             AppUpdateScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenLicenses = { navController.navigate(Screen.Licenses.route) }
             )
+        }
+
+        composable(Screen.Licenses.route) {
+            LicensesScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Screen.ImgurConfig.route) {
@@ -562,7 +601,8 @@ private fun BiometricGate(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.systemBars),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -578,7 +618,7 @@ private fun BiometricGate(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.padding(8.dp))
-                FilledTonalButton(onClick = {
+                OutlinedButton(shape = CircleShape, onClick = {
                     val activity = context as? androidx.fragment.app.FragmentActivity
                     if (activity != null && BiometricHelper.canAuthenticate(activity)) {
                         BiometricHelper.showPrompt(

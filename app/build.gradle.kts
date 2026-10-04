@@ -13,8 +13,8 @@ android {
         applicationId = "com.xerahs.android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 7
+        versionName = "0.7.0"
     }
 
     signingConfigs {
@@ -60,6 +60,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    implementation(project(":core:ui"))
     implementation(project(":feature:capture"))
     implementation(project(":feature:annotation"))
     implementation(project(":feature:upload"))

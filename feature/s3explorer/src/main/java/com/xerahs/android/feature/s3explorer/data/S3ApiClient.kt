@@ -14,6 +14,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import java.io.OutputStream
 import java.io.StringReader
 import java.net.URI
 import java.text.SimpleDateFormat
@@ -29,16 +30,26 @@ class S3ApiClient @Inject constructor(
 
     private data class HostAndBaseUrl(val host: String, val baseUrl: String)
 
+    private fun portSuffixFor(scheme: String?, port: Int): String {
+        if (port == -1) return ""
+        val isDefaultPort = (scheme == "http" && port == 80) || (scheme == "https" && port == 443)
+        return if (isDefaultPort) "" else ":$port"
+    }
+
     private fun resolveHostAndBaseUrl(config: UploadConfig.S3Config): HostAndBaseUrl {
         val configEndpoint = config.endpoint
         return if (configEndpoint != null && configEndpoint.isNotEmpty()) {
             val endpoint = configEndpoint.trimEnd('/')
+            val endpointUri = URI(endpoint)
+            val scheme = endpointUri.scheme ?: "https"
+            val portSuffix = portSuffixFor(scheme, endpointUri.port)
             if (config.usePathStyle) {
-                val host = URI(endpoint).host
+                val host = "${endpointUri.host}$portSuffix"
                 HostAndBaseUrl(host, "$endpoint/${config.bucket}")
             } else {
-                val host = "${config.bucket}.${URI(endpoint).host}"
-                HostAndBaseUrl(host, "${endpoint.replace(URI(endpoint).host, host)}")
+                val host = "${config.bucket}.${endpointUri.host}$portSuffix"
+                val path = endpointUri.path ?: ""
+                HostAndBaseUrl(host, "$scheme://$host$path")
             }
         } else {
             if (config.bucket.contains('.')) {
@@ -214,6 +225,28 @@ class S3ApiClient @Inject constructor(
         return Pair(url, headers)
     }
 
+    fun buildPresignedUrl(
+        config: UploadConfig.S3Config,
+        objectKey: String,
+        expiresSeconds: Long = 3600
+    ): String {
+        val (host, baseUrl) = resolveHostAndBaseUrl(config)
+        val encodedKey = objectKey.split("/").joinToString("/") { segment ->
+            java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        }
+        val url = "$baseUrl/$encodedKey"
+
+        return AwsV4Signer.presign(
+            method = "GET",
+            url = url,
+            accessKeyId = config.accessKeyId,
+            secretAccessKey = config.secretAccessKey,
+            region = config.region,
+            host = host,
+            expiresSeconds = expiresSeconds
+        )
+    }
+
     suspend fun downloadObject(
         config: UploadConfig.S3Config,
         objectKey: String
@@ -225,6 +258,25 @@ class S3ApiClient @Inject constructor(
                 throw Exception("S3 download failed: ${response.code} ${response.message}\n$body")
             }
             response.body?.bytes() ?: throw Exception("Empty response body")
+        }
+    }
+
+    suspend fun downloadObjectToStream(
+        config: UploadConfig.S3Config,
+        objectKey: String,
+        outputStream: OutputStream
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        Result.runCatching {
+            val url = buildPresignedUrl(config, objectKey)
+            val request = Request.Builder().url(url).get().build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw Exception("S3 download failed: ${response.code} ${response.message}")
+                }
+                val body = response.body ?: throw Exception("Empty response body")
+                body.byteStream().use { input -> input.copyTo(outputStream) }
+                Unit
+            }
         }
     }
 

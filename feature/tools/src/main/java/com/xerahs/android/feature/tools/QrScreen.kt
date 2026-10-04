@@ -11,19 +11,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.qr.QrDecoder
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,23 +62,33 @@ fun QrScreen(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("QR decode") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-        })
-    }) { padding ->
+    Scaffold(topBar = { LumenTopBar(title = "QR decode", onBack = onBack) }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Choose image") }
+            val chooseOnClick: () -> Unit = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            if (result != null) {
+                // Copy is the one accent CTA once a result exists; Choose image drops to an outline.
+                OutlinedButton(onClick = chooseOnClick, shape = CircleShape) {
+                    Text("Choose image")
+                }
+            } else {
+                PillCta(text = "Choose image", onClick = chooseOnClick)
+            }
             if (notFound) Text("No QR code found", color = MaterialTheme.colorScheme.error)
             result?.let { text ->
-                SelectionContainer { Text(text, style = MaterialTheme.typography.bodyLarge) }
+                LumenCard(contentPadding = 16.dp) {
+                    SelectionContainer { Text(text, style = monoStyle(13)) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { clipboard.setText(AnnotatedString(text)) }) { Text("Copy") }
+                    PillCta(
+                        text = "Copy",
+                        onClick = { clipboard.setText(AnnotatedString(text)) },
+                        modifier = Modifier.weight(1f)
+                    )
                     if (text.startsWith("http://", true) || text.startsWith("https://", true)) {
-                        OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(text))) } }) { Text("Open") }
+                        OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(text))) } }, shape = CircleShape) { Text("Open") }
                     }
                 }
             }

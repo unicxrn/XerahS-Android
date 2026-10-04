@@ -5,17 +5,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -24,7 +26,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.ui.SectionHeader
 import com.xerahs.android.core.ui.SettingsGroupCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +62,7 @@ fun CustomHttpConfigScreen(
     var loaded by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var testing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (!loaded) {
@@ -87,16 +91,7 @@ fun CustomHttpConfigScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Custom uploader") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
+        topBar = { LumenTopBar(title = "Custom uploader", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
@@ -110,8 +105,8 @@ fun CustomHttpConfigScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(onClick = { fileLauncher.launch(arrayOf("*/*")) }) { Text("Open .sxcu") }
-                OutlinedButton(onClick = { replaceWith(clipboard.getText()?.text) }) { Text("Paste") }
+                OutlinedButton(onClick = { fileLauncher.launch(arrayOf("*/*")) }, shape = CircleShape) { Text("Open .sxcu") }
+                OutlinedButton(onClick = { replaceWith(clipboard.getText()?.text) }, shape = CircleShape) { Text("Paste") }
             }
             TextButton(onClick = onImportAsProfile, modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text("Import as a new profile instead…")
@@ -123,6 +118,7 @@ fun CustomHttpConfigScreen(
                     value = sxcu,
                     onValueChange = { sxcu = it; error = null },
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    shape = RoundedCornerShape(18.dp),
                     isError = error != null,
                     supportingText = { Text(error ?: "ShareX .sxcu JSON — supports {json:}, {regex:}, {xml:}, {inputbox:} …") },
                     minLines = 14,
@@ -132,11 +128,12 @@ fun CustomHttpConfigScreen(
                 )
             }
 
-            Row(
+            Column(
                 modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                PillCta(
+                    text = "Save",
                     enabled = !busy,
                     onClick = {
                         scope.launch {
@@ -145,19 +142,32 @@ fun CustomHttpConfigScreen(
                             busy = false
                             if (error == null) snackbarHostState.showSnackbar("Saved")
                         }
-                    }
-                ) { Text("Save") }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedButton(
-                    enabled = !busy,
                     onClick = {
                         scope.launch {
                             busy = true
+                            testing = true
                             val result = viewModel.testConnection(sxcu)
+                            testing = false
                             busy = false
                             snackbarHostState.showSnackbar(result)
                         }
+                    },
+                    shape = CircleShape,
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    if (testing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
-                ) { Text("Test endpoint") }
+                    Text("Test endpoint")
+                }
             }
         }
     }

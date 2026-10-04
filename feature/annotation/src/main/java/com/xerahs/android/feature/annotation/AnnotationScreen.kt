@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AutoFixOff
@@ -71,6 +74,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,13 +91,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.common.image.ImageEffects
 import com.xerahs.android.core.domain.model.Annotation
+import com.xerahs.android.core.ui.lumen.CircleIconButton
+import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
 import com.xerahs.android.feature.annotation.canvas.SmartEraserSampler
 import com.xerahs.android.feature.annotation.crop.CropEngine
@@ -118,6 +130,11 @@ fun AnnotationScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+
+    // Measured height of the floating bottom controls (toolbar + primary action), used to keep
+    // the canvas bezel's bottom inset in sync instead of a hard-coded constant.
+    var bottomControlsHeight by remember { mutableStateOf(0.dp) }
 
     var currentBitmap by remember(imagePath) {
         mutableStateOf(BitmapFactory.decodeFile(imagePath))
@@ -224,7 +241,7 @@ fun AnnotationScreen(
         ModalBottomSheet(
             onDismissRequest = { showToolOptions = false },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.background
         ) {
             ToolOptionsSheet(
                 uiState = uiState,
@@ -249,7 +266,7 @@ fun AnnotationScreen(
         ModalBottomSheet(
             onDismissRequest = { viewModel.dismissOcr() },
             sheetState = ocrSheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.background
         ) {
             Column(
                 modifier = Modifier
@@ -336,7 +353,7 @@ fun AnnotationScreen(
         ModalBottomSheet(
             onDismissRequest = { showEffects = false },
             sheetState = effectsSheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.background
         ) {
             EffectsSheet(
                 effects = uiState.effects,
@@ -373,6 +390,24 @@ fun AnnotationScreen(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
+            // Bezel frame around the canvas. Insets: 64dp + status bar on top (clears the
+            // chrome bar), 14dp on the sides, and the measured height of the floating bottom
+            // controls (toolbar + primary action, which already includes the nav bar inset) plus
+            // 12dp, so the frame sits above the floating toolbar instead of behind it. The
+            // bezel's clip/padding is on this wrapping Box, not inside AnnotationCanvas's own
+            // modifier, so the canvas keeps computing its fit-scale and touch mapping from its
+            // own actual (inset) size.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(30.dp))
+                    .padding(5.dp)
+                    .clip(RoundedCornerShape(25.dp))
+            ) {
             AnnotationCanvas(
                 bitmap = displayBitmap,
                 annotations = uiState.annotations,
@@ -451,68 +486,115 @@ fun AnnotationScreen(
                 },
                 modifier = Modifier.fillMaxSize()
             )
+            }
         }
 
-        // Slim translucent top bar overlay
-        Surface(
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        // Transparent top bar overlay. Wrapped in BoxWithConstraints so the filename can be
+        // dropped entirely on narrow widths, guaranteeing the trailing action buttons always
+        // get their full intrinsic size and never clip.
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {
-                    if (uiState.isCropMode) viewModel.setCropMode(false) else onBack()
-                }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-                Spacer(modifier = Modifier.weight(1f))
+        val showFilename = maxWidth >= 300.dp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CircleIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() }
+            )
+            if (showFilename) {
+                Text(
+                    text = File(imagePath).name,
+                    style = monoStyle(12),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = true)
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f, fill = true))
+            }
 
-                if (uiState.isCropMode) {
-                    TextButton(onClick = {
+            if (uiState.isCropMode) {
+                Button(
+                    onClick = {
                         val cropped = CropEngine.cropBitmap(bitmap, cropRect)
                         currentBitmap = cropped
                         viewModel.setCropMode(false)
                         viewModel.clearAnnotations()
-                    }) {
-                        Text("Apply Crop")
-                    }
-                } else {
-                    IconButton(onClick = viewModel::undo, enabled = uiState.undoStack.isNotEmpty()) {
+                    },
+                    shape = CircleShape
+                ) {
+                    Text("Apply Crop")
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .height(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, Lumen.tokens.hairline, CircleShape),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = viewModel::undo,
+                        enabled = uiState.undoStack.isNotEmpty(),
+                        modifier = Modifier.size(44.dp)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
                     }
-                    IconButton(onClick = viewModel::redo, enabled = uiState.redoStack.isNotEmpty()) {
+                    IconButton(
+                        onClick = viewModel::redo,
+                        enabled = uiState.redoStack.isNotEmpty(),
+                        modifier = Modifier.size(44.dp)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
                     }
-                    IconButton(onClick = { showEffects = true }) {
-                        Icon(Icons.Default.AutoFixHigh, contentDescription = "Effects")
+                }
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Lumen.tokens.tint)
+                        .clickable(onClick = { showEffects = true }, role = Role.Button),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = "Effects", tint = Lumen.tokens.ink)
+                }
+                CircleIconButton(
+                    icon = Icons.Default.Crop,
+                    contentDescription = "Crop",
+                    onClick = { viewModel.setCropMode(true) }
+                )
+                if (uiState.isRecognizing) {
+                    Box(
+                        modifier = Modifier.size(44.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    IconButton(onClick = { viewModel.setCropMode(true) }) {
-                        Icon(Icons.Default.Crop, contentDescription = "Crop")
-                    }
-                    if (uiState.isRecognizing) {
-                        Box(
-                            modifier = Modifier.size(48.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else {
-                        IconButton(onClick = { viewModel.recognizeText(imagePath) }) {
-                            Icon(Icons.Default.DocumentScanner, contentDescription = "Extract text")
-                        }
-                    }
+                } else {
+                    CircleIconButton(
+                        icon = Icons.Default.DocumentScanner,
+                        contentDescription = "Extract text",
+                        onClick = { viewModel.recognizeText(imagePath) }
+                    )
                 }
             }
+        }
         }
 
         // Bottom controls: floating tool bar + primary action
@@ -521,6 +603,10 @@ fun AnnotationScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    // Measured before the paddings so the height includes the nav-bar inset.
+                    .onSizeChanged { size ->
+                        bottomControlsHeight = with(density) { size.height.toDp() }
+                    }
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 12.dp)
                     .padding(bottom = 12.dp),
@@ -528,9 +614,10 @@ fun AnnotationScreen(
             ) {
                 // Compact floating tool bar
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f),
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, Lumen.tokens.hairline),
+                    modifier = Modifier.fillMaxWidth().height(62.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -586,7 +673,8 @@ fun AnnotationScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Thumb-zone primary action - same export path as the old checkmark
-                Button(
+                PillCta(
+                    text = "Continue to upload",
                     onClick = {
                         viewModel.setExporting(true)
                         coroutineScope.launch {
@@ -609,19 +697,8 @@ fun AnnotationScreen(
                         }
                     },
                     enabled = !uiState.isExporting,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                ) {
-                    if (uiState.isExporting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("Continue")
-                    }
-                }
+                    loading = uiState.isExporting
+                )
             }
         }
     }
@@ -653,37 +730,17 @@ private fun CompactToolButton(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val container = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val content = if (selected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val container = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
         modifier = Modifier
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .size(50.dp)
+            .clip(CircleShape)
+            .background(container)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(container),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = label, tint = content)
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Icon(icon, contentDescription = label, tint = content)
     }
 }
 
@@ -749,7 +806,7 @@ private fun ToolOptionsSheet(
             tool != AnnotationTool.SMART_ERASER &&
             tool != AnnotationTool.STICKER
         if (showColor) {
-            ColorSwatchRow(strokeColor = uiState.strokeColor, onColorSelected = onColorSelected)
+            ColorSwatchRow(strokeColor = uiState.strokeColor, strokeWidth = uiState.strokeWidth, onColorSelected = onColorSelected)
             Spacer(modifier = Modifier.height(12.dp))
         }
 
@@ -824,6 +881,7 @@ private fun ToolOptionsSheet(
 @Composable
 private fun ColorSwatchRow(
     strokeColor: Int,
+    strokeWidth: Float,
     onColorSelected: (Int) -> Unit
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -854,24 +912,32 @@ private fun ColorSwatchRow(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         colors.forEach { color ->
+            val selected = color.toArgb() == strokeColor
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(CircleShape)
-                    .background(color)
-                    .then(
-                        if (color.toArgb() == strokeColor) {
-                            Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                        } else {
-                            Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                        }
+                    .clickable(onClick = { onColorSelected(color.toArgb()) }, role = Role.Button),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
                     )
-                    .clickable { onColorSelected(color.toArgb()) }
-            )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -879,15 +945,21 @@ private fun ColorSwatchRow(
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                .clickable { showColorPicker = true },
+                .clickable(onClick = { showColorPicker = true }, role = Role.Button),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Default.Add,
                 contentDescription = "Custom color",
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
+        Text(
+            text = "${strokeWidth.toInt()}px",
+            style = monoStyle(11),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }
 

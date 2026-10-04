@@ -350,8 +350,21 @@ class S3ExplorerViewModel @Inject constructor(
         return s3ApiClient.buildSignedUrl(config, objectKey)
     }
 
+    fun getPresignedUrl(objectKey: String): String {
+        val config = s3Config ?: return ""
+        return s3ApiClient.buildPresignedUrl(config, objectKey)
+    }
+
     suspend fun downloadObject(objectKey: String): Result<ByteArray> {
         val config = s3Config ?: return Result.Error(IllegalStateException("S3 not configured"))
         return s3ApiClient.downloadObject(config, objectKey)
+    }
+
+    suspend fun downloadObjectToStream(
+        objectKey: String,
+        outputStream: java.io.OutputStream
+    ): Result<Unit> {
+        val config = s3Config ?: return Result.Error(IllegalStateException("S3 not configured"))
+        return s3ApiClient.downloadObjectToStream(config, objectKey, outputStream)
     }
 }

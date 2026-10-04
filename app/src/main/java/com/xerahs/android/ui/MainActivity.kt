@@ -7,26 +7,29 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.Handyman
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +42,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.ui.lumen.LumenNavPill
+import com.xerahs.android.core.ui.lumen.NavPillItem
 import com.xerahs.android.ui.navigation.Screen
 import com.xerahs.android.ui.navigation.XerahSNavGraph
 import com.xerahs.android.ui.onboarding.OnboardingScreen
@@ -46,7 +51,7 @@ import com.xerahs.android.ui.theme.XerahSTheme
 import com.xerahs.android.util.BiometricHelper
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -98,58 +103,60 @@ class MainActivity : FragmentActivity() {
                 oledBlack = oledBlack,
                 customThemeSeedColor = customThemeSeedColor
             ) {
-                val onboardingState = onboardingCompleted
-                if (onboardingState == null) {
-                    // Settings still loading: show only the background. Composing Home here would
-                    // consume a pending share before onboarding takes over.
-                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-                } else Crossfade(
-                    targetState = onboardingState,
-                    animationSpec = tween(500),
-                    label = "onboarding-crossfade"
-                ) { completed ->
-                    if (!completed) {
-                        OnboardingScreen(
-                            onComplete = { mainViewModel.completeOnboarding() },
-                            onSelectDestination = { dest ->
-                                mainViewModel.setDefaultDestination(dest)
-                            }
-                        )
-                    } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
-                        // Lock overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.padding(16.dp))
-                                Text(
-                                    text = "XerahS is locked",
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                                Spacer(modifier = Modifier.padding(8.dp))
-                                FilledTonalButton(onClick = { promptBiometric() }) {
-                                    Text("Unlock")
+                // Surface supplies the background and the default content colour for everything
+                // below: the loading placeholder, onboarding, the lock screen and the main app.
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val onboardingState = onboardingCompleted
+                    if (onboardingState == null) {
+                        // Settings still loading: show only the background. Composing Home here would
+                        // consume a pending share before onboarding takes over.
+                        Box(Modifier.fillMaxSize())
+                    } else Crossfade(
+                        targetState = onboardingState,
+                        animationSpec = tween(500),
+                        label = "onboarding-crossfade"
+                    ) { completed ->
+                        if (!completed) {
+                            OnboardingScreen(
+                                onComplete = { mainViewModel.completeOnboarding() },
+                                onSelectDestination = { dest ->
+                                    mainViewModel.setDefaultDestination(dest)
+                                }
+                            )
+                        } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
+                            // Lock overlay
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.padding(16.dp))
+                                    Text(
+                                        text = "XerahS is locked",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                    Spacer(modifier = Modifier.padding(8.dp))
+                                    OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
+                                        Text("Unlock")
+                                    }
                                 }
                             }
+                        } else {
+                            MainScreen(
+                                sharedPaths = pendingSharedPaths,
+                                onSharedHandled = { pendingSharedPaths = null },
+                                launchCapture = pendingLaunchCapture,
+                                onLaunchCaptureHandled = { pendingLaunchCapture = false },
+                                importUri = pendingImportUri,
+                                onImportHandled = { pendingImportUri = null }
+                            )
                         }
-                    } else {
-                        MainScreen(
-                            sharedPaths = pendingSharedPaths,
-                            onSharedHandled = { pendingSharedPaths = null },
-                            launchCapture = pendingLaunchCapture,
-                            onLaunchCaptureHandled = { pendingLaunchCapture = false },
-                            importUri = pendingImportUri,
-                            onImportHandled = { pendingImportUri = null }
-                        )
                     }
                 }
             }
@@ -340,99 +347,39 @@ fun MainScreen(
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route,
         Screen.S3Explorer.route,
-        Screen.Tools.route
+        Screen.Tools.route,
+        Screen.Settings.route
     )
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            if (showBottomBar) {
-                BottomAppBar(
-                    actions = {
-                        val homeSelected = currentRoute == Screen.Home.route
-                        IconButton(
-                            onClick = {
-                                if (!homeSelected) {
-                                    navController.navigate(Screen.Home.route) {
-                                        popUpTo(Screen.Home.route) { inclusive = false }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.Home,
-                                contentDescription = "Home",
-                                tint = if (homeSelected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                        if (s3Configured) {
-                            val cloudSelected = currentRoute == Screen.S3Explorer.route
-                            IconButton(
-                                onClick = {
-                                    if (!cloudSelected) {
-                                        navController.navigate(Screen.S3Explorer.route) {
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Default.CloudQueue,
-                                    contentDescription = "Cloud",
-                                    tint = if (cloudSelected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
-                        }
-                        val toolsSelected = currentRoute == Screen.Tools.route
-                        IconButton(
-                            onClick = {
-                                if (!toolsSelected) {
-                                    navController.navigate(Screen.Tools.route) {
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.Handyman,
-                                contentDescription = "Tools",
-                                tint = if (toolsSelected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                    },
-                    floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { navController.navigate(Screen.Capture.route) },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Create")
-                        }
-                    }
-                )
-            }
-        }
-    ) { innerPadding ->
+    Box(Modifier.fillMaxSize()) {
         XerahSNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         )
+        AnimatedVisibility(
+            visible = showBottomBar,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+        ) {
+            val items = buildList {
+                add(NavPillItem(Screen.Home.route, "Home", Icons.Outlined.Home))
+                if (s3Configured) add(NavPillItem(Screen.S3Explorer.route, "Cloud", Icons.Outlined.Cloud))
+                add(NavPillItem(Screen.Tools.route, "Tools", Icons.Outlined.GridView))
+                add(NavPillItem(Screen.Settings.route, "Settings", Icons.Outlined.Tune))
+            }
+            LumenNavPill(items = items, selectedKey = currentRoute, onSelect = { route ->
+                if (route == currentRoute) return@LumenNavPill
+                navController.navigate(route) {
+                    popUpTo(Screen.Home.route) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            })
+        }
     }
 }

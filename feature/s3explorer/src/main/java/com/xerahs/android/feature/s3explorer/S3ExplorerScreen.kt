@@ -7,13 +7,14 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRight
@@ -51,36 +53,41 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,13 +97,25 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.xerahs.android.core.common.Result
 import com.xerahs.android.core.common.formatSize
@@ -105,6 +124,13 @@ import com.xerahs.android.core.ui.AnimatedListItem
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.ShimmerBox
 import com.xerahs.android.core.ui.StatCard
+import com.xerahs.android.core.ui.lumen.CircleIconButton
+import com.xerahs.android.core.ui.lumen.Eyebrow
+import com.xerahs.android.core.ui.lumen.IconTile
+import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.s3explorer.model.S3Folder
 import com.xerahs.android.feature.s3explorer.model.S3Object
 import com.xerahs.android.feature.s3explorer.model.SortDirection
@@ -114,6 +140,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sort
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -137,7 +164,7 @@ fun S3ExplorerScreen(
     // Image preview dialog
     uiState.previewObject?.let { obj ->
         val imageObjects = remember(uiState.filteredObjects) {
-            uiState.filteredObjects.filter { it.isImage }
+            uiState.filteredObjects.filter { it.isImage || it.isVideo }
         }
         val initialIndex = remember(obj, imageObjects) {
             imageObjects.indexOfFirst { it.key == obj.key }.coerceAtLeast(0)
@@ -319,14 +346,10 @@ fun S3ExplorerScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("S3 Explorer") },
-                actions = {
-                    if (uiState.isConfigured) {
+            LumenTopBar(title = "Cloud") {
+                if (uiState.isConfigured) {
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort")
-                            }
+                            CircleIconButton(Icons.Default.Sort, "Sort", { showSortMenu = true })
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
@@ -354,17 +377,14 @@ fun S3ExplorerScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { viewModel.toggleViewMode() }) {
-                            Icon(
-                                if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
+                        CircleIconButton(
+                            icon = if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
                                 else Icons.AutoMirrored.Filled.ViewList,
-                                contentDescription = "Toggle view"
-                            )
-                        }
+                            contentDescription = "Toggle view",
+                            onClick = { viewModel.toggleViewMode() }
+                        )
                         Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                            }
+                            CircleIconButton(Icons.Default.MoreVert, "More options", { showOverflowMenu = true })
                             DropdownMenu(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false }
@@ -397,8 +417,7 @@ fun S3ExplorerScreen(
                         }
                     }
                 }
-            )
-        }
+            }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -421,9 +440,11 @@ fun S3ExplorerScreen(
                             subtitle = "Set up your S3 credentials to browse your bucket"
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = onNavigateToSettings) {
-                            Text("Configure S3")
-                        }
+                        PillCta(
+                            text = "Configure S3",
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             } else if (uiState.isConfigured) {
@@ -437,7 +458,7 @@ fun S3ExplorerScreen(
                     placeholder = { Text("Search files...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
-                    shape = MaterialTheme.shapes.large
+                    shape = CircleShape
                 )
 
                 // Stats row
@@ -488,12 +509,13 @@ fun S3ExplorerScreen(
                             TextButton(onClick = { viewModel.clearSelection() }) {
                                 Text("Clear")
                             }
-                            FilledTonalButton(
+                            OutlinedButton(
                                 onClick = { showDeleteConfirm = true },
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
+                                shape = CircleShape,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                             ) {
                                 Icon(
                                     Icons.Default.Delete,
@@ -533,7 +555,7 @@ fun S3ExplorerScreen(
                                     subtitle = uiState.error
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                FilledTonalButton(onClick = { viewModel.refresh() }) {
+                                OutlinedButton(onClick = { viewModel.refresh() }, shape = CircleShape) {
                                     Text("Retry")
                                 }
                             }
@@ -556,7 +578,7 @@ fun S3ExplorerScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 112.dp)
                         ) {
                             itemsIndexed(
                                 uiState.filteredFolders,
@@ -581,7 +603,7 @@ fun S3ExplorerScreen(
                                         onClick = {
                                             if (uiState.selectedObjects.isNotEmpty()) {
                                                 viewModel.toggleSelection(obj.key)
-                                            } else if (obj.isImage) {
+                                            } else if (obj.isImage || obj.isVideo) {
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
@@ -599,7 +621,7 @@ fun S3ExplorerScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             contentPadding = PaddingValues(
                                 start = 8.dp, end = 8.dp,
-                                top = 4.dp, bottom = 16.dp
+                                top = 4.dp, bottom = 112.dp
                             )
                         ) {
                             itemsIndexed(
@@ -625,7 +647,7 @@ fun S3ExplorerScreen(
                                         onClick = {
                                             if (uiState.selectedObjects.isNotEmpty()) {
                                                 viewModel.toggleSelection(obj.key)
-                                            } else if (obj.isImage) {
+                                            } else if (obj.isImage || obj.isVideo) {
                                                 viewModel.setPreviewObject(obj)
                                             }
                                         },
@@ -659,7 +681,9 @@ private fun BreadcrumbBar(
                 shape = MaterialTheme.shapes.small,
                 color = if (pathSegments.isEmpty()) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.clickable { onNavigateToRoot() }
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(role = Role.Button) { onNavigateToRoot() }
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -671,12 +695,7 @@ private fun BreadcrumbBar(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        "Bucket",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = FontFamily.Monospace
-                        )
-                    )
+                    Eyebrow("Bucket")
                 }
             }
         }
@@ -692,16 +711,14 @@ private fun BreadcrumbBar(
                     shape = MaterialTheme.shapes.small,
                     color = if (index == pathSegments.lastIndex) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.clickable { onNavigateToBreadcrumb(index) }
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(role = Role.Button) { onNavigateToBreadcrumb(index) }
                 ) {
-                    Text(
+                    Eyebrow(
                         text = segment,
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        uppercase = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -714,13 +731,18 @@ private fun FolderListItem(
     folder: S3Folder,
     onClick: () -> Unit
 ) {
-    Column {
+    LumenCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        radius = 16.dp,
+        onClick = onClick
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp)
-                .height(56.dp),
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -732,9 +754,7 @@ private fun FolderListItem(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = folder.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -746,10 +766,6 @@ private fun FolderListItem(
                 modifier = Modifier.size(20.dp)
             )
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 52.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        )
     }
 }
 
@@ -758,19 +774,14 @@ private fun FolderGridItem(
     folder: S3Folder,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    LumenCard(
+        modifier = Modifier.aspectRatio(1f),
+        radius = 16.dp,
+        contentPadding = 8.dp,
+        onClick = onClick
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -783,9 +794,7 @@ private fun FolderGridItem(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = folder.name,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -803,19 +812,20 @@ private fun FileListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Column {
+    LumenCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        radius = 16.dp,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onLongClickLabel = "Select"
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-                .background(
-                    if (isSelected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                    else Color.Transparent
-                )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelected) {
@@ -841,6 +851,8 @@ private fun FileListItem(
                         .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
+            } else if (obj.isVideo) {
+                VideoThumbnailTile(size = 40.dp)
             } else {
                 Icon(
                     Icons.Default.Description,
@@ -864,27 +876,45 @@ private fun FileListItem(
                 ) {
                     Text(
                         text = obj.size.formatSize(),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
+                        style = monoStyle(12),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (obj.lastModified > 0) {
                         Text(
                             text = obj.lastModified.toShortDate(),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace
-                            ),
+                            style = monoStyle(12),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 68.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    }
+}
+
+/** Video icon tile with a small play badge, used where there's no thumbnail to decode. */
+@Composable
+private fun VideoThumbnailTile(size: Dp) {
+    Box(modifier = Modifier.size(size)) {
+        IconTile(
+            icon = Icons.Default.Movie,
+            size = size
         )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(size * 0.42f)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(size * 0.24f)
+            )
+        }
     }
 }
 
@@ -897,18 +927,13 @@ private fun FileGridItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    LumenCard(
+        modifier = Modifier.aspectRatio(1f),
+        radius = 16.dp,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onLongClickLabel = "Select"
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (obj.isImage) {
@@ -926,6 +951,24 @@ private fun FileGridItem(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+            } else if (obj.isVideo) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    VideoThumbnailTile(size = 48.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = obj.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             } else {
                 Column(
                     modifier = Modifier
@@ -943,9 +986,7 @@ private fun FileGridItem(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = obj.name,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1012,24 +1053,63 @@ private fun ImagePreviewDialog(
                 pageCount = { imageObjects.size }
             )
             val currentObj = imageObjects.getOrNull(pagerState.currentPage) ?: return@Dialog
+            var videoControlsVisible by remember(currentObj.key) { mutableStateOf(true) }
 
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val obj = imageObjects[page]
-                val (url, headers) = remember(obj.key) { viewModel.getSignedUrl(obj.key) }
+                val url = remember(obj.key) { viewModel.getPresignedUrl(obj.key) }
+
+                if (url.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Couldn't load preview",
+                            color = Color.White
+                        )
+                    }
+                    return@HorizontalPager
+                }
+
+                if (obj.isVideo) {
+                    val isCurrent = pagerState.settledPage == page
+                    S3VideoPlayer(
+                        url = url,
+                        isCurrent = isCurrent,
+                        modifier = Modifier.fillMaxSize(),
+                        onControlsVisibilityChanged = { visible ->
+                            if (obj.key == currentObj.key) videoControlsVisible = visible
+                        }
+                    )
+                    return@HorizontalPager
+                }
+
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offsetX by remember { mutableFloatStateOf(0f) }
                 var offsetY by remember { mutableFloatStateOf(0f) }
 
+                val isGif = obj.extension == "gif"
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
-                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
                         .diskCacheKey(obj.key)
-                        .memoryCacheKey(obj.key)
+                        .memoryCacheKey(if (isGif) "${obj.key}#anim" else obj.key)
                         .crossfade(true)
+                        .apply {
+                            if (isGif) {
+                                decoderFactory(
+                                    if (Build.VERSION.SDK_INT >= 28) {
+                                        ImageDecoderDecoder.Factory()
+                                    } else {
+                                        GifDecoder.Factory()
+                                    }
+                                )
+                            }
+                        }
                         .build(),
                     contentDescription = "Preview",
                     modifier = Modifier
@@ -1081,7 +1161,10 @@ private fun ImagePreviewDialog(
                 Icon(Icons.Default.Close, contentDescription = "Close")
             }
 
-            // Info overlay at bottom
+            // Info overlay at bottom. On video pages the seek row lives in the same
+            // corner, so hide this while the video controls are visible.
+            val hideInfoOverlayForVideo = currentObj.isVideo && videoControlsVisible
+            if (!hideInfoOverlayForVideo) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1155,8 +1238,178 @@ private fun ImagePreviewDialog(
                     }
                 }
             }
+            }
         }
     }
+}
+
+@Composable
+private fun S3VideoPlayer(
+    url: String,
+    isCurrent: Boolean,
+    modifier: Modifier = Modifier,
+    onControlsVisibilityChanged: (Boolean) -> Unit = {}
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val isCurrentState = rememberUpdatedState(isCurrent)
+
+    val exoPlayer = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+        }
+    }
+
+    var prepared by remember(url) { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var userPaused by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(showControls) {
+        onControlsVisibilityChanged(showControls)
+    }
+
+    DisposableEffect(exoPlayer, lifecycleOwner) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onEvents(player: Player, events: Player.Events) {
+                val d = player.duration
+                if (d > 0) durationMs = d
+            }
+        }
+        exoPlayer.addListener(listener)
+
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> exoPlayer.pause()
+                Lifecycle.Event.ON_START -> {
+                    if (isCurrentState.value && !userPaused) exoPlayer.play()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(isCurrent) {
+        if (isCurrent) {
+            if (!prepared) {
+                exoPlayer.prepare()
+                prepared = true
+            }
+            if (!userPaused) exoPlayer.playWhenReady = true
+        } else {
+            exoPlayer.playWhenReady = false
+            exoPlayer.pause()
+        }
+    }
+
+    LaunchedEffect(isPlaying, isDragging) {
+        while (isPlaying && !isDragging) {
+            positionMs = exoPlayer.currentPosition
+            delay(500)
+        }
+    }
+
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(onTap = { showControls = !showControls })
+        }
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                val view = android.view.LayoutInflater.from(ctx)
+                    .inflate(R.layout.view_s3_video_player, null) as PlayerView
+                view.useController = false
+                view.isClickable = false
+                view.isFocusable = false
+                view.player = exoPlayer
+                view
+            },
+            update = { view -> view.player = exoPlayer },
+            onRelease = { it.player = null }
+        )
+
+        if (showControls) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(role = Role.Button) {
+                        if (isPlaying) {
+                            exoPlayer.pause()
+                            userPaused = true
+                        } else {
+                            exoPlayer.play()
+                            userPaused = false
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                val sliderMax = durationMs.coerceAtLeast(1L).toFloat()
+                val displayedPositionMs = if (isDragging) positionMs else positionMs.coerceAtMost(durationMs)
+                Slider(
+                    value = displayedPositionMs.toFloat().coerceIn(0f, sliderMax),
+                    onValueChange = { value ->
+                        isDragging = true
+                        positionMs = value.toLong()
+                    },
+                    onValueChangeFinished = {
+                        exoPlayer.seekTo(positionMs)
+                        isDragging = false
+                    },
+                    valueRange = 0f..sliderMax,
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = Color.White,
+                        thumbColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+                Text(
+                    text = "${formatElapsed(positionMs)} / ${formatElapsed(durationMs)}",
+                    style = monoStyle(12),
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+private fun formatElapsed(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
 }
 
 @Composable
@@ -1193,42 +1446,62 @@ private suspend fun downloadToDevice(
     viewModel: S3ExplorerViewModel,
     obj: S3Object
 ) {
-    when (val result = viewModel.downloadObject(obj.key)) {
-        is Result.Success -> {
-            val bytes = result.data
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
-                    put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val uri = context.contentResolver.insert(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
-                )
-                uri?.let {
-                    context.contentResolver.openOutputStream(it)?.use { out ->
-                        out.write(bytes)
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS
-                )
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val file = File(downloadsDir, obj.name)
-                FileOutputStream(file).use { it.write(bytes) }
+    val outcome = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, obj.name)
+                put(MediaStore.Downloads.MIME_TYPE, guessMimeType(obj.extension))
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
-            Toast.makeText(context, "Downloaded ${obj.name}", Toast.LENGTH_SHORT).show()
+            val uri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+            ) ?: throw IllegalStateException("Could not create download entry")
+
+            val result = context.contentResolver.openOutputStream(uri)?.use { out ->
+                viewModel.downloadObjectToStream(obj.key, out)
+            } ?: Result.Error(IllegalStateException("Could not open output stream"))
+
+            when (result) {
+                is Result.Success -> {
+                    val clearPending = ContentValues().apply {
+                        put(MediaStore.Downloads.IS_PENDING, 0)
+                    }
+                    context.contentResolver.update(uri, clearPending, null, null)
+                }
+                is Result.Error -> {
+                    context.contentResolver.delete(uri, null, null)
+                    throw result.exception
+                }
+                is Result.Loading -> Unit
+            }
+            Unit
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS
+            )
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val file = File(downloadsDir, obj.name)
+            val result = FileOutputStream(file).use { out ->
+                viewModel.downloadObjectToStream(obj.key, out)
+            }
+            if (result is Result.Error) {
+                file.delete()
+                throw result.exception
+            }
+            Unit
         }
-        is Result.Error -> {
-            Toast.makeText(
-                context,
-                "Download failed: ${result.message ?: result.exception.message}",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        is Result.Loading -> {}
+    }
+
+    outcome.onSuccess {
+        Toast.makeText(context, "Downloaded ${obj.name}", Toast.LENGTH_SHORT).show()
+    }.onFailure { error ->
+        Toast.makeText(
+            context,
+            "Download failed: ${error.message}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }
 
@@ -1246,6 +1519,11 @@ private fun guessMimeType(extension: String): String = when (extension) {
     "js" -> "application/javascript"
     "zip" -> "application/zip"
     "mp4" -> "video/mp4"
+    "webm" -> "video/webm"
+    "mkv" -> "video/x-matroska"
+    "mov" -> "video/quicktime"
+    "m4v" -> "video/x-m4v"
+    "3gp" -> "video/3gpp"
     "mp3" -> "audio/mpeg"
     else -> "application/octet-stream"
 }
