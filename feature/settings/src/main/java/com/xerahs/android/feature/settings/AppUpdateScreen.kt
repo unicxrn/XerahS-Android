@@ -258,6 +258,11 @@ fun AppUpdateScreen(
                 }
             }
 
+            // About section
+            SectionHeader("About")
+
+            OpenSourceLicensesRow(modifier = Modifier.padding(horizontal = 16.dp))
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
