@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +43,7 @@ import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.HostChip
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenTopBar
+import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.hostColor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,107 +78,108 @@ fun ProfileManagementScreen(
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Upload Profiles", onBack = onBack) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
+        topBar = { LumenTopBar(title = "Upload Profiles", onBack = onBack) }
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                listState.isLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                listState.profiles.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "No upload profiles yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Tap + New Profile to get started",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                else -> {
+                    val grouped = listState.profiles.groupBy { it.destination }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    ) {
+                        grouped.forEach { (destination, profiles) ->
+                            item(key = "header_${destination.name}") {
+                                Text(
+                                    text = destination.displayName.uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(
+                                        start = 16.dp,
+                                        end = 16.dp,
+                                        top = 20.dp,
+                                        bottom = 4.dp
+                                    )
+                                )
+                                HorizontalDivider(
+                                    color = Lumen.tokens.hairline,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+
+                            items(profiles, key = { it.id }) { profile ->
+                                ProfileRow(
+                                    profile = profile,
+                                    onClick = {
+                                        viewModel.startEditProfile(profile.id)
+                                        onNavigateToEditor(profile.id)
+                                    },
+                                    onDelete = { deleteConfirmProfile = profile }
+                                )
+                                HorizontalDivider(
+                                    color = Lumen.tokens.hairline,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
+                        }
+
+                        item { Spacer(modifier = Modifier.height(96.dp)) }
+                    }
+                }
+            }
+
+            PillCta(
+                text = "New Profile",
                 onClick = {
                     viewModel.startNewProfile()
                     onNavigateToEditor(null)
                 },
-                icon = {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                },
-                text = { Text("New Profile") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                icon = Icons.Default.Add,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = innerPadding.calculateBottomPadding() + 16.dp)
             )
-        }
-    ) { innerPadding ->
-        when {
-            listState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            listState.profiles.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "No upload profiles yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Tap + New Profile to get started",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            else -> {
-                val grouped = listState.profiles.groupBy { it.destination }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    grouped.forEach { (destination, profiles) ->
-                        item(key = "header_${destination.name}") {
-                            Text(
-                                text = destination.displayName.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    top = 20.dp,
-                                    bottom = 4.dp
-                                )
-                            )
-                            HorizontalDivider(
-                                color = Lumen.tokens.hairline,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                        }
-
-                        items(profiles, key = { it.id }) { profile ->
-                            ProfileRow(
-                                profile = profile,
-                                onClick = {
-                                    viewModel.startEditProfile(profile.id)
-                                    onNavigateToEditor(profile.id)
-                                },
-                                onDelete = { deleteConfirmProfile = profile }
-                            )
-                            HorizontalDivider(
-                                color = Lumen.tokens.hairline,
-                                modifier = Modifier.padding(start = 16.dp)
-                            )
-                        }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(96.dp)) }
-                }
-            }
         }
     }
 }

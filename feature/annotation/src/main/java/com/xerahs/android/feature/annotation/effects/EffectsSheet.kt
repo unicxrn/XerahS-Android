@@ -14,7 +14,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.xerahs.android.core.ui.lumen.LumenSwitch
 import com.xerahs.android.core.common.image.Corner
 import com.xerahs.android.core.common.image.EffectSettings
 import com.xerahs.android.core.common.image.ImageEffects
@@ -102,6 +102,6 @@ private fun Slider3(label: String, value: Float, range: ClosedFloatingPointRange
 private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        LumenSwitch(checked = checked, onCheckedChange = onChange)
     }
 }

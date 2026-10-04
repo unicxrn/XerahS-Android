@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,7 +51,7 @@ import com.xerahs.android.ui.theme.XerahSTheme
 import com.xerahs.android.util.BiometricHelper
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -140,7 +141,7 @@ class MainActivity : FragmentActivity() {
                                     style = MaterialTheme.typography.titleLarge
                                 )
                                 Spacer(modifier = Modifier.padding(8.dp))
-                                FilledTonalButton(onClick = { promptBiometric() }) {
+                                OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
                                     Text("Unlock")
                                 }
                             }

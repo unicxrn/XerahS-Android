@@ -16,8 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +39,7 @@ import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.ui.lumen.BezelCard
 import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.Lumen
+import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.PillCta
 
@@ -190,31 +189,27 @@ fun ThemeEditorScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Sample card
-                    Card(
+                    LumenCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(
-                                android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation * 0.05f, 0.94f))
-                            )
+                        contentPadding = 16.dp,
+                        color = Color(
+                            android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation * 0.05f, 0.94f))
                         )
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Sample Card",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(seedColor)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "This is how content will look with your custom theme.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                // The card's container is always a near-white pastel, regardless
-                                // of app theme, so the body text needs an explicit dark colour
-                                // rather than onSurface (which can be near-white in dark mode).
-                                color = Color.Black.copy(alpha = 0.72f)
-                            )
-                        }
+                        Text(
+                            text = "Sample Card",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color(seedColor)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This is how content will look with your custom theme.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            // The card's container is always a near-white pastel, regardless
+                            // of app theme, so the body text needs an explicit dark colour
+                            // rather than onSurface (which can be near-white in dark mode).
+                            color = Color.Black.copy(alpha = 0.72f)
+                        )
                     }
                 }
             }
