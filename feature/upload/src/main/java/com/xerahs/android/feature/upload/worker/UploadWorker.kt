@@ -155,7 +155,9 @@ class UploadWorker @AssistedInject constructor(
                 }
                 is FileOutcome.Duplicate -> {
                     progress.clear(id)
-                    return Result.failure(outcome.output)
+                    return Result.failure(
+                        Data.Builder().putAll(outcome.output).putLong(KEY_FINISHED_AT, System.currentTimeMillis()).build()
+                    )
                 }
                 is FileOutcome.Failed -> return fail(outcome.result, spec.destination)
             }
@@ -176,6 +178,7 @@ class UploadWorker @AssistedInject constructor(
         val outputData = Data.Builder()
             .putString(KEY_RESULT_URL, combinedUrl)
             .putString(KEY_ACTIONS, AfterUploadAction.encode(actions))
+            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
             .build()
         return Result.success(outputData)
     }
@@ -194,6 +197,7 @@ class UploadWorker @AssistedInject constructor(
             .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
             .putString(KEY_DESTINATION, destination.name)
             .putString(KEY_ERROR_MESSAGE, message)
+            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
         remaining?.let { output.putString(KEY_FILE_PATHS, it.paths.joinToString("|")) }
         return Result.failure(output.build())
     }
@@ -506,6 +510,7 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_DUPLICATE_TIMESTAMP = "duplicate_timestamp"
         const val KEY_INPUT_VALUES = "input_values"
         const val KEY_ACTIONS = "after_upload_actions"
+        const val KEY_FINISHED_AT = "finished_at"
         const val KEY_PROGRESS_DONE = "progress_done"
         const val KEY_PROGRESS_TOTAL = "progress_total"
 

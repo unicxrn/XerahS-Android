@@ -6,6 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.work.WorkManager
+import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
+import kotlinx.coroutines.flow.map
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -152,6 +155,11 @@ fun XerahSNavGraph(
     modifier: Modifier = Modifier
 ) {
     val reduce = rememberReduceMotion()
+    val appContext = LocalContext.current.applicationContext
+    val activeUploads by remember {
+        WorkManager.getInstance(appContext).getWorkInfosByTagFlow(UPLOAD_WORK_TAG)
+            .map { list -> list.any { !it.state.isFinished } }
+    }.collectAsState(initial = false)
     val globalDuration = if (reduce) 0 else 300
 
     NavHost(
@@ -182,6 +190,8 @@ fun XerahSNavGraph(
                 onSettings = { navController.navigate(Screen.Settings.route) },
                 onStats = { navController.navigate(Screen.Statistics.route) },
                 onHistory = { navController.navigate(Screen.History.route) },
+                onOpenQueue = { navController.navigate(Screen.Queue.route) },
+                activeUploads = activeUploads,
                 onSetUp = { dest -> setupRouteFor(dest)?.let { navController.navigate(it) } }
             )
         }

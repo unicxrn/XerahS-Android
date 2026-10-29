@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -104,6 +105,8 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onStats: () -> Unit = {},
     onHistory: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
+    activeUploads: Boolean = false,
     onSetUp: (UploadDestination) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -152,6 +155,20 @@ fun HomeScreen(
                 ) {
                     BrandMark()
                     Spacer(Modifier.weight(1f))
+                    Box {
+                        CircleIconButton(
+                            Icons.Outlined.CloudUpload,
+                            if (activeUploads) "Upload queue, uploads in progress" else "Upload queue",
+                            onOpenQueue
+                        )
+                        if (activeUploads) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(10.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.size(8.dp))
                     CircleIconButton(Icons.Outlined.History, "All uploads", onHistory)
                     Spacer(Modifier.size(8.dp))
                     CircleIconButton(Icons.Outlined.Settings, "Settings", onSettings)

@@ -52,6 +52,16 @@ data class UploadSpec(
 }
 
 object UploadEnqueuer {
+    const val TAG_DEST = "dest:"
+    const val TAG_NAME = "name:"
+    const val TAG_COUNT = "count:"
+
+    /** WorkManager does not expose input data, so the queue reads these tags to label queued and running work. */
+    fun tagsFor(spec: UploadSpec): List<String> {
+        val paths = spec.paths.distinct()
+        val name = paths.first().substringAfterLast('/').take(80)
+        return listOf(TAG_DEST + spec.destination.name, TAG_NAME + name, TAG_COUNT + paths.size)
+    }
 
     fun inputData(spec: UploadSpec): Data {
         val builder = Data.Builder()
@@ -82,6 +92,7 @@ object UploadEnqueuer {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(UPLOAD_WORK_TAG)
+            .apply { tagsFor(spec).forEach { addTag(it) } }
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork("upload-${request.id}", ExistingWorkPolicy.KEEP, request)
