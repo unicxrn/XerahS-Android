@@ -19,8 +19,15 @@ object BiometricHelper {
             BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         }
 
+    fun status(activity: FragmentActivity): Int =
+        BiometricManager.from(activity).canAuthenticate(authenticators)
+
     fun canAuthenticate(activity: FragmentActivity): Boolean =
-        BiometricManager.from(activity).canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
+        status(activity) == BiometricManager.BIOMETRIC_SUCCESS
+
+    /** True when the device has no screen lock or biometric enrolled. */
+    fun needsScreenLockSetup(activity: FragmentActivity): Boolean =
+        status(activity) == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED
 
     fun showPrompt(
         activity: FragmentActivity,

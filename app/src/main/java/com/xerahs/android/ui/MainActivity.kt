@@ -1,11 +1,13 @@
 package com.xerahs.android.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.view.WindowManager
 import android.widget.Toast
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -69,10 +71,13 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+        private const val PROMPT_RETRY_GUARD_MS = 1500L
+        private const val DEEP_LINK_SCHEME = "xerahs"
     }
 
     private val mainViewModel: MainViewModel by viewModels()
-    private var lockNeedsSetup by mutableStateOf(false)
+    private var promptShowing = false
+    private var lastPromptEndedAt = 0L
     private val ownAuthorities by lazy { setOf("$packageName.fileprovider") }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,9 +97,11 @@ class MainActivity : FragmentActivity() {
             val biometricLockMode by mainViewModel.biometricLockMode.collectAsState()
             val customThemeSeedColor by mainViewModel.customThemeSeedColor.collectAsState()
             val isUnlocked by mainViewModel.isUnlocked.collectAsState()
+            val lockNeedsSetup by mainViewModel.lockNeedsSetup.collectAsState()
             val pendingSharedPaths by mainViewModel.pendingSharedPaths.collectAsState()
             val pendingLaunchCapture by mainViewModel.pendingLaunchCapture.collectAsState()
             val pendingImportUri by mainViewModel.pendingImportUri.collectAsState()
+            val pendingDeepLink by mainViewModel.pendingDeepLink.collectAsState()
 
             XerahSTheme(
                 themeMode = themeMode,
@@ -107,7 +114,22 @@ class MainActivity : FragmentActivity() {
                 // below: the loading placeholder, onboarding, the lock screen and the main app.
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val onboardingState = onboardingCompleted
-                    if (onboardingState == null) {
+                    // Keep the window out of recents and screenshots for as long as App lock is on.
+                    DisposableEffect(biometricLockMode) {
+                        if (biometricLockMode == BiometricLockMode.LOCK_APP) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        }
+                        onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+                    }
+                    // Cold start: ask as soon as the stored mode is known.
+                    LaunchedEffect(biometricLockMode, onboardingState) {
+                        if (biometricLockMode == BiometricLockMode.LOCK_APP && onboardingState == true &&
+                            !mainViewModel.isUnlocked.value
+                        ) {
+                            promptBiometric(auto = true)
+                        }
+                    }
+                    if (onboardingState == null || biometricLockMode == null) {
                         // Settings still loading: show only the background. Composing Home here would
                         // consume a pending share before onboarding takes over.
                         Box(Modifier.fillMaxSize())
@@ -124,11 +146,7 @@ class MainActivity : FragmentActivity() {
                                 }
                             )
                         } else if (biometricLockMode == BiometricLockMode.LOCK_APP && !isUnlocked) {
-                            // Lock overlay. Keep it out of screenshots and the recents screen.
-                            DisposableEffect(Unit) {
-                                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                                onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
-                            }
+                            // Lock overlay
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
@@ -155,15 +173,13 @@ class MainActivity : FragmentActivity() {
                                         )
                                         Spacer(modifier = Modifier.padding(8.dp))
                                         OutlinedButton(
-                                            onClick = {
-                                                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
-                                            },
+                                            onClick = { openSecuritySettings() },
                                             shape = CircleShape
                                         ) {
                                             Text("Open settings")
                                         }
                                     } else {
-                                        OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
+                                        OutlinedButton(onClick = { promptBiometric(auto = false) }, shape = CircleShape) {
                                             Text("Unlock")
                                         }
                                     }
@@ -176,7 +192,9 @@ class MainActivity : FragmentActivity() {
                                 launchCapture = pendingLaunchCapture,
                                 onLaunchCaptureHandled = { mainViewModel.clearLaunchCapture() },
                                 importUri = pendingImportUri,
-                                onImportHandled = { mainViewModel.clearImportUri() }
+                                onImportHandled = { mainViewModel.clearImportUri() },
+                                deepLink = pendingDeepLink,
+                                onDeepLinkHandled = { mainViewModel.clearDeepLink() }
                             )
                         }
                     }
@@ -188,39 +206,60 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         val mode = mainViewModel.biometricLockMode.value
-        if (mode == BiometricLockMode.LOCK_APP && !mainViewModel.isUnlocked.value) {
-            val timeout = mainViewModel.autoLockTimeout.value
-            val lastBackgroundTime = mainViewModel.lastBackgroundTime
-            val elapsed = System.currentTimeMillis() - lastBackgroundTime
-            if (lastBackgroundTime == 0L || elapsed >= timeout) {
-                promptBiometric()
-            } else {
-                mainViewModel.setUnlocked(true)
-            }
+        // Mode not loaded yet: the cold-start effect in setContent handles it.
+        if (mode != BiometricLockMode.LOCK_APP) return
+        val backgroundedAt = mainViewModel.lastBackgroundTime
+        mainViewModel.lastBackgroundTime = 0L
+        val wasUnlocked = backgroundedAt != 0L
+        // Unlocked and never left (for example a rotation): nothing to do.
+        if (mainViewModel.isUnlocked.value && !wasUnlocked) return
+        val elapsed = System.currentTimeMillis() - backgroundedAt
+        if (LockPolicy.shouldPrompt(mode, wasUnlocked, elapsed, mainViewModel.autoLockTimeout.value)) {
+            mainViewModel.setUnlocked(false)
+            promptBiometric(auto = true)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        val mode = mainViewModel.biometricLockMode.value
         // A rotation also stops the activity, but it must not lock the app.
-        if (mode == BiometricLockMode.LOCK_APP && !isChangingConfigurations) {
-            mainViewModel.lastBackgroundTime = System.currentTimeMillis()
-            mainViewModel.setUnlocked(false)
+        if (mainViewModel.biometricLockMode.value == BiometricLockMode.LOCK_APP && !isChangingConfigurations) {
+            // Only an unlocked app can start the timeout; leaving the lock screen never unlocks.
+            mainViewModel.lastBackgroundTime =
+                if (mainViewModel.isUnlocked.value) System.currentTimeMillis() else 0L
         }
     }
 
-    private fun promptBiometric() {
-        // Nothing enrolled: never unlock for free. Show how to set up a screen lock instead.
+    private fun openSecuritySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        }
+    }
+
+    /** Shows the prompt. Cancelling leaves the app locked; an auto prompt will not loop on cancel. */
+    private fun promptBiometric(auto: Boolean) {
+        if (promptShowing) return
+        if (auto && SystemClock.elapsedRealtime() - lastPromptEndedAt < PROMPT_RETRY_GUARD_MS) return
         if (!BiometricHelper.canAuthenticate(this)) {
-            lockNeedsSetup = true
+            // Never unlock for free. Only a missing screen lock gets the setup message.
+            mainViewModel.setLockNeedsSetup(BiometricHelper.needsScreenLockSetup(this))
             return
         }
-        lockNeedsSetup = false
+        mainViewModel.setLockNeedsSetup(false)
+        promptShowing = true
         BiometricHelper.showPrompt(
             activity = this,
-            onSuccess = { mainViewModel.setUnlocked(true) },
-            onFailure = { /* stay locked */ }
+            onSuccess = {
+                promptShowing = false
+                lastPromptEndedAt = SystemClock.elapsedRealtime()
+                mainViewModel.setUnlocked(true)
+            },
+            onFailure = {
+                promptShowing = false
+                lastPromptEndedAt = SystemClock.elapsedRealtime()
+            }
         )
     }
 
@@ -230,6 +269,13 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent) {
+        if (intent.action == Intent.ACTION_VIEW && intent.data?.scheme == DEEP_LINK_SCHEME) {
+            mainViewModel.setDeepLink(intent.data.toString())
+            // Navigate once, from MainScreen (after onboarding and the app lock), not again when
+            // the NavController reads the launch intent on its own.
+            setIntent(Intent(intent).setData(null))
+            return
+        }
         when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { uri ->
                 if (IntakeUriPolicy.isAllowed(uri, ownAuthorities)) {
@@ -274,7 +320,9 @@ fun MainScreen(
     launchCapture: Boolean = false,
     onLaunchCaptureHandled: () -> Unit = {},
     importUri: String? = null,
-    onImportHandled: () -> Unit = {}
+    onImportHandled: () -> Unit = {},
+    deepLink: String? = null,
+    onDeepLinkHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
@@ -305,6 +353,15 @@ fun MainScreen(
         if (importUri != null) {
             navController.navigate(Screen.UploaderImport.createRoute(importUri))
             onImportHandled()
+        }
+    }
+
+    LaunchedEffect(deepLink) {
+        if (deepLink != null) {
+            val uri = Uri.parse(deepLink)
+            // Only links the graph declares; anything else is ignored rather than crashing navigate().
+            if (navController.graph.hasDeepLink(uri)) navController.navigate(uri)
+            onDeepLinkHandled()
         }
     }
 

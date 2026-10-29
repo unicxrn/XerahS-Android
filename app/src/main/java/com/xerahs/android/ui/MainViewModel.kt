@@ -38,7 +38,12 @@ class MainViewModel @Inject constructor(
     // App lock state lives here so a rotation does not ask for the fingerprint again.
     private val _isUnlocked = MutableStateFlow(false)
     val isUnlocked: StateFlow<Boolean> = _isUnlocked.asStateFlow()
+    /** When the app went to the background while unlocked; 0 means it was locked (or never left). */
     var lastBackgroundTime: Long = 0L
+
+    private val _lockNeedsSetup = MutableStateFlow(false)
+    val lockNeedsSetup: StateFlow<Boolean> = _lockNeedsSetup.asStateFlow()
+    fun setLockNeedsSetup(value: Boolean) { _lockNeedsSetup.value = value }
 
     fun setUnlocked(value: Boolean) { _isUnlocked.value = value }
 
@@ -47,12 +52,15 @@ class MainViewModel @Inject constructor(
         savedStateHandle.getStateFlow<ArrayList<String>?>(KEY_PATHS, null)
     val pendingImportUri: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_IMPORT, null)
     val pendingLaunchCapture: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_CAPTURE, false)
+    val pendingDeepLink: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_DEEP_LINK, null)
 
     fun clearSharedPaths() { savedStateHandle[KEY_PATHS] = null }
     fun clearImportUri() { savedStateHandle[KEY_IMPORT] = null }
     fun clearLaunchCapture() { savedStateHandle[KEY_CAPTURE] = false }
     fun setImportUri(uri: String) { savedStateHandle[KEY_IMPORT] = uri }
     fun requestLaunchCapture() { savedStateHandle[KEY_CAPTURE] = true }
+    fun setDeepLink(uri: String) { savedStateHandle[KEY_DEEP_LINK] = uri }
+    fun clearDeepLink() { savedStateHandle[KEY_DEEP_LINK] = null }
 
     /** Copies a shared item into app storage off the main thread, in a scope that outlives rotation. */
     fun handleSend(uri: Uri?, text: String?) {
@@ -141,6 +149,7 @@ class MainViewModel @Inject constructor(
         const val KEY_PATHS = "pendingSharedPaths"
         const val KEY_IMPORT = "pendingImportUri"
         const val KEY_CAPTURE = "pendingLaunchCapture"
+        const val KEY_DEEP_LINK = "pendingDeepLink"
         const val MAX_NAME_BYTES = 200
     }
 
@@ -162,9 +171,10 @@ class MainViewModel @Inject constructor(
     val oledBlack: StateFlow<Boolean> = settingsRepository.getOledBlack()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
-    val biometricLockMode: StateFlow<BiometricLockMode> = settingsRepository.getBiometricLockMode()
-        .map { BiometricLockMode.fromName(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BiometricLockMode.OFF)
+    // null until DataStore has loaded, so the UI never renders content on a guessed lock state.
+    val biometricLockMode: StateFlow<BiometricLockMode?> = settingsRepository.getBiometricLockMode()
+        .map<String, BiometricLockMode?> { BiometricLockMode.fromName(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val autoLockTimeout: StateFlow<Long> = settingsRepository.getAutoLockTimeout()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)

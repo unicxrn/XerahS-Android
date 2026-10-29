@@ -6,8 +6,13 @@ enum class BiometricLockMode {
     LOCK_CREDENTIALS;
 
     companion object {
-        /** Parses the stored name, falling back to [OFF] for anything unknown. */
-        fun fromName(name: String?): BiometricLockMode =
-            entries.firstOrNull { it.name == name } ?: OFF
+        /**
+         * Parses the stored name. Blank means OFF; an unknown value fails closed to
+         * [LOCK_APP] so a corrupt or newer setting never silently disables the lock.
+         */
+        fun fromName(name: String?): BiometricLockMode {
+            if (name.isNullOrBlank()) return OFF
+            return entries.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) } ?: LOCK_APP
+        }
     }
 }
