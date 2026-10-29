@@ -53,10 +53,10 @@ class FtpConfigViewModel @Inject constructor(
     }
 
     suspend fun testFtpConnection(
-        host: String, port: Int, username: String, password: String, useFtps: Boolean
+        host: String, port: Int, username: String, password: String, useFtps: Boolean, passive: Boolean
     ): String = withContext(Dispatchers.IO) {
         try {
-            val client = ftpClientFactory.connect(host, port, username, password, useFtps, passive = true)
+            val client = ftpClientFactory.connect(host, port, username, password, useFtps, passive)
             try {
                 "Connection successful (pwd: ${client.printWorkingDirectory()})"
             } finally {
@@ -72,7 +72,9 @@ class FtpConfigViewModel @Inject constructor(
     ): String = withContext(Dispatchers.IO) {
         try {
             val key = keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() }
-            val session = sshSessionFactory.open(host, port, username, password, key, null, timeoutMs = 10_000)
+            // The screen has no passphrase field, so use the one saved with the config.
+            val passphrase = settingsRepository.getSftpConfig().keyPassphrase
+            val session = sshSessionFactory.open(host, port, username, password, key, passphrase, timeoutMs = 10_000)
             session.disconnect()
             "Connection successful"
         } catch (e: HostKeyChangedException) {
@@ -84,7 +86,7 @@ class FtpConfigViewModel @Inject constructor(
 
     /** Drops the pinned host key so the next connect trusts whatever key the server presents. */
     suspend fun forgetSftpHostKey(host: String, port: Int): Boolean {
-        val hostPort = SshSessionFactory.hostPort(host, port)
+        val hostPort = runCatching { SshSessionFactory.hostPort(host, port) }.getOrNull() ?: return false
         val had = hostKeyStore.get(hostPort) != null
         hostKeyStore.remove(hostPort)
         return had

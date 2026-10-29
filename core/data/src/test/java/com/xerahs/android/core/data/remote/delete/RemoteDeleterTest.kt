@@ -26,6 +26,7 @@ class RemoteDeleterTest {
             override suspend fun get(hostPort: String): String? = null
             override suspend fun put(hostPort: String, fingerprint: String) = Unit
             override suspend fun remove(hostPort: String) = Unit
+            override suspend fun putIfAbsent(hostPort: String, fingerprint: String): String? = null
         }),
         FtpClientFactory()
     )

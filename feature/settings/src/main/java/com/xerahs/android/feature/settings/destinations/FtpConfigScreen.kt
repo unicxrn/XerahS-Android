@@ -257,7 +257,7 @@ fun FtpConfigScreen(
                             coroutineScope.launch {
                                 val result = viewModel.testFtpConnection(
                                     ftpHost, ftpPort.toIntOrNull() ?: 21,
-                                    ftpUsername, ftpPassword, ftpUseFtps
+                                    ftpUsername, ftpPassword, ftpUseFtps, ftpUsePassive
                                 )
                                 isTesting = false
                                 snackbarHostState.showSnackbar(result)

@@ -4,6 +4,7 @@ import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.FTPSClient
+import org.apache.commons.net.util.TrustManagerUtils
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +21,10 @@ class FtpClientFactory @Inject constructor() {
     fun connect(host: String, port: Int, user: String, password: String, ftps: Boolean, passive: Boolean): FTPClient {
         val client: FTPClient = if (ftps) {
             FTPSClient(false).apply {
+                // Validate the certificate chain against the platform trust store. The
+                // commons-net default only checks validity dates, so self-signed FTPS
+                // servers used to pass; they are now rejected.
+                trustManager = TrustManagerUtils.getDefaultTrustManager(null)
                 hostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
                 setEndpointCheckingEnabled(true)
             }

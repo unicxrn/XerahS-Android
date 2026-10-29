@@ -2,7 +2,11 @@ package com.xerahs.android.core.data.remote.transfer
 
 import com.jcraft.jsch.HostKeyRepository
 import com.jcraft.jsch.JSchException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -15,6 +19,8 @@ class SshSessionFactoryTest {
         override suspend fun get(hostPort: String) = map[hostPort]
         override suspend fun put(hostPort: String, fingerprint: String) { map[hostPort] = fingerprint }
         override suspend fun remove(hostPort: String) { map.remove(hostPort) }
+        override suspend fun putIfAbsent(hostPort: String, fingerprint: String): String? =
+            synchronized(map) { map[hostPort] ?: run { map[hostPort] = fingerprint; null } }
     }
 
     private val store = MemoryStore()
@@ -31,7 +37,7 @@ class SshSessionFactoryTest {
     }
 
     private fun connect(key: ByteArray) = runBlocking {
-        factory.verify("example.com:22", fakeServer(key))
+        factory.verify("example.com:22", connect = fakeServer(key))
     }
 
     @Test fun firstConnectPinsFingerprint() {
@@ -84,5 +90,38 @@ class SshSessionFactoryTest {
             assertEquals("Auth fail", e.message)
         }
         assertNull(store.map["example.com:22"])
+    }
+
+    @Test fun concurrentFirstConnectsPinOnlyOneKey() = runBlocking {
+        // Both connects read "nothing pinned" before either finishes the handshake.
+        val bothChecked = CountDownLatch(2)
+        fun racing(key: ByteArray): (HostKeyRepository) -> String = { repo ->
+            val result = fakeServer(key)(repo)
+            bothChecked.countDown()
+            check(bothChecked.await(5, TimeUnit.SECONDS))
+            result
+        }
+        val a = async(Dispatchers.Default) { runCatching { factory.verify("example.com:22", connect = racing(keyA)) } }
+        val b = async(Dispatchers.Default) { runCatching { factory.verify("example.com:22", connect = racing(keyB)) } }
+        val results = listOf(a.await(), b.await())
+
+        assertEquals(1, results.count { it.isSuccess })
+        val failure = results.single { it.isFailure }.exceptionOrNull()
+        assertTrue(failure is HostKeyChangedException)
+        val pinned = store.map["example.com:22"]
+        assertEquals(pinned, (failure as HostKeyChangedException).expected)
+        assertTrue(pinned == SshSessionFactory.fingerprint(keyA) || pinned == SshSessionFactory.fingerprint(keyB))
+    }
+
+    @Test fun hostPortRejectsSeparatorCharacters() {
+        assertEquals("example.com:22", SshSessionFactory.hostPort(" Example.COM ", 22))
+        for (bad in listOf("a=b", "a\nb", "a\rb")) {
+            try {
+                SshSessionFactory.hostPort(bad, 22)
+                fail("expected rejection of ${bad}")
+            } catch (e: IllegalArgumentException) {
+                assertTrue(e.message!!.contains("host"))
+            }
+        }
     }
 }

@@ -32,6 +32,12 @@ class HostKeyStoreTest {
         assertEquals("SHA256:new", store.get("h:22"))
     }
 
+    @Test fun putIfAbsentKeepsFirstValue() = runBlocking {
+        assertNull(store.putIfAbsent("h:22", "SHA256:first"))
+        assertEquals("SHA256:first", store.putIfAbsent("h:22", "SHA256:second"))
+        assertEquals("SHA256:first", store.get("h:22"))
+    }
+
     @Test fun codecRoundTrips() {
         val map = mapOf("a:22" to "SHA256:x", "b:2022" to "SHA256:y")
         assertEquals(map, DataStoreHostKeyStore.decode(DataStoreHostKeyStore.encode(map)))

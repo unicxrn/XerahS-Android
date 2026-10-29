@@ -9,6 +9,9 @@ interface HostKeyStore {
     suspend fun get(hostPort: String): String?
     suspend fun put(hostPort: String, fingerprint: String)
     suspend fun remove(hostPort: String)
+
+    /** Atomically pins [fingerprint] unless a key is already pinned; returns the existing one, or null if it pinned. */
+    suspend fun putIfAbsent(hostPort: String, fingerprint: String): String?
 }
 
 @Singleton
@@ -28,6 +31,16 @@ class DataStoreHostKeyStore internal constructor(private val pref: StringPref) :
 
     override suspend fun put(hostPort: String, fingerprint: String) =
         pref.update { encode(decode(it) + (hostPort to fingerprint)) }
+
+    override suspend fun putIfAbsent(hostPort: String, fingerprint: String): String? {
+        var existing: String? = null
+        pref.update { raw ->
+            val map = decode(raw)
+            existing = map[hostPort]
+            if (existing != null) raw else encode(map + (hostPort to fingerprint))
+        }
+        return existing
+    }
 
     override suspend fun remove(hostPort: String) =
         pref.update { encode(decode(it) - hostPort) }

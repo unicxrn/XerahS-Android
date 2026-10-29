@@ -29,7 +29,7 @@ class SshSessionFactory @Inject constructor(private val store: HostKeyStore) {
         passphrase: String?,
         timeoutMs: Int = 15000
     ): Session = withContext(Dispatchers.IO) {
-        verify(hostPort(host, port)) { repo ->
+        verify(hostPort(host, port), onRejected = { it.disconnect() }) { repo ->
             val jsch = JSch()
             jsch.setHostKeyRepository(repo)
             if (privateKey != null) {
@@ -54,7 +54,11 @@ class SshSessionFactory @Inject constructor(private val store: HostKeyStore) {
      * one, then pins on success (first use) or turns a key mismatch into
      * [HostKeyChangedException]. Split out so the policy is testable without a server.
      */
-    internal suspend fun <T> verify(hostPort: String, connect: (HostKeyRepository) -> T): T {
+    internal suspend fun <T> verify(
+        hostPort: String,
+        onRejected: (T) -> Unit = {},
+        connect: (HostKeyRepository) -> T
+    ): T {
         val pinned = store.get(hostPort)
         val repo = PinningRepository(pinned)
         val result = try {
@@ -66,7 +70,15 @@ class SshSessionFactory @Inject constructor(private val store: HostKeyStore) {
             }
             throw e
         }
-        if (pinned == null) repo.presented?.let { store.put(hostPort, it) }
+        val presented = repo.presented
+        if (pinned == null && presented != null) {
+            // Another connect may have pinned a key since we read the store; whoever pins first wins.
+            val existing = store.putIfAbsent(hostPort, presented)
+            if (existing != null && existing != presented) {
+                runCatching { onRejected(result) }
+                throw HostKeyChangedException(hostPort, existing, presented)
+            }
+        }
         return result
     }
 
@@ -91,7 +103,12 @@ class SshSessionFactory @Inject constructor(private val store: HostKeyStore) {
     }
 
     companion object {
-        fun hostPort(host: String, port: Int): String = "${host.trim().lowercase()}:$port"
+        fun hostPort(host: String, port: Int): String {
+            require(host.none { it == '=' || it == '\n' || it == '\r' }) {
+                "Invalid host name: it can't contain '=' or line breaks"
+            }
+            return "${host.trim().lowercase()}:$port"
+        }
 
         /** OpenSSH-style: `SHA256:` + unpadded base64 of sha256(key blob). */
         fun fingerprint(keyBlob: ByteArray): String =
