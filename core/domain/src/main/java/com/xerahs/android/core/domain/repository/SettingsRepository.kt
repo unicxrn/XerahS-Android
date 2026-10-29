@@ -43,6 +43,9 @@ interface SettingsRepository {
     suspend fun getGistConfig(): UploadConfig.GistConfig
     suspend fun saveGistConfig(config: UploadConfig.GistConfig)
 
+    /** True when the destination has everything it needs to upload. Local and Imgur never need setup. */
+    fun isDestinationConfigured(dest: UploadDestination): Flow<Boolean>
+
     suspend fun getFtpConfig(): UploadConfig.FtpConfig
     suspend fun saveFtpConfig(config: UploadConfig.FtpConfig)
 

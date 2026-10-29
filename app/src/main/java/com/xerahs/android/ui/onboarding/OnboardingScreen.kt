@@ -63,41 +63,20 @@ private data class DestinationOption(
 )
 
 private val destinationOptions = listOf(
-    DestinationOption(
-        label = "Imgur",
-        subtitle = "Quick, anonymous image hosting",
-        icon = Icons.Default.Image,
-        destination = UploadDestination.IMGUR
-    ),
-    DestinationOption(
-        label = "S3 / R2",
-        subtitle = "Your own object storage bucket",
-        icon = Icons.Default.Storage,
-        destination = UploadDestination.S3
-    ),
-    DestinationOption(
-        label = "FTP / SFTP",
-        subtitle = "Upload to your own server",
-        icon = Icons.Default.Dns,
-        destination = UploadDestination.FTP
-    ),
-    DestinationOption(
-        label = "Custom uploader",
-        subtitle = "ShareX-compatible (.sxcu) endpoint",
-        icon = Icons.Default.Code,
-        destination = UploadDestination.CUSTOM_HTTP
-    ),
-    DestinationOption(
-        label = "Local",
-        subtitle = "Save to this device only",
-        icon = Icons.Default.Folder,
-        destination = UploadDestination.LOCAL
-    ),
+    DestinationOption("Imgur", "Quick, anonymous image hosting", Icons.Default.Image, UploadDestination.IMGUR),
+    DestinationOption("S3 / R2", "Your own object storage bucket", Icons.Default.Storage, UploadDestination.S3),
+    DestinationOption("FTP", "Upload to your own server", Icons.Default.Dns, UploadDestination.FTP),
+    DestinationOption("SFTP", "Upload over SSH", Icons.Default.Dns, UploadDestination.SFTP),
+    DestinationOption("Custom uploader", "ShareX-compatible (.sxcu) endpoint", Icons.Default.Code, UploadDestination.CUSTOM_HTTP),
+    DestinationOption("Nextcloud", "Your own Nextcloud server", Icons.Default.Storage, UploadDestination.NEXTCLOUD),
+    DestinationOption("Immich", "Your own photo library", Icons.Default.Image, UploadDestination.IMMICH),
+    DestinationOption("GitHub Gist", "Share text and files as gists", Icons.Default.Code, UploadDestination.GITHUB_GIST),
+    DestinationOption("Local", "Save to this device only", Icons.Default.Folder, UploadDestination.LOCAL),
 )
 
 @Composable
 fun OnboardingScreen(
-    onComplete: () -> Unit,
+    onComplete: (UploadDestination?) -> Unit,
     onSelectDestination: (UploadDestination) -> Unit = {}
 ) {
     var selected by remember { mutableStateOf(UploadDestination.IMGUR) }
@@ -120,9 +99,9 @@ fun OnboardingScreen(
             },
             onComplete = {
                 onSelectDestination(selected)
-                onComplete()
+                onComplete(selected)
             },
-            onSkip = onComplete
+            onSkip = { onComplete(null) }
         )
     }
 }

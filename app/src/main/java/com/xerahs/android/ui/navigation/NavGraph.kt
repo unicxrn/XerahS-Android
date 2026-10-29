@@ -64,6 +64,9 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.LinkOff
+import com.xerahs.android.core.ui.EmptyState
+import com.xerahs.android.core.ui.lumen.PillCta
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
@@ -177,7 +180,9 @@ fun XerahSNavGraph(
                 onCreate = { navController.navigate(Screen.Capture.route) },
                 onOpen = { id -> navController.navigate(Screen.ShareResult.createRoute(id)) },
                 onSettings = { navController.navigate(Screen.Settings.route) },
-                onStats = { navController.navigate(Screen.Statistics.route) }
+                onStats = { navController.navigate(Screen.Statistics.route) },
+                onHistory = { navController.navigate(Screen.History.route) },
+                onSetUp = { dest -> setupRouteFor(dest)?.let { navController.navigate(it) } }
             )
         }
 
@@ -262,8 +267,29 @@ fun XerahSNavGraph(
                         onDeleteFromHost = vm::deleteFromHost,
                         onDone = { navController.popBackStack() }
                     )
-                } else {
+                } else if (s.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        EmptyState(
+                            icon = Icons.Outlined.LinkOff,
+                            title = "This upload no longer exists"
+                        )
+                        Spacer(Modifier.size(24.dp))
+                        PillCta(
+                            text = "Back",
+                            onClick = {
+                                if (!navController.popBackStack()) {
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(navController.graph.id) { inclusive = true }
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }

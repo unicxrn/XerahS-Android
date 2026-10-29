@@ -3,7 +3,9 @@ package com.xerahs.android.feature.history.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.OpenInBrowserException
 import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,7 +27,9 @@ data class HomeUiState(
     val itemsById: Map<String, HistoryItem> = emptyMap(),
     val query: String = "",
     val isLoading: Boolean = true,
-    val todayCount: Int = 0
+    val todayCount: Int = 0,
+    /** Default destination that still needs configuring, or null when it is ready to use. */
+    val setupNeeded: UploadDestination? = null
 )
 
 sealed interface HomeMessage {
@@ -33,7 +40,8 @@ sealed interface HomeMessage {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val historyRepository: HistoryRepository,
-    private val remoteDelete: RemoteDeleteRepository
+    private val remoteDelete: RemoteDeleteRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -45,7 +53,19 @@ class HomeViewModel @Inject constructor(
     /** All loaded items, newest-first irrelevant - grouping re-sorts. Kept for in-memory filtering. */
     private var allItems: List<HistoryItem> = emptyList()
 
+    private val setupRefresh = MutableStateFlow(0)
+
+    /** Re-check the default destination, for example after coming back from its setup screen. */
+    fun refreshSetup() { setupRefresh.value += 1 }
+
     init {
+        viewModelScope.launch {
+            combine(settingsRepository.getDefaultDestination(), setupRefresh) { dest, _ -> dest }
+                .flatMapLatest { dest ->
+                    settingsRepository.isDestinationConfigured(dest).map { ok -> if (ok) null else dest }
+                }
+                .collect { missing -> _uiState.value = _uiState.value.copy(setupNeeded = missing) }
+        }
         viewModelScope.launch {
             historyRepository.getAllHistory().collect { items ->
                 allItems = items

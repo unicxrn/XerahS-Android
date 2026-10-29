@@ -62,6 +62,10 @@ class MainViewModel @Inject constructor(
     fun setDeepLink(uri: String) { savedStateHandle[KEY_DEEP_LINK] = uri }
     fun clearDeepLink() { savedStateHandle[KEY_DEEP_LINK] = null }
 
+    // Setup screen to open once after onboarding; survives rotation like the other pending state.
+    val pendingSetupRoute: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_SETUP_ROUTE, null)
+    fun clearSetupRoute() { savedStateHandle[KEY_SETUP_ROUTE] = null }
+
     /** Copies a shared item into app storage right away, in a scope that outlives rotation. */
     fun handleSend(uri: Uri?, text: String?) {
         viewModelScope.launch {
@@ -121,6 +125,7 @@ class MainViewModel @Inject constructor(
         const val KEY_IMPORT = "pendingImportUri"
         const val KEY_CAPTURE = "pendingLaunchCapture"
         const val KEY_DEEP_LINK = "pendingDeepLink"
+        const val KEY_SETUP_ROUTE = "pendingSetupRoute"
     }
 
 
@@ -176,7 +181,8 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun completeOnboarding() {
+    fun completeOnboarding(setupRoute: String? = null) {
+        if (setupRoute != null) savedStateHandle[KEY_SETUP_ROUTE] = setupRoute
         viewModelScope.launch {
             settingsRepository.setOnboardingCompleted(true)
         }

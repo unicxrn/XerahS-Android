@@ -12,7 +12,11 @@ import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.model.isConfiguredForUpload
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -96,6 +100,21 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveGistConfig(config: UploadConfig.GistConfig) =
         secureCredentialStore.saveGistConfig(config)
+
+    override fun isDestinationConfigured(dest: UploadDestination): Flow<Boolean> = flow {
+        val config: UploadConfig? = when (dest) {
+            UploadDestination.LOCAL -> null
+            UploadDestination.IMGUR -> secureCredentialStore.getImgurConfig()
+            UploadDestination.S3 -> secureCredentialStore.getS3Config()
+            UploadDestination.FTP -> secureCredentialStore.getFtpConfig()
+            UploadDestination.SFTP -> secureCredentialStore.getSftpConfig()
+            UploadDestination.CUSTOM_HTTP -> secureCredentialStore.getCustomUploaderConfig()
+            UploadDestination.NEXTCLOUD -> secureCredentialStore.getNextcloudConfig()
+            UploadDestination.IMMICH -> secureCredentialStore.getImmichConfig()
+            UploadDestination.GITHUB_GIST -> secureCredentialStore.getGistConfig()
+        }
+        emit(config?.isConfiguredForUpload() ?: true)
+    }.flowOn(Dispatchers.IO)
 
     override suspend fun getFtpConfig(): UploadConfig.FtpConfig =
         secureCredentialStore.getFtpConfig()

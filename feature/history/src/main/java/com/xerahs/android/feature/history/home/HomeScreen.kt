@@ -89,6 +89,8 @@ import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.HostChip
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
+import com.xerahs.android.core.ui.lumen.PillCta
+import androidx.compose.material.icons.outlined.History
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.core.ui.lumen.relativeTime
@@ -101,10 +103,20 @@ fun HomeScreen(
     onOpen: (String) -> Unit,
     onSettings: () -> Unit,
     onStats: () -> Unit = {},
+    onHistory: () -> Unit = {},
+    onSetUp: (UploadDestination) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshSetup()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val clipboard = LocalClipboardManager.current
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
@@ -140,7 +152,30 @@ fun HomeScreen(
                 ) {
                     BrandMark()
                     Spacer(Modifier.weight(1f))
+                    CircleIconButton(Icons.Outlined.History, "All uploads", onHistory)
+                    Spacer(Modifier.size(8.dp))
                     CircleIconButton(Icons.Outlined.Settings, "Settings", onSettings)
+                }
+            }
+
+            uiState.setupNeeded?.let { dest ->
+                item(key = "setup") {
+                    LumenCard(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                        radius = 22.dp
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Finish setting up ${dest.displayName}", style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                "Uploads to ${dest.displayName} will not work until it is set up.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.size(12.dp))
+                            PillCta(text = "Set up", onClick = { onSetUp(dest) })
+                        }
+                    }
                 }
             }
 

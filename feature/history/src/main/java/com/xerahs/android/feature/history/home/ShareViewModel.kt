@@ -26,7 +26,8 @@ data class ShareUiState(
     val isShortening: Boolean = false,
     val error: String? = null,
     val canDeleteFromHost: Boolean = false,
-    val isDeleting: Boolean = false
+    val isDeleting: Boolean = false,
+    val isLoading: Boolean = true
 )
 
 sealed interface ShareEvent {
@@ -56,6 +57,7 @@ class ShareViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     item = item,
+                    isLoading = false,
                     canDeleteFromHost = item?.let(remoteDelete::canDelete) ?: false
                 )
             }

@@ -50,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xerahs.android.core.ui.lumen.LumenNavPill
 import com.xerahs.android.core.ui.lumen.NavPillItem
 import com.xerahs.android.ui.navigation.Screen
+import com.xerahs.android.ui.navigation.setupRouteFor
 import com.xerahs.android.ui.navigation.XerahSNavGraph
 import com.xerahs.android.ui.onboarding.OnboardingScreen
 import com.xerahs.android.ui.theme.XerahSTheme
@@ -102,6 +103,7 @@ class MainActivity : FragmentActivity() {
             val pendingLaunchCapture by mainViewModel.pendingLaunchCapture.collectAsState()
             val pendingImportUri by mainViewModel.pendingImportUri.collectAsState()
             val pendingDeepLink by mainViewModel.pendingDeepLink.collectAsState()
+            val pendingSetupRoute by mainViewModel.pendingSetupRoute.collectAsState()
 
             XerahSTheme(
                 themeMode = themeMode,
@@ -140,7 +142,9 @@ class MainActivity : FragmentActivity() {
                     ) { completed ->
                         if (!completed) {
                             OnboardingScreen(
-                                onComplete = { mainViewModel.completeOnboarding() },
+                                onComplete = { dest ->
+                                    mainViewModel.completeOnboarding(dest?.let(::setupRouteFor))
+                                },
                                 onSelectDestination = { dest ->
                                     mainViewModel.setDefaultDestination(dest)
                                 }
@@ -194,7 +198,9 @@ class MainActivity : FragmentActivity() {
                                 importUri = pendingImportUri,
                                 onImportHandled = { mainViewModel.clearImportUri() },
                                 deepLink = pendingDeepLink,
-                                onDeepLinkHandled = { mainViewModel.clearDeepLink() }
+                                onDeepLinkHandled = { mainViewModel.clearDeepLink() },
+                                setupRoute = pendingSetupRoute,
+                                onSetupRouteHandled = { mainViewModel.clearSetupRoute() }
                             )
                         }
                     }
@@ -322,7 +328,9 @@ fun MainScreen(
     importUri: String? = null,
     onImportHandled: () -> Unit = {},
     deepLink: String? = null,
-    onDeepLinkHandled: () -> Unit = {}
+    onDeepLinkHandled: () -> Unit = {},
+    setupRoute: String? = null,
+    onSetupRouteHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
@@ -353,6 +361,13 @@ fun MainScreen(
         if (importUri != null) {
             navController.navigate(Screen.UploaderImport.createRoute(importUri))
             onImportHandled()
+        }
+    }
+
+    LaunchedEffect(setupRoute) {
+        if (setupRoute != null) {
+            navController.navigate(setupRoute)
+            onSetupRouteHandled()
         }
     }
 
