@@ -1,11 +1,12 @@
 package com.xerahs.android.core.data.remote.delete
 
 import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.JSch
 import com.jcraft.jsch.SftpException
 import com.xerahs.android.core.common.AwsV4Signer
 import com.xerahs.android.core.common.S3Endpoint
 import com.xerahs.android.core.data.remote.http.await
+import com.xerahs.android.core.data.remote.transfer.FtpClientFactory
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -16,15 +17,18 @@ import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPSClient
+import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 // Deletes an upload from its host. Throws on failure; 404 / missing file counts as success.
 @Singleton
-class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) {
+class RemoteDeleter @Inject constructor(
+    private val okHttpClient: OkHttpClient,
+    private val sshSessionFactory: SshSessionFactory,
+    private val ftpClientFactory: FtpClientFactory
+) {
 
     fun canDelete(item: HistoryItem): Boolean = when (item.uploadDestination) {
         UploadDestination.CUSTOM_HTTP -> !item.deleteUrl.isNullOrBlank()
@@ -71,11 +75,10 @@ class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) 
     }
 
     private fun ftp(config: UploadConfig.FtpConfig, path: String) {
-        val client = if (config.useFtps) FTPSClient() else FTPClient()
+        val client = ftpClientFactory.connect(
+            config.host, config.port, config.username, config.password, config.useFtps, config.usePassiveMode
+        )
         try {
-            client.connect(config.host, config.port)
-            if (!client.login(config.username, config.password)) throw IOException("FTP login failed")
-            if (config.usePassiveMode) client.enterLocalPassiveMode() else client.enterLocalActiveMode()
             if (!client.deleteFile(path)) {
                 // 550 covers both "no such file" and "permission denied"; tell them apart
                 // by checking whether the file is actually still there.
@@ -87,18 +90,14 @@ class RemoteDeleter @Inject constructor(private val okHttpClient: OkHttpClient) 
         }
     }
 
-    private fun sftp(config: UploadConfig.SftpConfig, path: String) {
-        val jsch = JSch()
-        if (!config.keyPath.isNullOrEmpty()) {
-            if (config.keyPassphrase.isNullOrEmpty()) jsch.addIdentity(config.keyPath)
-            else jsch.addIdentity(config.keyPath, config.keyPassphrase)
-        }
-        val session = jsch.getSession(config.username, config.host, config.port)
+    private suspend fun sftp(config: UploadConfig.SftpConfig, path: String) {
+        val session = sshSessionFactory.open(
+            config.host, config.port, config.username, config.password,
+            config.keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() },
+            config.keyPassphrase, timeoutMs = 30000
+        )
         var channel: ChannelSftp? = null
         try {
-            if (config.keyPath.isNullOrEmpty()) session.setPassword(config.password)
-            session.setConfig(java.util.Properties().apply { this["StrictHostKeyChecking"] = "no" })
-            session.connect(30000)
             channel = session.openChannel("sftp") as ChannelSftp
             channel.connect(30000)
             try {

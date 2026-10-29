@@ -1,9 +1,10 @@
 package com.xerahs.android.feature.upload.uploader
 
 import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.xerahs.android.core.common.PathPattern
+import com.xerahs.android.core.data.remote.transfer.HostKeyChangedException
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
@@ -15,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SftpUploader @Inject constructor() {
+class SftpUploader @Inject constructor(private val sshSessionFactory: SshSessionFactory) {
 
     suspend fun upload(file: File, config: UploadConfig.SftpConfig, remoteFileName: String? = null): UploadResult =
         withContext(Dispatchers.IO) {
@@ -23,29 +24,11 @@ class SftpUploader @Inject constructor() {
             var channel: ChannelSftp? = null
 
             try {
-                val jsch = JSch()
-
-                // Add SSH key if provided
-                if (!config.keyPath.isNullOrEmpty()) {
-                    if (config.keyPassphrase.isNullOrEmpty()) {
-                        jsch.addIdentity(config.keyPath)
-                    } else {
-                        jsch.addIdentity(config.keyPath, config.keyPassphrase)
-                    }
-                }
-
-                session = jsch.getSession(config.username, config.host, config.port)
-
-                if (config.keyPath.isNullOrEmpty()) {
-                    session.setPassword(config.password)
-                }
-
-                // Disable strict host key checking for simplicity
-                val sshConfig = java.util.Properties()
-                sshConfig["StrictHostKeyChecking"] = "no"
-                session.setConfig(sshConfig)
-
-                session.connect(30000)
+                session = sshSessionFactory.open(
+                    config.host, config.port, config.username, config.password,
+                    config.keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() },
+                    config.keyPassphrase, timeoutMs = 30000
+                )
 
                 channel = session.openChannel("sftp") as ChannelSftp
                 channel.connect(30000)
@@ -88,6 +71,12 @@ class SftpUploader @Inject constructor() {
                     url = url,
                     destination = UploadDestination.SFTP,
                     remoteKey = actualDir?.let { it.trimEnd('/') + "/" + uploadName }
+                )
+            } catch (e: HostKeyChangedException) {
+                UploadResult(
+                    success = false,
+                    errorMessage = e.message,
+                    destination = UploadDestination.SFTP
                 )
             } catch (e: Exception) {
                 UploadResult(

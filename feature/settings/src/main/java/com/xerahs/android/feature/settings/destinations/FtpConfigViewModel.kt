@@ -1,20 +1,24 @@
 package com.xerahs.android.feature.settings.destinations
 
 import androidx.lifecycle.ViewModel
-import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Session
+import com.xerahs.android.core.data.remote.transfer.FtpClientFactory
+import com.xerahs.android.core.data.remote.transfer.HostKeyChangedException
+import com.xerahs.android.core.data.remote.transfer.HostKeyStore
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPSClient
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class FtpConfigViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val sshSessionFactory: SshSessionFactory,
+    private val ftpClientFactory: FtpClientFactory,
+    private val hostKeyStore: HostKeyStore
 ) : ViewModel() {
 
     suspend fun loadFtpConfig(): UploadConfig.FtpConfig =
@@ -51,19 +55,14 @@ class FtpConfigViewModel @Inject constructor(
     suspend fun testFtpConnection(
         host: String, port: Int, username: String, password: String, useFtps: Boolean
     ): String = withContext(Dispatchers.IO) {
-        val client: FTPClient = if (useFtps) FTPSClient() else FTPClient()
         try {
-            client.connectTimeout = 10_000
-            client.connect(host, port)
-            if (!client.login(username, password)) {
-                return@withContext "Login failed: ${client.replyString?.trim()}"
+            val client = ftpClientFactory.connect(host, port, username, password, useFtps, passive = true)
+            try {
+                "Connection successful (pwd: ${client.printWorkingDirectory()})"
+            } finally {
+                runCatching { client.logout(); client.disconnect() }
             }
-            val pwd = client.printWorkingDirectory()
-            client.logout()
-            client.disconnect()
-            "Connection successful (pwd: $pwd)"
         } catch (e: Exception) {
-            try { client.disconnect() } catch (_: Exception) {}
             "Connection failed: ${e.message}"
         }
     }
@@ -71,24 +70,23 @@ class FtpConfigViewModel @Inject constructor(
     suspend fun testSftpConnection(
         host: String, port: Int, username: String, password: String, keyPath: String?
     ): String = withContext(Dispatchers.IO) {
-        var session: Session? = null
         try {
-            val jsch = JSch()
-            if (!keyPath.isNullOrEmpty()) {
-                jsch.addIdentity(keyPath)
-            }
-            session = jsch.getSession(username, host, port)
-            if (keyPath.isNullOrEmpty()) {
-                session.setPassword(password)
-            }
-            session.setConfig("StrictHostKeyChecking", "no")
-            session.timeout = 10_000
-            session.connect()
+            val key = keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() }
+            val session = sshSessionFactory.open(host, port, username, password, key, null, timeoutMs = 10_000)
             session.disconnect()
             "Connection successful"
+        } catch (e: HostKeyChangedException) {
+            e.message.orEmpty()
         } catch (e: Exception) {
-            try { session?.disconnect() } catch (_: Exception) {}
             "Connection failed: ${e.message}"
         }
+    }
+
+    /** Drops the pinned host key so the next connect trusts whatever key the server presents. */
+    suspend fun forgetSftpHostKey(host: String, port: Int): Boolean {
+        val hostPort = SshSessionFactory.hostPort(host, port)
+        val had = hostKeyStore.get(hostPort) != null
+        hostKeyStore.remove(hostPort)
+        return had
     }
 }

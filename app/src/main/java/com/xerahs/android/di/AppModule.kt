@@ -1,5 +1,7 @@
 package com.xerahs.android.di
 
+import com.xerahs.android.core.data.remote.transfer.DataStoreHostKeyStore
+import com.xerahs.android.core.data.remote.transfer.HostKeyStore
 import com.xerahs.android.core.data.repository.AlbumRepositoryImpl
 import com.xerahs.android.core.data.repository.HistoryRepositoryImpl
 import com.xerahs.android.core.data.repository.OcrRepositoryImpl
@@ -63,4 +65,8 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindRemoteDeleteRepository(impl: RemoteDeleteRepositoryImpl): RemoteDeleteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindHostKeyStore(impl: DataStoreHostKeyStore): HostKeyStore
 }

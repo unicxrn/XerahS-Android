@@ -1,5 +1,8 @@
 package com.xerahs.android.core.data.remote.delete
 
+import com.xerahs.android.core.data.remote.transfer.FtpClientFactory
+import com.xerahs.android.core.data.remote.transfer.HostKeyStore
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -17,7 +20,15 @@ import org.junit.Test
 
 class RemoteDeleterTest {
     private val server = MockWebServer()
-    private val deleter = RemoteDeleter(OkHttpClient())
+    private val deleter = RemoteDeleter(
+        OkHttpClient(),
+        SshSessionFactory(object : HostKeyStore {
+            override suspend fun get(hostPort: String): String? = null
+            override suspend fun put(hostPort: String, fingerprint: String) = Unit
+            override suspend fun remove(hostPort: String) = Unit
+        }),
+        FtpClientFactory()
+    )
 
     @Before fun setUp() = server.start()
     @After fun tearDown() = server.shutdown()

@@ -17,6 +17,7 @@ import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,6 +49,17 @@ class SettingsDataStore @Inject constructor(
         val CONVERT_HEIC = booleanPreferencesKey("convert_heic_to_png")
         val DEFAULT_AFTER_UPLOAD_ACTIONS = stringPreferencesKey("after_upload_actions")
         val RECENT_COLORS = stringPreferencesKey("recent_colors")
+        val PINNED_HOST_KEYS = stringPreferencesKey("pinned_host_keys")
+    }
+
+    // SSH host-key pins, one `host:port=SHA256:...` per line. Fingerprints aren't secrets.
+    suspend fun getPinnedHostKeys(): String? = context.dataStore.data.first()[Keys.PINNED_HOST_KEYS]
+
+    suspend fun updatePinnedHostKeys(transform: (String?) -> String?) {
+        context.dataStore.edit { prefs ->
+            val next = transform(prefs[Keys.PINNED_HOST_KEYS])
+            if (next.isNullOrEmpty()) prefs.remove(Keys.PINNED_HOST_KEYS) else prefs[Keys.PINNED_HOST_KEYS] = next
+        }
     }
 
     private fun profileActionsKey(profileId: String) = stringPreferencesKey("after_upload_actions_$profileId")

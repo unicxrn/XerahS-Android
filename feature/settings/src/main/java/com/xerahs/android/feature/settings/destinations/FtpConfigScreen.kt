@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.settings.destinations
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
@@ -24,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
@@ -380,7 +383,7 @@ fun FtpConfigScreen(
                                     sftpKeyPath.ifEmpty { null }
                                 )
                                 isTesting = false
-                                snackbarHostState.showSnackbar(result)
+                                snackbarHostState.showSnackbar(result, duration = SnackbarDuration.Long)
                             }
                         },
                         shape = CircleShape,
@@ -395,6 +398,29 @@ fun FtpConfigScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Text("Test Connection")
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                val had = viewModel.forgetSftpHostKey(sftpHost, sftpPort.toIntOrNull() ?: 22)
+                                snackbarHostState.showSnackbar(
+                                    if (had) "Saved host key forgotten. The next connection will save the new one."
+                                    else "No saved host key for this server"
+                                )
+                            }
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        enabled = sftpHost.isNotBlank()
+                    ) {
+                        Text("Forget saved host key")
                     }
                 }
 

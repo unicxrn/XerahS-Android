@@ -1,44 +1,30 @@
 package com.xerahs.android.feature.upload.uploader
 
 import com.xerahs.android.core.common.PathPattern
+import com.xerahs.android.core.data.remote.transfer.FtpClientFactory
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPSClient
 import java.io.File
 import java.io.FileInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class FtpUploader @Inject constructor() {
+class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFactory) {
 
     suspend fun upload(file: File, config: UploadConfig.FtpConfig, remoteFileName: String? = null): UploadResult =
         withContext(Dispatchers.IO) {
-            val client: FTPClient = if (config.useFtps) FTPSClient() else FTPClient()
+            var client: FTPClient? = null
 
             try {
-                client.connect(config.host, config.port)
-
-                if (!client.login(config.username, config.password)) {
-                    return@withContext UploadResult(
-                        success = false,
-                        errorMessage = "FTP login failed",
-                        destination = UploadDestination.FTP
-                    )
-                }
-
-                if (config.usePassiveMode) {
-                    client.enterLocalPassiveMode()
-                } else {
-                    client.enterLocalActiveMode()
-                }
-
-                client.setFileType(FTP.BINARY_FILE_TYPE)
+                client = ftpClientFactory.connect(
+                    config.host, config.port, config.username, config.password,
+                    config.useFtps, config.usePassiveMode
+                )
 
                 // Change to remote directory
                 val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
@@ -90,7 +76,7 @@ class FtpUploader @Inject constructor() {
                 )
             } finally {
                 try {
-                    if (client.isConnected) {
+                    if (client?.isConnected == true) {
                         client.logout()
                         client.disconnect()
                     }
