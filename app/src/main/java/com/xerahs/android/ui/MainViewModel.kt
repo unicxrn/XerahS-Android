@@ -11,13 +11,13 @@ import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
-import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.common.file.IntakeCopier
+import com.xerahs.android.core.common.file.copyToCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,18 +62,18 @@ class MainViewModel @Inject constructor(
     fun setDeepLink(uri: String) { savedStateHandle[KEY_DEEP_LINK] = uri }
     fun clearDeepLink() { savedStateHandle[KEY_DEEP_LINK] = null }
 
-    /** Copies a shared item into app storage off the main thread, in a scope that outlives rotation. */
+    /** Copies a shared item into app storage right away, in a scope that outlives rotation. */
     fun handleSend(uri: Uri?, text: String?) {
         viewModelScope.launch {
             if (uri != null) {
-                val (name, path) = withContext(Dispatchers.IO) {
-                    val name = displayName(uri)
-                    name to if (isUploaderConfig(name)) null else copyUriToInternal(uri, name)
-                }
+                val name = withContext(Dispatchers.IO) { displayName(uri) }
                 if (isUploaderConfig(name)) {
                     savedStateHandle[KEY_IMPORT] = uri.toString()
-                } else if (path != null) {
-                    savedStateHandle[KEY_PATHS] = arrayListOf(path)
+                } else {
+                    IntakeCopier<Uri>(::copyShared).intake(
+                        listOf(uri),
+                        onReady = { savedStateHandle[KEY_PATHS] = ArrayList(it.map(File::getAbsolutePath)) }
+                    )
                 }
             } else if (text != null) {
                 withContext(Dispatchers.IO) { writeSharedText(text) }
@@ -84,10 +84,20 @@ class MainViewModel @Inject constructor(
 
     fun handleSendMultiple(uris: List<Uri>) {
         viewModelScope.launch {
-            val paths = withContext(Dispatchers.IO) {
-                uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
-            }
-            if (paths.isNotEmpty()) savedStateHandle[KEY_PATHS] = ArrayList(paths)
+            IntakeCopier<Uri>(::copyShared).intake(
+                uris,
+                onReady = { savedStateHandle[KEY_PATHS] = ArrayList(it.map(File::getAbsolutePath)) }
+            )
+        }
+    }
+
+    private suspend fun copyShared(uri: Uri): File {
+        val dir = newSharedDir()
+        return try {
+            copyToCache(context.contentResolver, uri, dir)
+        } catch (e: Exception) {
+            dir.deleteRecursively() // don't leave empty share folders behind
+            throw e
         }
     }
 
@@ -102,45 +112,6 @@ class MainViewModel @Inject constructor(
     private fun newSharedDir(): File =
         File(context.filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
 
-    /** Copies a shared item into app storage, keeping its real name (and so its extension). */
-    private fun copyUriToInternal(uri: Uri, displayName: String?): String? {
-        val dir = newSharedDir()
-        return try {
-            copyInto(dir, uri, displayName)
-        } catch (e: Exception) {
-            dir.deleteRecursively() // don't leave empty share folders behind
-            null
-        }
-    }
-
-    private fun copyInto(dir: File, uri: Uri, displayName: String?): String {
-        var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
-        if (!name.contains('.')) {
-            val ext = context.contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
-            name = "$name.$ext"
-        }
-        val file = File(dir, limitFileName(name))
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(file).use { out -> input.copyTo(out) }
-        } ?: throw java.io.FileNotFoundException(uri.toString())
-        return file.absolutePath
-    }
-
-    /** Keeps the name's UTF-8 length within [MAX_NAME_BYTES] by trimming the base name, never the extension. */
-    private fun limitFileName(name: String): String {
-        val dot = name.lastIndexOf('.')
-        val ext = if (dot >= 0) name.substring(dot) else ""
-        var base = if (dot >= 0) name.substring(0, dot) else name
-        val budget = (MAX_NAME_BYTES - ext.toByteArray(Charsets.UTF_8).size).coerceAtLeast(1)
-        while (base.isNotEmpty() && base.toByteArray(Charsets.UTF_8).size > budget) {
-            base = base.dropLast(1)
-            // Don't leave a dangling high surrogate.
-            if (base.isNotEmpty() && base.last().isHighSurrogate()) base = base.dropLast(1)
-        }
-        if (base.isBlank()) base = "shared"
-        return base + ext
-    }
-
     private fun writeSharedText(text: String): String? = runCatching {
         File(newSharedDir(), "shared-text.txt").apply { writeText(text) }.absolutePath
     }.getOrNull()
@@ -150,7 +121,6 @@ class MainViewModel @Inject constructor(
         const val KEY_IMPORT = "pendingImportUri"
         const val KEY_CAPTURE = "pendingLaunchCapture"
         const val KEY_DEEP_LINK = "pendingDeepLink"
-        const val MAX_NAME_BYTES = 200
     }
 
 

@@ -1,5 +1,7 @@
 package com.xerahs.android.feature.annotation
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
@@ -10,10 +12,13 @@ import com.xerahs.android.core.domain.model.Annotation
 import com.xerahs.android.core.domain.repository.OcrException
 import com.xerahs.android.core.domain.repository.OcrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.xerahs.android.core.common.image.calculateInSampleSize
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 enum class AnnotationTool {
@@ -46,7 +51,10 @@ data class AnnotationUiState(
     val ocrError: String? = null,
     val balloonText: String = "Note",
     val pendingStickerPath: String? = null,
-    val effects: EffectSettings = EffectSettings()
+    val effects: EffectSettings = EffectSettings(),
+    val bitmap: Bitmap? = null,
+    val isLoading: Boolean = true,
+    val loadFailed: Boolean = false
 )
 
 @HiltViewModel
@@ -56,6 +64,33 @@ class AnnotationViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AnnotationUiState())
     val uiState: StateFlow<AnnotationUiState> = _uiState.asStateFlow()
+
+    private var loadedPath: String? = null
+
+    /** Decodes off the main thread, sampled to at most [MAX_EDGE] px. Does nothing if this path is already loaded. */
+    fun loadImage(path: String) {
+        if (loadedPath == path) return
+        loadedPath = path
+        _uiState.value = _uiState.value.copy(isLoading = true, loadFailed = false)
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(path, bounds)
+                    val opts = BitmapFactory.Options().apply {
+                        inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_EDGE)
+                    }
+                    BitmapFactory.decodeFile(path, opts)
+                }.getOrNull()
+            }
+            _uiState.value = _uiState.value.copy(bitmap = bmp, isLoading = false, loadFailed = bmp == null)
+        }
+    }
+
+    /** Replaces the working bitmap, for example after a crop. */
+    fun setBitmap(bitmap: Bitmap) {
+        _uiState.value = _uiState.value.copy(bitmap = bitmap)
+    }
 
     fun selectTool(tool: AnnotationTool) {
         _uiState.value = _uiState.value.copy(selectedTool = tool, selectedAnnotationId = null)
@@ -452,3 +487,5 @@ class AnnotationViewModel @Inject constructor(
         )
     }
 }
+
+private const val MAX_EDGE = 4096

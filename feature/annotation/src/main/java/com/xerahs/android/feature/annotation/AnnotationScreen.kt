@@ -2,7 +2,6 @@ package com.xerahs.android.feature.annotation
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -139,16 +138,26 @@ fun AnnotationScreen(
     // the canvas bezel's bottom inset in sync instead of a hard-coded constant.
     var bottomControlsHeight by remember { mutableStateOf(0.dp) }
 
-    var currentBitmap by remember(imagePath) {
-        mutableStateOf(BitmapFactory.decodeFile(imagePath))
-    }
+    LaunchedEffect(imagePath) { viewModel.loadImage(imagePath) }
 
-    if (currentBitmap == null) {
-        Text("Failed to load image", color = MaterialTheme.colorScheme.error)
+    if (uiState.isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
         return
     }
-
-    val bitmap = currentBitmap!!
+    val bitmap = uiState.bitmap
+    if (bitmap == null) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Couldn't open this image", color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onBack) { Text("Go back") }
+        }
+        return
+    }
 
     // In-progress drag state
     var dragStartPos by remember { mutableStateOf<Offset?>(null) }
@@ -156,7 +165,7 @@ fun AnnotationScreen(
     var freehandPoints by remember { mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
 
     // Crop state
-    var cropRect by remember { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
+    var cropRect by remember(bitmap) { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
 
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) coroutineScope.launch {
@@ -531,7 +540,7 @@ fun AnnotationScreen(
                 Button(
                     onClick = {
                         val cropped = CropEngine.cropBitmap(bitmap, cropRect)
-                        currentBitmap = cropped
+                        viewModel.setBitmap(cropped)
                         viewModel.setCropMode(false)
                         viewModel.clearAnnotations()
                     },

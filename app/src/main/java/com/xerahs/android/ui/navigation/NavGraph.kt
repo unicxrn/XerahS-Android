@@ -282,6 +282,11 @@ fun XerahSNavGraph(
                         popUpTo(Screen.Capture.route) { inclusive = true }
                     }
                 },
+                onFileCaptured = { path ->
+                    navController.navigate(Screen.Upload.createRoute(path)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
+                },
                 onCancel = { navController.popBackStack() }
             )
         }

@@ -3,10 +3,18 @@ package com.xerahs.android.feature.capture
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.unit.dp
+import com.xerahs.android.core.ui.lumen.PillCta
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -27,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun CaptureScreen(
     onImageCaptured: (String) -> Unit,
     onMultiImageCaptured: (List<String>) -> Unit = {},
+    onFileCaptured: (String) -> Unit = {},
     onCancel: () -> Unit = {},
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
@@ -36,11 +45,17 @@ fun CaptureScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onImagesPicked(uris)
-        } else {
-            onCancel()
-        }
+        if (uris.isNotEmpty()) viewModel.onPicked(uris)
+    }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.onPicked(uris)
+    }
+    val pickMedia = {
+        photoPickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+        )
     }
 
     val launched = rememberSaveable { mutableStateOf(false) }
@@ -48,9 +63,14 @@ fun CaptureScreen(
     LaunchedEffect(Unit) {
         if (!launched.value) {
             launched.value = true
-            photoPickerLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
+            pickMedia()
+        }
+    }
+
+    LaunchedEffect(uiState.pickedFilePath) {
+        uiState.pickedFilePath?.let { path ->
+            viewModel.onImageHandled()
+            onFileCaptured(path)
         }
     }
 
@@ -82,11 +102,19 @@ fun CaptureScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             color = MaterialTheme.colorScheme.background
         ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                PillCta(text = "Pick photos or videos", onClick = { pickMedia() })
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                    shape = CircleShape
+                ) { Text("Pick a file") }
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onCancel) { Text("Cancel") }
             }
         }
     }
