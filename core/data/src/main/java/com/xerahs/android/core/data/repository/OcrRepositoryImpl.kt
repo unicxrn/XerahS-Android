@@ -2,6 +2,8 @@ package com.xerahs.android.core.data.repository
 
 import android.content.Context
 import android.net.Uri
+import com.google.android.gms.common.api.ApiException
+import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -23,9 +25,19 @@ class OcrRepositoryImpl @Inject constructor(
                 val image = InputImage.fromFilePath(context, Uri.fromFile(File(imagePath)))
                 recognizer.process(image)
                     .addOnSuccessListener { result -> if (cont.isActive) cont.resume(Result.success(result.text)) }
-                    .addOnFailureListener { e -> if (cont.isActive) cont.resume(Result.failure(e)) }
+                    .addOnFailureListener { e -> if (cont.isActive) cont.resume(Result.failure(mapFailure(e))) }
             } catch (e: Exception) {
-                if (cont.isActive) cont.resume(Result.failure(e))
+                if (cont.isActive) cont.resume(Result.failure(mapFailure(e)))
             }
         }
+
+    private fun mapFailure(e: Exception): Exception {
+        val unavailable = (e is MlKitException && e.errorCode == MlKitException.UNAVAILABLE) ||
+            e is ApiException
+        return if (unavailable) Exception(UNAVAILABLE_MESSAGE, e) else e
+    }
+
+    private companion object {
+        const val UNAVAILABLE_MESSAGE = "Text recognition isn't available on this device"
+    }
 }

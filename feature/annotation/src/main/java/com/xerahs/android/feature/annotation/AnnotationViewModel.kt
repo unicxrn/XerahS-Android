@@ -422,7 +422,13 @@ class AnnotationViewModel @Inject constructor(
         viewModelScope.launch {
             ocrRepository.recognizeText(imagePath).fold(
                 onSuccess = { text -> _uiState.value = _uiState.value.copy(ocrText = text, isRecognizing = false) },
-                onFailure = { _uiState.value = _uiState.value.copy(ocrError = "Couldn't read text", isRecognizing = false) },
+                onFailure = { e ->
+                    val unavailable = e.message?.startsWith("Text recognition isn't available") == true
+                    _uiState.value = _uiState.value.copy(
+                        ocrError = if (unavailable) e.message else "Couldn't read text",
+                        isRecognizing = false,
+                    )
+                },
             )
         }
     }
