@@ -15,6 +15,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
+import androidx.work.WorkInfo
 import androidx.work.WorkerParameters
 import com.xerahs.android.core.common.FileHasher
 import com.xerahs.android.core.common.FileNamePattern
@@ -69,6 +70,18 @@ class UploadWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        try {
+            return runBatch()
+        } catch (e: CancellationException) {
+            // Android stops dataSync services after a daily limit on API 35: tell the user why.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && stopReason == WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT) {
+                postFailureNotification("Upload stopped by Android after running too long")
+            }
+            throw e
+        }
+    }
+
+    private suspend fun runBatch(): Result {
         val destinationName = inputData.getString(KEY_DESTINATION) ?: return Result.failure()
         val destination = try {
             UploadDestination.valueOf(destinationName)
