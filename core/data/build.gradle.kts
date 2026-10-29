@@ -6,6 +6,7 @@ plugins {
 }
 
 android {
+    testOptions { unitTests.isReturnDefaultValues = true }
     namespace = "com.xerahs.android.core.data"
     compileSdk = 35
 

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.image.EffectSettings
 import com.xerahs.android.core.domain.model.Annotation
+import com.xerahs.android.core.domain.repository.OcrException
 import com.xerahs.android.core.domain.repository.OcrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -423,9 +424,8 @@ class AnnotationViewModel @Inject constructor(
             ocrRepository.recognizeText(imagePath).fold(
                 onSuccess = { text -> _uiState.value = _uiState.value.copy(ocrText = text, isRecognizing = false) },
                 onFailure = { e ->
-                    val unavailable = e.message?.startsWith("Text recognition isn't available") == true
                     _uiState.value = _uiState.value.copy(
-                        ocrError = if (unavailable) e.message else "Couldn't read text",
+                        ocrError = if (e is OcrException) e.message else "Couldn't read text",
                         isRecognizing = false,
                     )
                 },
