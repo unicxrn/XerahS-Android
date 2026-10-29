@@ -20,3 +20,6 @@ local.properties
 /feature/s3explorer/build
 /feature/settings/build
 /feature/tools/build
+
+keystore.properties
+*.keystore

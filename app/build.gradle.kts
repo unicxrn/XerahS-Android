@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,19 +19,31 @@ android {
         versionName = "0.7.0"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("${System.getProperty("user.home")}/.config/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+    val releaseSigning: Any? = run {
+        val propsFile = rootProject.file("keystore.properties")
+        val props = Properties()
+        if (propsFile.exists()) propsFile.inputStream().use { props.load(it) }
+        val ksPath = props.getProperty("storeFile") ?: System.getenv("XERAHS_KEYSTORE")
+        val storePw = props.getProperty("storePassword") ?: System.getenv("XERAHS_STORE_PASSWORD")
+        val alias = props.getProperty("keyAlias") ?: System.getenv("XERAHS_KEY_ALIAS")
+        val keyPw = props.getProperty("keyPassword") ?: System.getenv("XERAHS_KEY_PASSWORD")
+        if (ksPath != null && storePw != null && alias != null && keyPw != null) {
+            signingConfigs.create("release") {
+                storeFile = file(ksPath)
+                storePassword = storePw
+                keyAlias = alias
+                keyPassword = keyPw
+            }
+        } else {
+            logger.warn("XerahS: release build is unsigned (no keystore.properties or XERAHS_* env)")
+            null
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = releaseSigning as com.android.build.api.dsl.ApkSigningConfig?
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
