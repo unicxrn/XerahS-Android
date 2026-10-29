@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,6 +18,7 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Test, lint and build
+        shell: bash
         run: ./gradlew testDebugUnitTest lint assembleDebug
       - name: Upload reports
         if: failure()

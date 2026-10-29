@@ -19,31 +19,60 @@ android {
         versionName = "0.7.0"
     }
 
-    val releaseSigning: Any? = run {
+    val releaseSigning: com.android.build.api.dsl.ApkSigningConfig? = run {
         val propsFile = rootProject.file("keystore.properties")
-        val props = Properties()
-        if (propsFile.exists()) propsFile.inputStream().use { props.load(it) }
-        val ksPath = props.getProperty("storeFile") ?: System.getenv("XERAHS_KEYSTORE")
-        val storePw = props.getProperty("storePassword") ?: System.getenv("XERAHS_STORE_PASSWORD")
-        val alias = props.getProperty("keyAlias") ?: System.getenv("XERAHS_KEY_ALIAS")
-        val keyPw = props.getProperty("keyPassword") ?: System.getenv("XERAHS_KEY_PASSWORD")
-        if (ksPath != null && storePw != null && alias != null && keyPw != null) {
-            signingConfigs.create("release") {
-                storeFile = file(ksPath)
-                storePassword = storePw
-                keyAlias = alias
-                keyPassword = keyPw
+        val keys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        val envNames = mapOf(
+            "storeFile" to "XERAHS_KEYSTORE",
+            "storePassword" to "XERAHS_STORE_PASSWORD",
+            "keyAlias" to "XERAHS_KEY_ALIAS",
+            "keyPassword" to "XERAHS_KEY_PASSWORD"
+        )
+        val values: Map<String, String?>? = when {
+            propsFile.exists() -> {
+                val props = Properties()
+                propsFile.inputStream().use { props.load(it) }
+                keys.associateWith { k -> props.getProperty(k)?.trim()?.takeIf { it.isNotEmpty() } }
             }
-        } else {
-            logger.warn("XerahS: release build is unsigned (no keystore.properties or XERAHS_* env)")
+            envNames.values.any { !System.getenv(it).isNullOrBlank() } ->
+                keys.associateWith { k -> System.getenv(envNames.getValue(k))?.trim()?.takeIf { it.isNotEmpty() } }
+            else -> null
+        }
+        if (values == null) {
             null
+        } else {
+            val missing = keys.filter { values[it] == null }
+            if (missing.isNotEmpty()) {
+                val source = if (propsFile.exists()) "keystore.properties" else "XERAHS_* env"
+                throw GradleException("XerahS: incomplete release signing in $source, missing: ${missing.joinToString()}")
+            }
+            val rawPath = values.getValue("storeFile")!!
+            val path = if (rawPath == "~" || rawPath.startsWith("~/")) {
+                System.getProperty("user.home") + rawPath.removePrefix("~")
+            } else rawPath
+            val ks = rootProject.file(path)
+            if (!ks.exists()) throw GradleException("XerahS: release keystore not found: ${ks.absolutePath}")
+            signingConfigs.create("release") {
+                storeFile = ks
+                storePassword = values.getValue("storePassword")
+                keyAlias = values.getValue("keyAlias")
+                keyPassword = values.getValue("keyPassword")
+            }
+        }
+    }
+
+    if (releaseSigning == null) {
+        gradle.taskGraph.whenReady {
+            if (allTasks.any { it.path.startsWith(":app:") && it.name.contains("Release") }) {
+                logger.warn("XerahS: release build is unsigned (no keystore.properties or XERAHS_* env)")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = releaseSigning as com.android.build.api.dsl.ApkSigningConfig?
+            signingConfig = releaseSigning
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
