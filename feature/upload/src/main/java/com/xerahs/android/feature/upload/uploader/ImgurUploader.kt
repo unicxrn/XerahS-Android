@@ -42,7 +42,8 @@ class ImgurUploader @Inject constructor(
                 UploadResult(
                     success = false,
                     errorMessage = "Imgur upload failed: status ${response.status}",
-                    destination = UploadDestination.IMGUR
+                    destination = UploadDestination.IMGUR,
+                    permanent = true
                 )
             }
         } catch (e: Exception) {

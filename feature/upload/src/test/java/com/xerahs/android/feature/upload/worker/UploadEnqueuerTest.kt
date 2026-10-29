@@ -35,4 +35,11 @@ class UploadEnqueuerTest {
         assertNull(UploadSpec.fromStrings(mapOf(UploadWorker.KEY_FILE_PATHS to "/c/1.png")))
         assertNull(UploadSpec.fromStrings(mapOf(UploadWorker.KEY_FILE_PATHS to "/c/1.png", UploadWorker.KEY_DESTINATION to "NOPE")))
     }
+
+    @Test fun duplicatePathsAreDropped() {
+        val extras = mapOf(UploadWorker.KEY_FILE_PATHS to "/c/1.png|/c/2.png|/c/1.png", UploadWorker.KEY_DESTINATION to "LOCAL")
+        assertEquals(listOf("/c/1.png", "/c/2.png"), UploadSpec.fromStrings(extras)!!.paths)
+        val data = UploadEnqueuer.inputData(spec.copy(paths = listOf("/c/1.png", "/c/1.png", "/c/2.png")))
+        assertEquals("/c/1.png|/c/2.png", data.getString(UploadWorker.KEY_FILE_PATHS))
+    }
 }

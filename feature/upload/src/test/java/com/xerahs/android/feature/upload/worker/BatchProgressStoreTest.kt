@@ -46,4 +46,36 @@ class BatchProgressStoreTest {
         store.markDone(id, "/a/3.png", "https://x/3")
         assertEquals(listOf("https://x/1", "https://x/3"), store.urls(id))
     }
+
+    @Test fun recordsHashesSoTheyAreSkippedByDuplicateDetection() {
+        val store = BatchProgressStore(tmp.root)
+        val id = UUID.randomUUID()
+        store.markDone(id, "/a/1.png", "https://x/1", hash = "abc")
+        store.markDone(id, "/a/2.png", null, hash = "def")
+        assertEquals(setOf("abc", "def"), BatchProgressStore(tmp.root).hashes(id))
+        assertEquals(setOf("/a/1.png", "/a/2.png"), store.completed(id))
+    }
+
+    @Test fun dropsAHalfWrittenLastLine() {
+        val store = BatchProgressStore(tmp.root)
+        val id = UUID.randomUUID()
+        store.markDone(id, "/a/1.png", "https://x/1", hash = "abc")
+        java.io.File(tmp.root, id.toString()).appendText("/a/2.p")
+        assertEquals(setOf("/a/1.png"), store.completed(id))
+        store.markDone(id, "/a/3.png")
+        assertEquals(setOf("/a/1.png", "/a/3.png"), store.completed(id))
+    }
+
+    @Test fun pruneDeletesRecordsOlderThanAWeek() {
+        val store = BatchProgressStore(tmp.root)
+        val old = UUID.randomUUID()
+        val fresh = UUID.randomUUID()
+        store.markDone(old, "/a/1.png")
+        store.markDone(fresh, "/a/2.png")
+        val now = System.currentTimeMillis()
+        java.io.File(tmp.root, old.toString()).setLastModified(now - 8L * 24 * 60 * 60 * 1000)
+        store.prune(now)
+        assertTrue(store.completed(old).isEmpty())
+        assertEquals(setOf("/a/2.png"), store.completed(fresh))
+    }
 }

@@ -65,7 +65,9 @@ class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFac
                     UploadResult(
                         success = false,
                         errorMessage = "FTP upload failed: ${client.replyString}",
-                        destination = UploadDestination.FTP
+                        destination = UploadDestination.FTP,
+                        // 5xx replies (no permission, disk full, bad name) won't change on retry. Not an HTTP code.
+                        permanent = client.replyCode in 500..599
                     )
                 }
             } catch (e: Exception) {

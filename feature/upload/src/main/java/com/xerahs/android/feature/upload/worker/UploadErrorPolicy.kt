@@ -1,9 +1,14 @@
 package com.xerahs.android.feature.upload.worker
 
+import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSchException
+import com.jcraft.jsch.SftpException
+import com.xerahs.android.core.common.sxcu.SyntaxEvaluationException
+import com.xerahs.android.core.data.remote.transfer.FtpLoginException
 import com.xerahs.android.core.data.remote.transfer.HostKeyChangedException
 import java.io.FileNotFoundException
-import java.io.IOException
+import java.security.cert.CertificateException
+import javax.net.ssl.SSLHandshakeException
 
 enum class FailureKind { RETRY, PERMANENT }
 
@@ -12,12 +17,13 @@ class LocationStripException(cause: Throwable? = null) :
     Exception("Couldn't remove location data, upload cancelled", cause)
 
 /**
- * Decides whether a failed upload is worth retrying. Client errors (except 408 and 429), auth
- * failures, a changed SSH host key and missing files are permanent. Network errors, 5xx and
- * anything unknown retry.
+ * Decides whether a failed upload is worth retrying. An uploader's own verdict ([permanent]) wins.
+ * Otherwise client errors (except 408 and 429), auth and TLS failures, a changed SSH host key, bad
+ * config and missing files are permanent. Network errors, 5xx and anything unknown retry.
  */
 object UploadErrorPolicy {
-    fun classify(httpCode: Int?, error: Throwable? = null): FailureKind {
+    fun classify(httpCode: Int?, error: Throwable? = null, permanent: Boolean? = null): FailureKind {
+        if (permanent != null) return if (permanent) FailureKind.PERMANENT else FailureKind.RETRY
         if (httpCode != null) {
             return when {
                 httpCode == 408 || httpCode == 429 -> FailureKind.RETRY
@@ -25,16 +31,24 @@ object UploadErrorPolicy {
                 else -> FailureKind.RETRY
             }
         }
-        return when (error) {
-            null -> FailureKind.RETRY
-            is FileNotFoundException,
-            is HostKeyChangedException,
-            is LocationStripException,
-            is SecurityException,
-            is IllegalArgumentException -> FailureKind.PERMANENT
-            is JSchException -> if (error.message.orEmpty().startsWith("Auth")) FailureKind.PERMANENT else FailureKind.RETRY
-            is IOException -> if (error.message.orEmpty().startsWith("FTP login failed")) FailureKind.PERMANENT else FailureKind.RETRY
-            else -> FailureKind.RETRY
-        }
+        if (error == null) return FailureKind.RETRY
+        return if (isPermanent(error) || hasCertificateCause(error)) FailureKind.PERMANENT else FailureKind.RETRY
     }
+
+    private fun isPermanent(error: Throwable): Boolean = when (error) {
+        is FileNotFoundException,
+        is HostKeyChangedException,
+        is LocationStripException,
+        is SSLHandshakeException,
+        is SyntaxEvaluationException,
+        is SecurityException,
+        is IllegalArgumentException -> true
+        is FtpLoginException -> error.replyCode in 500..599
+        is SftpException -> error.id == ChannelSftp.SSH_FX_PERMISSION_DENIED
+        is JSchException -> error.message.orEmpty().let { it.startsWith("Auth") || it.startsWith("invalid privatekey") }
+        else -> false
+    }
+
+    private fun hasCertificateCause(error: Throwable): Boolean =
+        generateSequence(error) { it.cause.takeIf { cause -> cause !== it } }.take(10).any { it is CertificateException }
 }

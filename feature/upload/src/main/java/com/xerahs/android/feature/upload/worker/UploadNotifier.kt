@@ -33,6 +33,9 @@ object UploadNotifier {
     fun shareUri(historyId: String): Uri = Uri.parse("xerahs://share/${Uri.encode(historyId)}")
     fun queueUri(): Uri = Uri.parse("xerahs://queue")
 
+    /** Makes each action's PendingIntent unique per work, so two works whose IDs collide never share extras. */
+    private fun actionUri(workId: UUID, action: String): Uri = Uri.parse("xerahs-internal://work/$workId/$action")
+
     fun progress(context: Context, workId: UUID, text: String, current: Int, total: Int): Notification =
         NotificationCompat.Builder(context, CHANNEL_PROGRESS)
             .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
@@ -55,7 +58,7 @@ object UploadNotifier {
         val id = notificationIdFor(workId)
         val first = url.lines().firstOrNull().orEmpty()
         val target = if (count == 1 && historyId != null) shareUri(historyId) else queueUri()
-        val copy = Intent(context, CopyUrlReceiver::class.java).putExtra("url", url)
+        val copy = Intent(context, CopyUrlReceiver::class.java).setData(actionUri(workId, "copy")).putExtra("url", url)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
             .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
@@ -88,7 +91,9 @@ object UploadNotifier {
             .setContentIntent(open(context, queueUri(), id))
             .setAutoCancel(true)
         if (canRetry && retry != null) {
-            val intent = Intent(context, RetryUploadReceiver::class.java).putExtra(EXTRA_NOTIFICATION_ID, id)
+            val intent = Intent(context, RetryUploadReceiver::class.java)
+                .setData(actionUri(workId, "retry"))
+                .putExtra(EXTRA_NOTIFICATION_ID, id)
             UploadEnqueuer.inputData(retry).keyValueMap.forEach { (key, value) ->
                 if (value != null) intent.putExtra(key, value.toString())
             }

@@ -42,7 +42,7 @@ class ImmichUploader @Inject constructor(
             !upload.ok -> failure(hostError("Immich", upload), upload.code)
             id.isNullOrBlank() -> failure("Immich returned no asset id")
             !config.createShareLink -> success("$base/photos/$id")
-            else -> shareLink(base, apiKey, id)
+            else -> shareLink(base, apiKey, id, "$base/photos/$id")
         }
     } catch (e: CancellationException) {
         throw e
@@ -52,7 +52,7 @@ class ImmichUploader @Inject constructor(
         failure("Immich request is invalid (check the server URL and API key)", error = e)
     }
 
-    private suspend fun shareLink(base: String, apiKey: String, assetId: String): UploadResult {
+    private suspend fun shareLink(base: String, apiKey: String, assetId: String, plainUrl: String): UploadResult {
         val json = JsonObject().apply {
             addProperty("type", "INDIVIDUAL")
             add("assetIds", JsonArray().apply { add(assetId) })
@@ -61,9 +61,10 @@ class ImmichUploader @Inject constructor(
             request("$base/api/shared-links", apiKey)
                 .post(json.toString().toRequestBody("application/json".toMediaType())).build()
         )
-        if (!reply.ok) return failure("Uploaded, but sharing failed: " + hostError("Immich", reply))
+        // The asset is on the server already: fall back to its plain link instead of failing (and re-uploading on retry).
+        if (!reply.ok) return success(plainUrl)
         val key = runCatching { JsonParser.parseString(reply.body).asJsonObject.get("key").asString }.getOrNull()
-        return if (key.isNullOrBlank()) failure("Uploaded, but Immich returned no share key") else success("$base/share/$key")
+        return success(if (key.isNullOrBlank()) plainUrl else "$base/share/$key")
     }
 
     private fun request(url: String, apiKey: String) = Request.Builder().url(url.toHttpUrl())

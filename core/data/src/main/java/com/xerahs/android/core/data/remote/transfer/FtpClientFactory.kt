@@ -38,7 +38,7 @@ class FtpClientFactory @Inject constructor() {
                 throw IOException("FTP server refused connection: ${client.replyString?.trim()}")
             }
             if (!client.login(user, password)) {
-                throw IOException("FTP login failed: ${client.replyString?.trim()}")
+                throw FtpLoginException(client.replyCode, client.replyString?.trim().orEmpty())
             }
             if (client is FTPSClient) {
                 client.execPBSZ(0)

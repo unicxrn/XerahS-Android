@@ -323,7 +323,14 @@ class UploadViewModel @Inject constructor(
                         }
                     }
                     WorkInfo.State.RUNNING -> {
-                        // Keep showing uploading state
+                        val total = workInfo.progress.getInt(UploadWorker.KEY_PROGRESS_TOTAL, 0)
+                        if (total > 1) {
+                            val done = workInfo.progress.getInt(UploadWorker.KEY_PROGRESS_DONE, 0)
+                            _uiState.value = _uiState.value.copy(batchProgress = Pair(done, total))
+                        }
+                    }
+                    WorkInfo.State.CANCELLED -> {
+                        _uiState.value = _uiState.value.copy(isUploading = false, batchProgress = null)
                     }
                     else -> { }
                 }

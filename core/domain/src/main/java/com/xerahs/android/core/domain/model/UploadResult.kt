@@ -12,4 +12,6 @@ data class UploadResult(
     val httpCode: Int? = null,
     /** What made the upload fail, when it threw. Used to decide whether to retry. */
     val error: Throwable? = null,
+    /** The uploader's own verdict: true means retrying can't help, false means it can. Null: decide from the code and error. */
+    val permanent: Boolean? = null,
 )

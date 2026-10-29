@@ -64,4 +64,12 @@ class ImmichUploaderTest {
         val upload = server.takeRequest()
         assertEquals("/api/assets", upload.path)
     }
+
+    @Test fun shareFailureFallsBackToThePhotoUrl() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"a1","status":"created"}"""))
+        server.enqueue(MockResponse().setResponseCode(500).setBody("nope"))
+        val result = uploader.upload(file(), config(), "shot.png")
+        assertTrue(result.success)
+        assertEquals("${base()}/photos/a1", result.url)
+    }
 }

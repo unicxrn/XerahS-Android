@@ -68,4 +68,12 @@ class NextcloudUploaderTest {
         assertTrue(result.errorMessage!!.startsWith("Nextcloud HTTP 401"))
         assertFalse(result.errorMessage!!.contains("pw"))
     }
+
+    @Test fun shareFailureFallsBackToTheFileUrl() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(201))
+        server.enqueue(MockResponse().setResponseCode(403).setBody("sharing disabled"))
+        val result = uploader.upload(file(), config(), "shot.png")
+        assertTrue(result.success)
+        assertTrue(result.url!!.endsWith("/remote.php/dav/files/alice/XerahS/shot.png"))
+    }
 }

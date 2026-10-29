@@ -55,7 +55,7 @@ class CustomUploaderClient @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: SyntaxEvaluationException) {
-            CustomUploadOutcome.Failure(e.message ?: "Custom uploader syntax error")
+            CustomUploadOutcome.Failure(e.message ?: "Custom uploader syntax error", error = e)
         } catch (e: IOException) {
             CustomUploadOutcome.Failure("Network error: ${e.message ?: e.javaClass.simpleName}", error = e)
         } catch (e: IllegalArgumentException) {

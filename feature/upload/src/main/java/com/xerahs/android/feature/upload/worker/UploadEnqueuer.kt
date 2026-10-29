@@ -33,8 +33,10 @@ data class UploadSpec(
             val destination = values[UploadWorker.KEY_DESTINATION]
                 ?.let { name -> UploadDestination.entries.firstOrNull { it.name == name } }
                 ?: return null
-            val paths = values[UploadWorker.KEY_FILE_PATHS]?.split("|")?.filter { it.isNotBlank() }
-                ?: listOfNotNull(values[UploadWorker.KEY_FILE_PATH]?.takeIf { it.isNotBlank() })
+            val paths = (
+                values[UploadWorker.KEY_FILE_PATHS]?.split("|")?.filter { it.isNotBlank() }
+                    ?: listOfNotNull(values[UploadWorker.KEY_FILE_PATH]?.takeIf { it.isNotBlank() })
+                ).distinct()
             if (paths.isEmpty()) return null
             return UploadSpec(
                 paths = paths,
@@ -61,8 +63,9 @@ object UploadEnqueuer {
         if (spec.inputValues.isNotEmpty()) {
             builder.putString(UploadWorker.KEY_INPUT_VALUES, UploadWorker.encodeInputValues(spec.inputValues))
         }
-        if (spec.paths.size == 1) builder.putString(UploadWorker.KEY_FILE_PATH, spec.paths.first())
-        else builder.putString(UploadWorker.KEY_FILE_PATHS, spec.paths.joinToString("|"))
+        val paths = spec.paths.distinct()
+        if (paths.size == 1) builder.putString(UploadWorker.KEY_FILE_PATH, paths.first())
+        else builder.putString(UploadWorker.KEY_FILE_PATHS, paths.joinToString("|"))
         return builder.build()
     }
 
