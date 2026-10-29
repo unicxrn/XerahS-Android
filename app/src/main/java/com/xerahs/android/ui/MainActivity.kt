@@ -3,7 +3,6 @@ package com.xerahs.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -56,28 +55,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.core.content.IntentCompat
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.xerahs.android.core.common.file.MimeTypes
-import java.io.File
-import java.io.FileOutputStream
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
-        private const val MAX_NAME_BYTES = 200
     }
 
     private val mainViewModel: MainViewModel by viewModels()
-    private var pendingSharedPaths by mutableStateOf<List<String>?>(null)
-    private var pendingLaunchCapture by mutableStateOf(false)
-    private var pendingImportUri by mutableStateOf<String?>(null)
-    private var isUnlocked by mutableStateOf(false)
-    private var lastBackgroundTime: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +82,10 @@ class MainActivity : FragmentActivity() {
             val oledBlack by mainViewModel.oledBlack.collectAsState()
             val biometricLockMode by mainViewModel.biometricLockMode.collectAsState()
             val customThemeSeedColor by mainViewModel.customThemeSeedColor.collectAsState()
+            val isUnlocked by mainViewModel.isUnlocked.collectAsState()
+            val pendingSharedPaths by mainViewModel.pendingSharedPaths.collectAsState()
+            val pendingLaunchCapture by mainViewModel.pendingLaunchCapture.collectAsState()
+            val pendingImportUri by mainViewModel.pendingImportUri.collectAsState()
 
             XerahSTheme(
                 themeMode = themeMode,
@@ -150,11 +141,11 @@ class MainActivity : FragmentActivity() {
                         } else {
                             MainScreen(
                                 sharedPaths = pendingSharedPaths,
-                                onSharedHandled = { pendingSharedPaths = null },
+                                onSharedHandled = { mainViewModel.clearSharedPaths() },
                                 launchCapture = pendingLaunchCapture,
-                                onLaunchCaptureHandled = { pendingLaunchCapture = false },
+                                onLaunchCaptureHandled = { mainViewModel.clearLaunchCapture() },
                                 importUri = pendingImportUri,
-                                onImportHandled = { pendingImportUri = null }
+                                onImportHandled = { mainViewModel.clearImportUri() }
                             )
                         }
                     }
@@ -166,15 +157,16 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         val mode = mainViewModel.biometricLockMode.value
-        if (mode == "LOCK_APP" && !isUnlocked) {
+        if (mode == "LOCK_APP" && !mainViewModel.isUnlocked.value) {
             val timeout = mainViewModel.autoLockTimeout.value
+            val lastBackgroundTime = mainViewModel.lastBackgroundTime
             val elapsed = System.currentTimeMillis() - lastBackgroundTime
             if (lastBackgroundTime == 0L || elapsed >= timeout) {
                 if (BiometricHelper.canAuthenticate(this)) {
                     promptBiometric()
                 }
             } else {
-                isUnlocked = true
+                mainViewModel.setUnlocked(true)
             }
         }
     }
@@ -182,20 +174,21 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         val mode = mainViewModel.biometricLockMode.value
-        if (mode == "LOCK_APP") {
-            lastBackgroundTime = System.currentTimeMillis()
-            isUnlocked = false
+        // A rotation also stops the activity, but it must not lock the app.
+        if (mode == "LOCK_APP" && !isChangingConfigurations) {
+            mainViewModel.lastBackgroundTime = System.currentTimeMillis()
+            mainViewModel.setUnlocked(false)
         }
     }
 
     private fun promptBiometric() {
         if (!BiometricHelper.canAuthenticate(this)) {
-            isUnlocked = true
+            mainViewModel.setUnlocked(true)
             return
         }
         BiometricHelper.showPrompt(
             activity = this,
-            onSuccess = { isUnlocked = true },
+            onSuccess = { mainViewModel.setUnlocked(true) },
             onFailure = { /* stay locked */ }
         )
     }
@@ -207,96 +200,21 @@ class MainActivity : FragmentActivity() {
 
     private fun handleIncomingIntent(intent: Intent) {
         when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data?.let { pendingImportUri = it.toString() }
+            Intent.ACTION_VIEW -> intent.data?.let { mainViewModel.setImportUri(it.toString()) }
             Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT)
                 if (uri == null && text == null) return
-                // Copying can take a while (e.g. large videos), so keep it off the main thread.
-                lifecycleScope.launch {
-                    if (uri != null) {
-                        val (name, path) = withContext(Dispatchers.IO) {
-                            val name = displayName(uri)
-                            name to if (isUploaderConfig(name)) null else copyUriToInternal(uri, name)
-                        }
-                        if (isUploaderConfig(name)) {
-                            pendingImportUri = uri.toString()
-                        } else if (path != null) {
-                            pendingSharedPaths = listOf(path)
-                        }
-                    } else if (text != null) {
-                        withContext(Dispatchers.IO) { writeSharedText(text) }
-                            ?.let { pendingSharedPaths = listOf(it) }
-                    }
-                }
+                mainViewModel.handleSend(uri, text)
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                     ?: return
-                lifecycleScope.launch {
-                    val paths = withContext(Dispatchers.IO) {
-                        uris.mapNotNull { copyUriToInternal(it, displayName(it)) }
-                    }
-                    if (paths.isNotEmpty()) pendingSharedPaths = paths
-                }
+                mainViewModel.handleSendMultiple(uris)
             }
-            ACTION_CAPTURE -> pendingLaunchCapture = true
+            ACTION_CAPTURE -> mainViewModel.requestLaunchCapture()
         }
     }
-
-    private fun isUploaderConfig(name: String?): Boolean =
-        name?.substringAfterLast('.', "")?.lowercase() in setOf("sxcu", "xsdc")
-
-    private fun displayName(uri: Uri): String? = runCatching {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-    }.getOrNull()
-
-    private fun newSharedDir(): File =
-        File(filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
-
-    /** Copies a shared item into app storage, keeping its real name (and so its extension). */
-    private fun copyUriToInternal(uri: Uri, displayName: String?): String? {
-        val dir = newSharedDir()
-        return try {
-            copyInto(dir, uri, displayName)
-        } catch (e: Exception) {
-            dir.deleteRecursively() // don't leave empty share folders behind
-            null
-        }
-    }
-
-    private fun copyInto(dir: File, uri: Uri, displayName: String?): String {
-        var name = (displayName ?: "shared").replace(Regex("""[\\/:*?"<>|]"""), "_")
-        if (!name.contains('.')) {
-            val ext = contentResolver.getType(uri)?.let { MimeTypes.extensionFor(it) } ?: "bin"
-            name = "$name.$ext"
-        }
-        val file = File(dir, limitFileName(name))
-        contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(file).use { out -> input.copyTo(out) }
-        } ?: throw java.io.FileNotFoundException(uri.toString())
-        return file.absolutePath
-    }
-
-    /** Keeps the name's UTF-8 length within [MAX_NAME_BYTES] by trimming the base name, never the extension. */
-    private fun limitFileName(name: String): String {
-        val dot = name.lastIndexOf('.')
-        val ext = if (dot >= 0) name.substring(dot) else ""
-        var base = if (dot >= 0) name.substring(0, dot) else name
-        val budget = (MAX_NAME_BYTES - ext.toByteArray(Charsets.UTF_8).size).coerceAtLeast(1)
-        while (base.isNotEmpty() && base.toByteArray(Charsets.UTF_8).size > budget) {
-            base = base.dropLast(1)
-            // Don't leave a dangling high surrogate.
-            if (base.isNotEmpty() && base.last().isHighSurrogate()) base = base.dropLast(1)
-        }
-        if (base.isBlank()) base = "shared"
-        return base + ext
-    }
-
-    private fun writeSharedText(text: String): String? = runCatching {
-        File(newSharedDir(), "shared-text.txt").apply { writeText(text) }.absolutePath
-    }.getOrNull()
 }
 
 @Composable

@@ -16,6 +16,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.xerahs.android.core.common.FileHasher
 import com.xerahs.android.core.common.FileNamePattern
@@ -46,6 +47,8 @@ import com.xerahs.android.feature.upload.uploader.SftpUploader
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.FileOutputStream
@@ -75,7 +78,11 @@ class UploadWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             // Android stops dataSync services after a daily limit on API 35: tell the user why.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && stopReason == WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT) {
-                postFailureNotification("Upload stopped by Android after running too long")
+                // Cancel so WorkManager does not reschedule the stopped batch.
+                withContext(NonCancellable) {
+                    postFailureNotification("Upload stopped by Android after running too long")
+                    WorkManager.getInstance(applicationContext).cancelWorkById(id)
+                }
             }
             throw e
         }

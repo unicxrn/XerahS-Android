@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -221,7 +224,7 @@ fun LumenTopBar(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     backLabel: String = "Back",
-    windowInsets: WindowInsets = WindowInsets.statusBars,
+    windowInsets: WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
