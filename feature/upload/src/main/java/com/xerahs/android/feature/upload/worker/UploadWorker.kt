@@ -1,15 +1,11 @@
 package com.xerahs.android.feature.upload.worker
 
 import android.annotation.SuppressLint
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -24,6 +20,7 @@ import com.xerahs.android.core.common.HeicConverter
 import com.xerahs.android.core.common.ThumbnailGenerator
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.common.image.calculateInSampleSize
 import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.HistoryItem
@@ -72,48 +69,65 @@ class UploadWorker @AssistedInject constructor(
     private val urlShortener: UrlShortenerRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
+    private val progress by lazy { BatchProgressStore.forCache(appContext.cacheDir) }
+
     override suspend fun doWork(): Result {
         try {
             return runBatch()
         } catch (e: CancellationException) {
-            // Android stops dataSync services after a daily limit on API 35: tell the user why.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && stopReason == WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT) {
-                // Cancel so WorkManager does not reschedule the stopped batch.
-                withContext(NonCancellable) {
-                    postFailureNotification("Upload stopped by Android after running too long")
-                    WorkManager.getInstance(applicationContext).cancelWorkById(id)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                when (stopReason) {
+                    // Android stops dataSync services after a daily limit on API 35: tell the user why.
+                    WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> withContext(NonCancellable) {
+                        val remaining = remainingSpec()
+                        UploadNotifier.failure(
+                            appContext, id, "Upload stopped by Android after running too long",
+                            canRetry = remaining != null, retry = remaining
+                        )
+                        progress.clear(id)
+                        // Cancel so WorkManager does not reschedule the stopped batch.
+                        WorkManager.getInstance(applicationContext).cancelWorkById(id)
+                    }
+                    WorkInfo.STOP_REASON_CANCELLED_BY_APP -> progress.clear(id)
                 }
             }
             throw e
         }
     }
 
-    private suspend fun runBatch(): Result {
-        val destinationName = inputData.getString(KEY_DESTINATION) ?: return Result.failure()
-        val destination = try {
-            UploadDestination.valueOf(destinationName)
-        } catch (e: IllegalArgumentException) {
-            return Result.failure()
-        }
-        val albumId = inputData.getString(KEY_ALBUM_ID)
-        val tagIds = inputData.getString(KEY_TAG_IDS)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
-        val profileId = inputData.getString(KEY_PROFILE_ID)
-        val inputValues = decodeInputValues(inputData.getString(KEY_INPUT_VALUES))
+    override suspend fun getForegroundInfo(): ForegroundInfo = createForegroundInfo("Uploading...", 0, 0)
 
-        // Batch or single mode
-        val batchPaths = inputData.getString(KEY_FILE_PATHS)?.split("|")?.filter { it.isNotBlank() }
-        val singlePath = inputData.getString(KEY_FILE_PATH)
-        val paths = batchPaths ?: listOfNotNull(singlePath)
-        if (paths.isEmpty()) return Result.failure()
+    /** The input minus the files this work already finished, or null if nothing is left. */
+    private fun remainingSpec(): UploadSpec? {
+        val spec = UploadSpec.from(inputData) ?: return null
+        val done = progress.completed(id)
+        return spec.copy(paths = spec.paths.filterNot { it in done }).takeIf { it.paths.isNotEmpty() }
+    }
+
+    private suspend fun runBatch(): Result {
+        val spec = UploadSpec.from(inputData) ?: return Result.failure()
+        val destination = spec.destination
+        val destinationName = destination.name
+        val albumId = spec.albumId
+        val tagIds = spec.tagIds
+        val profileId = spec.profileId
+        val inputValues = spec.inputValues
+        val paths = spec.paths
+
+        // Files a previous attempt of this work already uploaded: skip them, and keep them out of
+        // duplicate detection (they are in history now, because we put them there).
+        val done = progress.completed(id)
 
         // Show foreground notification
         setForeground(createForegroundInfo("Uploading...", 0, paths.size))
 
-        val skipDuplicateCheck = inputData.getBoolean(KEY_SKIP_DUPLICATE_CHECK, false)
+        val skipDuplicateCheck = spec.skipDuplicateCheck
         val actions = settingsRepository.resolveAfterUploadActions(profileId)
 
-        val urls = mutableListOf<String>()
+        val urls = progress.urls(id).toMutableList()
+        var lastHistoryId: String? = null
         for ((index, path) in paths.withIndex()) {
+            if (path in done) continue
             setForeground(createForegroundInfo("Uploading ${index + 1}/${paths.size}...", index, paths.size))
 
             val originalFile = File(path)
@@ -126,6 +140,7 @@ class UploadWorker @AssistedInject constructor(
             if (!skipDuplicateCheck) {
                 val existing = historyRepository.getHistoryByHash(fileHash)
                 if (existing != null) {
+                    progress.clear(id)
                     val outputData = Data.Builder()
                         .putBoolean(KEY_DUPLICATE_FOUND, true)
                         .putString(KEY_DUPLICATE_URL, existing.url)
@@ -160,8 +175,10 @@ class UploadWorker @AssistedInject constructor(
                 } catch (e: Exception) {
                     UploadResult(
                         success = false,
-                        errorMessage = "Upload error: ${e.message ?: e.javaClass.simpleName}",
-                        destination = destination
+                        errorMessage = if (e is LocationStripException) e.message
+                        else "Upload error: ${e.message ?: e.javaClass.simpleName}",
+                        destination = destination,
+                        error = e
                     )
                 }
 
@@ -188,10 +205,12 @@ class UploadWorker @AssistedInject constructor(
                         profileId = profileId
                     )
                     historyRepository.insertHistoryItem(historyItem)
+                    progress.markDone(id, path, finalUrl)
                     for (tagId in tagIds) {
                         tagRepository.addTagToHistory(itemId, tagId)
                     }
                     finalUrl?.let { urls.add(it) }
+                    lastHistoryId = itemId
                 }
                 result
             } finally {
@@ -202,14 +221,31 @@ class UploadWorker @AssistedInject constructor(
 
             if (!uploadResult.success) {
                 val message = uploadResult.errorMessage ?: "Upload failed"
-                postFailureNotification(message)
-                return if (runAttemptCount < 3) Result.retry()
-                else Result.failure(Data.Builder().putString(KEY_ERROR_MESSAGE, message).build())
+                val kind = UploadErrorPolicy.classify(uploadResult.httpCode, uploadResult.error)
+                if (kind == FailureKind.RETRY && runAttemptCount < MAX_RETRIES) return Result.retry()
+
+                // Final: hand back what's left so Retry (notification or queue) picks up where this stopped.
+                val remaining = remainingSpec()
+                progress.clear(id)
+                UploadNotifier.failure(appContext, id, message, canRetry = remaining != null, retry = remaining)
+                val output = Data.Builder()
+                    .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
+                    .putString(KEY_DESTINATION, destinationName)
+                    .putString(KEY_ERROR_MESSAGE, message)
+                remaining?.let { output.putString(KEY_FILE_PATHS, it.paths.joinToString("|")) }
+                return Result.failure(output.build())
             }
         }
 
+        progress.clear(id)
         val combinedUrl = urls.joinToString("\n")
-        postSuccessNotification(combinedUrl, urls.size, actions)
+        UploadNotifier.success(
+            appContext, id,
+            historyId = lastHistoryId.takeIf { paths.size == 1 },
+            url = combinedUrl,
+            count = urls.size,
+            actions = actions
+        )
 
         val outputData = Data.Builder()
             .putString(KEY_RESULT_URL, combinedUrl)
@@ -295,7 +331,15 @@ class UploadWorker @AssistedInject constructor(
         val needsProcessing = quality < 100 || maxDimension > 0 || uploadFormat != ImageFormat.ORIGINAL
         if (!needsProcessing && !stripExif) return file
 
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return file
+        // Sample on decode so a 100 MP photo never lands in memory at full size.
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_DECODE_EDGE)
+        }
+        // Can't decode it, so can't strip it either: don't send it out with its location.
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
+            ?: if (stripExif) throw LocationStripException() else return file
 
         val processedBitmap = if (maxDimension > 0 && (bitmap.width > maxDimension || bitmap.height > maxDimension)) {
             val scale = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
@@ -352,7 +396,10 @@ class UploadWorker @AssistedInject constructor(
                     exif.setAttribute(tag, null)
                 }
                 exif.saveAttributes()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                tempFile.delete()
+                throw LocationStripException(e)
+            }
         }
 
         return tempFile
@@ -361,61 +408,13 @@ class UploadWorker @AssistedInject constructor(
     // dataSync is declared for SystemForegroundService in the app manifest; lint can't see it from this module.
     @SuppressLint("SpecifyForegroundServiceType")
     private fun createForegroundInfo(text: String, current: Int, total: Int): ForegroundInfo {
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD)
-            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
-            .setContentTitle("XerahS Upload")
-            .setContentText(text)
-            .setProgress(total, current, current == 0)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+        val notification = UploadNotifier.progress(appContext, id, text, current, total)
+        val notificationId = UploadNotifier.progressIdFor(id)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(
-                NOTIFICATION_ID_PROGRESS,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
+            ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(NOTIFICATION_ID_PROGRESS, notification)
+            ForegroundInfo(notificationId, notification)
         }
-    }
-
-    private fun postSuccessNotification(url: String, count: Int, actions: Set<AfterUploadAction>) {
-        val first = url.lines().firstOrNull().orEmpty()
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val copyIntent = Intent(appContext, CopyUrlReceiver::class.java).apply { putExtra("url", url) }
-
-        val title = if (count > 1) "$count uploads complete" else "Upload complete"
-        val builder = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
-            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
-            .setContentTitle(title)
-            .setContentText(first)
-            .setAutoCancel(true)
-            .addAction(0, "Copy URL", PendingIntent.getBroadcast(appContext, 0, copyIntent, flags))
-        if (AfterUploadAction.SHARE_SHEET in actions && first.isNotEmpty()) {
-            val share = Intent.createChooser(
-                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            builder.addAction(0, "Share", PendingIntent.getActivity(appContext, 1, share, flags))
-        }
-        if (AfterUploadAction.OPEN_URL in actions && first.startsWith("http", ignoreCase = true)) {
-            val open = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(first)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            builder.addAction(0, "Open", PendingIntent.getActivity(appContext, 2, open, flags))
-        }
-        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_COMPLETE, builder.build())
-    }
-
-    private fun postFailureNotification(errorMessage: String) {
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
-            .setSmallIcon(android.R.drawable.ic_menu_close_clear_cancel)
-            .setContentTitle("Upload failed")
-            .setContentText(errorMessage)
-            .setAutoCancel(true)
-            .build()
-
-        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_COMPLETE, notification)
     }
 
     companion object {
@@ -437,10 +436,9 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_INPUT_VALUES = "input_values"
         const val KEY_ACTIONS = "after_upload_actions"
 
-        private const val CHANNEL_UPLOAD = "upload_channel"
-        private const val CHANNEL_UPLOAD_COMPLETE = "upload_complete_channel"
-        private const val NOTIFICATION_ID_PROGRESS = 2001
-        private const val NOTIFICATION_ID_COMPLETE = 2002
+        /** Retries after the first attempt; [runAttemptCount] starts at 0. */
+        private const val MAX_RETRIES = 3
+        private const val MAX_DECODE_EDGE = 4096
 
         private const val RECORD_SEP = '\u001E'
         private const val UNIT_SEP = '\u001F'

@@ -39,7 +39,7 @@ class ImmichUploader @Inject constructor(
         val upload = okHttpClient.send(request("$base/api/assets", apiKey).post(body).build())
         val id = if (upload.ok) runCatching { JsonParser.parseString(upload.body).asJsonObject.get("id").asString }.getOrNull() else null
         when {
-            !upload.ok -> failure(hostError("Immich", upload))
+            !upload.ok -> failure(hostError("Immich", upload), upload.code)
             id.isNullOrBlank() -> failure("Immich returned no asset id")
             !config.createShareLink -> success("$base/photos/$id")
             else -> shareLink(base, apiKey, id)
@@ -47,9 +47,9 @@ class ImmichUploader @Inject constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: IOException) {
-        failure("Immich network error: ${e.message ?: e.javaClass.simpleName}")
+        failure("Immich network error: ${e.message ?: e.javaClass.simpleName}", error = e)
     } catch (e: IllegalArgumentException) {
-        failure("Immich request is invalid (check the server URL and API key)")
+        failure("Immich request is invalid (check the server URL and API key)", error = e)
     }
 
     private suspend fun shareLink(base: String, apiKey: String, assetId: String): UploadResult {
@@ -70,5 +70,6 @@ class ImmichUploader @Inject constructor(
         .header("x-api-key", apiKey).header("Accept", "application/json")
 
     private fun success(url: String) = UploadResult(success = true, url = url, destination = UploadDestination.IMMICH)
-    private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.IMMICH)
+    private fun failure(message: String, httpCode: Int? = null, error: Throwable? = null) =
+        UploadResult(success = false, errorMessage = message, destination = UploadDestination.IMMICH, httpCode = httpCode, error = error)
 }

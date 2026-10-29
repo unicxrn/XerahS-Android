@@ -72,7 +72,8 @@ class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFac
                 UploadResult(
                     success = false,
                     errorMessage = "FTP error: ${e.message}",
-                    destination = UploadDestination.FTP
+                    destination = UploadDestination.FTP,
+                    error = e
                 )
             } finally {
                 try {

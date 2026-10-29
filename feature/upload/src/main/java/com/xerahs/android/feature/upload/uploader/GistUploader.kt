@@ -46,7 +46,7 @@ class GistUploader @Inject constructor(
             )
             val url = if (reply.ok) runCatching { JsonParser.parseString(reply.body).asJsonObject.get("html_url").asString }.getOrNull() else null
             when {
-                !reply.ok -> failure(hostError("GitHub", reply))
+                !reply.ok -> failure(hostError("GitHub", reply), reply.code)
                 url.isNullOrBlank() -> failure("GitHub returned no gist URL")
                 else -> UploadResult(success = true, url = url, destination = UploadDestination.GITHUB_GIST)
             }
@@ -54,12 +54,13 @@ class GistUploader @Inject constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: IOException) {
-        failure("GitHub network error: ${e.message ?: e.javaClass.simpleName}")
+        failure("GitHub network error: ${e.message ?: e.javaClass.simpleName}", error = e)
     } catch (e: IllegalArgumentException) {
-        failure("GitHub request is invalid (check the token)")
+        failure("GitHub request is invalid (check the token)", error = e)
     }
 
-    private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.GITHUB_GIST)
+    private fun failure(message: String, httpCode: Int? = null, error: Throwable? = null) =
+        UploadResult(success = false, errorMessage = message, destination = UploadDestination.GITHUB_GIST, httpCode = httpCode, error = error)
 
     private companion object {
         const val MAX_BYTES = 1_000_000L

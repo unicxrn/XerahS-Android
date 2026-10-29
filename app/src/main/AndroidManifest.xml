@@ -58,6 +58,14 @@
                 <data android:mimeType="application/json" />
             </intent-filter>
 
+            <!-- In-app deep links, used by upload notifications: xerahs://share/{historyId}, xerahs://queue -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="xerahs" android:host="share" />
+                <data android:scheme="xerahs" android:host="queue" />
+            </intent-filter>
+
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
@@ -74,6 +82,10 @@
 
         <receiver
             android:name="com.xerahs.android.feature.upload.worker.CopyUrlReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.xerahs.android.feature.upload.worker.RetryUploadReceiver"
             android:exported="false" />
 
         <service

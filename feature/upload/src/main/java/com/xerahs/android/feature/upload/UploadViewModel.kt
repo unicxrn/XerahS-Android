@@ -3,12 +3,10 @@ package com.xerahs.android.feature.upload
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.Constraints
-import androidx.work.Data
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.xerahs.android.feature.upload.worker.UploadEnqueuer
+import com.xerahs.android.feature.upload.worker.UploadSpec
 import com.xerahs.android.feature.upload.worker.UploadWorker
 import com.xerahs.android.core.common.file.MimeTypes
 import com.xerahs.android.core.common.sxcu.CustomDestinationType
@@ -261,49 +259,22 @@ class UploadViewModel @Inject constructor(
             )
 
             val destination = _uiState.value.selectedDestination
-            val tagIdsString = _uiState.value.selectedTagIds.joinToString("|")
-
-            val inputDataBuilder = Data.Builder()
-                .putString(UploadWorker.KEY_DESTINATION, destination.name)
-                .putBoolean(UploadWorker.KEY_SKIP_DUPLICATE_CHECK, skipDuplicateCheck)
-
-            _uiState.value.selectedProfileId?.let { profileId ->
-                inputDataBuilder.putString(UploadWorker.KEY_PROFILE_ID, profileId)
-            }
-            if (inputValues.isNotEmpty()) {
-                inputDataBuilder.putString(UploadWorker.KEY_INPUT_VALUES, UploadWorker.encodeInputValues(inputValues))
-            }
-
-            if (_uiState.value.selectedAlbumId != null) {
-                inputDataBuilder.putString(UploadWorker.KEY_ALBUM_ID, _uiState.value.selectedAlbumId)
-            }
-            if (tagIdsString.isNotEmpty()) {
-                inputDataBuilder.putString(UploadWorker.KEY_TAG_IDS, tagIdsString)
-            }
-
-            if (imagePaths.size == 1) {
-                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATH, imagePaths.first())
-            } else {
-                inputDataBuilder.putString(UploadWorker.KEY_FILE_PATHS, imagePaths.joinToString("|"))
-            }
-
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(
-                    if (destination == UploadDestination.LOCAL) NetworkType.NOT_REQUIRED
-                    else NetworkType.CONNECTED
+            val workId = UploadEnqueuer.enqueue(
+                context,
+                UploadSpec(
+                    paths = imagePaths,
+                    destination = destination,
+                    profileId = _uiState.value.selectedProfileId,
+                    albumId = _uiState.value.selectedAlbumId,
+                    tagIds = _uiState.value.selectedTagIds.toList(),
+                    inputValues = inputValues,
+                    skipDuplicateCheck = skipDuplicateCheck,
                 )
-                .build()
-
-            val workRequest = OneTimeWorkRequestBuilder<UploadWorker>()
-                .setInputData(inputDataBuilder.build())
-                .setConstraints(constraints)
-                .build()
-
+            )
             val workManager = WorkManager.getInstance(context)
-            workManager.enqueue(workRequest)
 
             // Observe work status
-            workManager.getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+            workManager.getWorkInfoByIdFlow(workId).collect { workInfo ->
                 when (workInfo?.state) {
                     WorkInfo.State.SUCCEEDED -> {
                         val resultUrl = workInfo.outputData.getString(UploadWorker.KEY_RESULT_URL)

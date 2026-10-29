@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import android.content.Intent
 import com.xerahs.android.feature.annotation.AnnotationScreen
 import com.xerahs.android.feature.capture.CaptureScreen
@@ -43,6 +44,7 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.upload.queue.QueueScreen
 import com.xerahs.android.feature.tools.BatchToolScreen
 import com.xerahs.android.feature.tools.ColorPickerToolScreen
 import com.xerahs.android.feature.tools.HashScreen
@@ -88,6 +90,10 @@ sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object ShareResult : Screen("share/{historyId}") {
         fun createRoute(id: String) = "share/$id"
+        const val DEEP_LINK = "xerahs://share/{historyId}"
+    }
+    data object Queue : Screen("queue") {
+        const val DEEP_LINK = "xerahs://queue"
     }
     data object Capture : Screen("capture")
     data object Annotation : Screen("annotation/{imagePath}") {
@@ -178,6 +184,7 @@ fun XerahSNavGraph(
         composable(
             route = Screen.ShareResult.route,
             arguments = listOf(navArgument("historyId") { type = NavType.StringType }),
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.ShareResult.DEEP_LINK }),
             enterTransition = {
                 slideInHorizontally(
                     animationSpec = tween(if (reduce) 0 else 320),
@@ -567,6 +574,13 @@ fun XerahSNavGraph(
 
         composable(Screen.ToolsHash.route) {
             HashScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Screen.Queue.route,
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.Queue.DEEP_LINK })
+        ) {
+            QueueScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Screen.ToolsQr.route) {

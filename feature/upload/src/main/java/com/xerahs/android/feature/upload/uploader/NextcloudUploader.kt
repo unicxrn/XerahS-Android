@@ -37,16 +37,16 @@ class NextcloudUploader @Inject constructor(
             put = okHttpClient.send(Request.Builder().url(fileUrl).header("Authorization", auth).put(body).build())
         }
         when {
-            !put.ok -> failure(hostError("Nextcloud", put))
+            !put.ok -> failure(hostError("Nextcloud", put), put.code)
             !config.publicShare -> success(fileUrl.toString(), remoteKey)
             else -> share(base, auth, "/$remoteKey", remoteKey)
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: IOException) {
-        failure("Nextcloud network error: ${e.message ?: e.javaClass.simpleName}")
+        failure("Nextcloud network error: ${e.message ?: e.javaClass.simpleName}", error = e)
     } catch (e: IllegalArgumentException) {
-        failure("Nextcloud request is invalid (check the server URL and app password)")
+        failure("Nextcloud request is invalid (check the server URL and app password)", error = e)
     }
 
     private fun davUrl(base: HttpUrl, user: String, segments: List<String>): HttpUrl =
@@ -81,5 +81,6 @@ class NextcloudUploader @Inject constructor(
 
     private fun success(url: String, remoteKey: String? = null) =
         UploadResult(success = true, url = url, destination = UploadDestination.NEXTCLOUD, remoteKey = remoteKey)
-    private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.NEXTCLOUD)
+    private fun failure(message: String, httpCode: Int? = null, error: Throwable? = null) =
+        UploadResult(success = false, errorMessage = message, destination = UploadDestination.NEXTCLOUD, httpCode = httpCode, error = error)
 }

@@ -76,13 +76,15 @@ class SftpUploader @Inject constructor(private val sshSessionFactory: SshSession
                 UploadResult(
                     success = false,
                     errorMessage = e.message,
-                    destination = UploadDestination.SFTP
+                    destination = UploadDestination.SFTP,
+                    error = e
                 )
             } catch (e: Exception) {
                 UploadResult(
                     success = false,
                     errorMessage = "SFTP error: ${e.message}",
-                    destination = UploadDestination.SFTP
+                    destination = UploadDestination.SFTP,
+                    error = e
                 )
             } finally {
                 channel?.disconnect()

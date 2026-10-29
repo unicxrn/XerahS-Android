@@ -87,14 +87,16 @@ class S3Uploader @Inject constructor(
                     UploadResult(
                         success = false,
                         errorMessage = "S3 upload failed: ${response.code} ${response.message}\n$errorBody",
-                        destination = UploadDestination.S3
+                        destination = UploadDestination.S3,
+                        httpCode = response.code
                     )
                 }
             } catch (e: Exception) {
                 UploadResult(
                     success = false,
                     errorMessage = "S3 upload error: ${e.message}",
-                    destination = UploadDestination.S3
+                    destination = UploadDestination.S3,
+                    error = e
                 )
             }
         }
