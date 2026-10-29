@@ -587,7 +587,7 @@ private fun BiometricGate(
     val mainViewModel: MainViewModel = hiltViewModel()
     val lockMode by mainViewModel.biometricLockMode.collectAsState()
 
-    if (lockMode != "LOCK_CREDENTIALS") {
+    if (lockMode != com.xerahs.android.core.domain.model.BiometricLockMode.LOCK_CREDENTIALS) {
         content()
         return
     }

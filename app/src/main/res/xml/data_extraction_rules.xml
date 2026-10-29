@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Room and DataStore are backed up. Credentials, captures, thumbnails and demo files are not.
+     The cache directory is never backed up by the system, so it needs no rule. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="xerahs_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+        <exclude domain="file" path="captures/" />
+        <exclude domain="file" path="thumbnails/" />
+        <exclude domain="file" path="demo/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="xerahs_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+        <exclude domain="file" path="captures/" />
+        <exclude domain="file" path="thumbnails/" />
+        <exclude domain="file" path="demo/" />
+    </device-transfer>
+</data-extraction-rules>

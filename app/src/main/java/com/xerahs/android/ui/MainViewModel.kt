@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.domain.model.BiometricLockMode
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -161,8 +162,9 @@ class MainViewModel @Inject constructor(
     val oledBlack: StateFlow<Boolean> = settingsRepository.getOledBlack()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
-    val biometricLockMode: StateFlow<String> = settingsRepository.getBiometricLockMode()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "OFF")
+    val biometricLockMode: StateFlow<BiometricLockMode> = settingsRepository.getBiometricLockMode()
+        .map { BiometricLockMode.fromName(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BiometricLockMode.OFF)
 
     val autoLockTimeout: StateFlow<Long> = settingsRepository.getAutoLockTimeout()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)

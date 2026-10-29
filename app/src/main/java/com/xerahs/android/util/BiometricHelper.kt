@@ -1,5 +1,6 @@
 package com.xerahs.android.util
 
+import android.os.Build
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -7,11 +8,19 @@ import androidx.fragment.app.FragmentActivity
 
 object BiometricHelper {
 
-    fun canAuthenticate(activity: FragmentActivity): Boolean {
-        val biometricManager = BiometricManager.from(activity)
-        return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
-                BiometricManager.BIOMETRIC_SUCCESS
-    }
+    /**
+     * Biometrics with the device PIN, pattern or password as a fallback. STRONG plus
+     * DEVICE_CREDENTIAL is only supported from API 30, so API 28-29 use WEAK instead.
+     */
+    val authenticators: Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        } else {
+            BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        }
+
+    fun canAuthenticate(activity: FragmentActivity): Boolean =
+        BiometricManager.from(activity).canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
 
     fun showPrompt(
         activity: FragmentActivity,
@@ -39,7 +48,8 @@ object BiometricHelper {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setNegativeButtonText("Cancel")
+            // No negative button: it is not allowed together with DEVICE_CREDENTIAL.
+            .setAllowedAuthenticators(authenticators)
             .build()
 
         prompt.authenticate(promptInfo)

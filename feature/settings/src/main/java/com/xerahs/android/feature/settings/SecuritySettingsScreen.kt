@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.settings
 
+import com.xerahs.android.core.domain.model.BiometricLockMode
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,16 +46,16 @@ fun SecuritySettingsScreen(
             SettingsGroupCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Require biometric authentication to access the app or credential screens.",
+                        text = "Ask for your fingerprint, face or screen lock to open the app or credential screens.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     val options = listOf(
-                        "OFF" to "Off" to "No biometric lock",
-                        "LOCK_APP" to "Lock app" to "Require biometric on app resume",
-                        "LOCK_CREDENTIALS" to "Lock credentials" to "Require biometric to view credential screens"
+                        BiometricLockMode.OFF to "Off" to "No biometric lock",
+                        BiometricLockMode.LOCK_APP to "Lock app" to "Ask for your fingerprint or screen lock when you come back",
+                        BiometricLockMode.LOCK_CREDENTIALS to "Lock credentials" to "Ask for your fingerprint or screen lock to view credential screens"
                     )
 
                     options.forEach { (pair, description) ->
@@ -85,7 +86,7 @@ fun SecuritySettingsScreen(
                 }
             }
 
-            if (uiState.biometricLockMode == "LOCK_APP") {
+            if (uiState.biometricLockMode == BiometricLockMode.LOCK_APP) {
                 SectionHeader("Auto-Lock Timeout")
 
                 SettingsGroupCard {

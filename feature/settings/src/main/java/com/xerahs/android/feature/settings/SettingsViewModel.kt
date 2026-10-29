@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.settings
 
+import com.xerahs.android.core.domain.model.BiometricLockMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonParser
@@ -37,7 +38,7 @@ data class SettingsUiState(
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
     val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
-    val biometricLockMode: String = "OFF",
+    val biometricLockMode: BiometricLockMode = BiometricLockMode.OFF,
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
     val convertHeicToPng: Boolean = true,
@@ -125,7 +126,7 @@ class SettingsViewModel @Inject constructor(
             }
             launch {
                 settingsRepository.getBiometricLockMode().collect { mode ->
-                    _uiState.value = _uiState.value.copy(biometricLockMode = mode)
+                    _uiState.value = _uiState.value.copy(biometricLockMode = BiometricLockMode.fromName(mode))
                 }
             }
             launch {
@@ -272,9 +273,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setBiometricLockMode(mode: String) {
+    fun setBiometricLockMode(mode: BiometricLockMode) {
         viewModelScope.launch {
-            settingsRepository.setBiometricLockMode(mode)
+            settingsRepository.setBiometricLockMode(mode.name)
         }
     }
 

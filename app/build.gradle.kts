@@ -146,5 +146,7 @@ dependencies {
     implementation(libs.biometric)
     implementation(libs.coil.compose)
 
+    testImplementation(libs.junit)
+
     debugImplementation(libs.compose.ui.tooling)
 }

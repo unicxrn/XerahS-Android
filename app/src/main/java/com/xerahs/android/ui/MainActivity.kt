@@ -2,6 +2,9 @@ package com.xerahs.android.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
+import android.view.WindowManager
+import android.widget.Toast
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,7 +59,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.core.content.IntentCompat
+import androidx.compose.ui.text.style.TextAlign
 import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.domain.model.BiometricLockMode
+import com.xerahs.android.ui.intake.IntakeUriPolicy
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -65,6 +72,8 @@ class MainActivity : FragmentActivity() {
     }
 
     private val mainViewModel: MainViewModel by viewModels()
+    private var lockNeedsSetup by mutableStateOf(false)
+    private val ownAuthorities by lazy { setOf("$packageName.fileprovider") }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,8 +123,12 @@ class MainActivity : FragmentActivity() {
                                     mainViewModel.setDefaultDestination(dest)
                                 }
                             )
-                        } else if (biometricLockMode == "LOCK_APP" && !isUnlocked) {
-                            // Lock overlay
+                        } else if (biometricLockMode == BiometricLockMode.LOCK_APP && !isUnlocked) {
+                            // Lock overlay. Keep it out of screenshots and the recents screen.
+                            DisposableEffect(Unit) {
+                                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                                onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+                            }
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
@@ -133,8 +146,26 @@ class MainActivity : FragmentActivity() {
                                         style = MaterialTheme.typography.titleLarge
                                     )
                                     Spacer(modifier = Modifier.padding(8.dp))
-                                    OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
-                                        Text("Unlock")
+                                    if (lockNeedsSetup) {
+                                        Text(
+                                            text = "Set up a screen lock to use App lock",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 32.dp)
+                                        )
+                                        Spacer(modifier = Modifier.padding(8.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                                            },
+                                            shape = CircleShape
+                                        ) {
+                                            Text("Open settings")
+                                        }
+                                    } else {
+                                        OutlinedButton(onClick = { promptBiometric() }, shape = CircleShape) {
+                                            Text("Unlock")
+                                        }
                                     }
                                 }
                             }
@@ -157,14 +188,12 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         val mode = mainViewModel.biometricLockMode.value
-        if (mode == "LOCK_APP" && !mainViewModel.isUnlocked.value) {
+        if (mode == BiometricLockMode.LOCK_APP && !mainViewModel.isUnlocked.value) {
             val timeout = mainViewModel.autoLockTimeout.value
             val lastBackgroundTime = mainViewModel.lastBackgroundTime
             val elapsed = System.currentTimeMillis() - lastBackgroundTime
             if (lastBackgroundTime == 0L || elapsed >= timeout) {
-                if (BiometricHelper.canAuthenticate(this)) {
-                    promptBiometric()
-                }
+                promptBiometric()
             } else {
                 mainViewModel.setUnlocked(true)
             }
@@ -175,17 +204,19 @@ class MainActivity : FragmentActivity() {
         super.onStop()
         val mode = mainViewModel.biometricLockMode.value
         // A rotation also stops the activity, but it must not lock the app.
-        if (mode == "LOCK_APP" && !isChangingConfigurations) {
+        if (mode == BiometricLockMode.LOCK_APP && !isChangingConfigurations) {
             mainViewModel.lastBackgroundTime = System.currentTimeMillis()
             mainViewModel.setUnlocked(false)
         }
     }
 
     private fun promptBiometric() {
+        // Nothing enrolled: never unlock for free. Show how to set up a screen lock instead.
         if (!BiometricHelper.canAuthenticate(this)) {
-            mainViewModel.setUnlocked(true)
+            lockNeedsSetup = true
             return
         }
+        lockNeedsSetup = false
         BiometricHelper.showPrompt(
             activity = this,
             onSuccess = { mainViewModel.setUnlocked(true) },
@@ -200,20 +231,39 @@ class MainActivity : FragmentActivity() {
 
     private fun handleIncomingIntent(intent: Intent) {
         when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data?.let { mainViewModel.setImportUri(it.toString()) }
+            Intent.ACTION_VIEW -> intent.data?.let { uri ->
+                if (IntakeUriPolicy.isAllowed(uri, ownAuthorities)) {
+                    mainViewModel.setImportUri(uri.toString())
+                } else {
+                    toastUnreadable()
+                }
+            }
             Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT)
                 if (uri == null && text == null) return
+                if (uri != null && !IntakeUriPolicy.isAllowed(uri, ownAuthorities)) {
+                    toastUnreadable()
+                    return
+                }
                 mainViewModel.handleSend(uri, text)
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
                     ?: return
-                mainViewModel.handleSendMultiple(uris)
+                val allowed = uris.filter { IntakeUriPolicy.isAllowed(it, ownAuthorities) }
+                if (allowed.isEmpty()) {
+                    toastUnreadable()
+                    return
+                }
+                mainViewModel.handleSendMultiple(allowed)
             }
             ACTION_CAPTURE -> mainViewModel.requestLaunchCapture()
         }
+    }
+
+    private fun toastUnreadable() {
+        Toast.makeText(this, "Couldn't read that file", Toast.LENGTH_SHORT).show()
     }
 }
 
