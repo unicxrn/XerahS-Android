@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.unit.dp
@@ -67,24 +69,18 @@ fun CaptureScreen(
         }
     }
 
-    LaunchedEffect(uiState.pickedFilePath) {
-        uiState.pickedFilePath?.let { path ->
-            viewModel.onImageHandled()
-            onFileCaptured(path)
-        }
-    }
-
-    LaunchedEffect(uiState.pickedImagePath) {
-        uiState.pickedImagePath?.let { path ->
-            viewModel.onImageHandled()
-            onImageCaptured(path)
-        }
-    }
-
-    LaunchedEffect(uiState.pickedImagePaths) {
-        uiState.pickedImagePaths?.let { paths ->
-            viewModel.onImageHandled()
-            onMultiImageCaptured(paths)
+    // A partial failure still routes the files that did copy; give the snackbar a moment first.
+    LaunchedEffect(uiState.pickedFilePath, uiState.pickedImagePath, uiState.pickedImagePaths) {
+        val file = uiState.pickedFilePath
+        val image = uiState.pickedImagePath
+        val images = uiState.pickedImagePaths
+        if (file == null && image == null && images == null) return@LaunchedEffect
+        if (uiState.errorMessage != null) delay(1500)
+        viewModel.onImageHandled()
+        when {
+            file != null -> onFileCaptured(file)
+            image != null -> onImageCaptured(image)
+            images != null -> onMultiImageCaptured(images)
         }
     }
 
@@ -107,14 +103,19 @@ fun CaptureScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                PillCta(text = "Pick photos or videos", onClick = { pickMedia() })
+                if (uiState.isCopying) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                }
+                PillCta(text = "Pick photos or videos", onClick = { pickMedia() }, enabled = !uiState.isCopying)
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                    shape = CircleShape
+                    shape = CircleShape,
+                    enabled = !uiState.isCopying
                 ) { Text("Pick a file") }
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onCancel) { Text("Cancel") }
+                TextButton(onClick = onCancel, enabled = !uiState.isCopying) { Text("Cancel") }
             }
         }
     }

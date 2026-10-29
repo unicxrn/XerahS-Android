@@ -2,6 +2,8 @@ package com.xerahs.android.feature.annotation
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
@@ -13,6 +15,7 @@ import com.xerahs.android.core.domain.repository.OcrException
 import com.xerahs.android.core.domain.repository.OcrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.xerahs.android.core.common.image.calculateInSampleSize
+import com.xerahs.android.core.common.image.orientationOp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,8 +56,7 @@ data class AnnotationUiState(
     val pendingStickerPath: String? = null,
     val effects: EffectSettings = EffectSettings(),
     val bitmap: Bitmap? = null,
-    val isLoading: Boolean = true,
-    val loadFailed: Boolean = false
+    val isLoading: Boolean = true
 )
 
 @HiltViewModel
@@ -71,7 +73,7 @@ class AnnotationViewModel @Inject constructor(
     fun loadImage(path: String) {
         if (loadedPath == path) return
         loadedPath = path
-        _uiState.value = _uiState.value.copy(isLoading = true, loadFailed = false)
+        _uiState.value = _uiState.value.copy(isLoading = true)
         viewModelScope.launch {
             val bmp = withContext(Dispatchers.Default) {
                 runCatching {
@@ -80,10 +82,12 @@ class AnnotationViewModel @Inject constructor(
                     val opts = BitmapFactory.Options().apply {
                         inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_EDGE)
                     }
-                    BitmapFactory.decodeFile(path, opts)
+                    val decoded = BitmapFactory.decodeFile(path, opts)
+                    if (decoded == null) null else applyExifOrientation(decoded, readOrientation(path))
                 }.getOrNull()
             }
-            _uiState.value = _uiState.value.copy(bitmap = bmp, isLoading = false, loadFailed = bmp == null)
+            _uiState.value = _uiState.value.copy(bitmap = bmp, isLoading = false)
+            if (bmp == null) loadedPath = null // let a retry decode again
         }
     }
 
@@ -489,3 +493,19 @@ class AnnotationViewModel @Inject constructor(
 }
 
 private const val MAX_EDGE = 4096
+
+private fun readOrientation(path: String): Int = runCatching {
+    ExifInterface(path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+}.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+/** Returns an upright copy for an EXIF-rotated photo (recycling the original), or the bitmap itself. */
+private fun applyExifOrientation(bitmap: Bitmap, exifOrientation: Int): Bitmap {
+    val op = orientationOp(exifOrientation)
+    if (op.isIdentity) return bitmap
+    val m = Matrix()
+    if (op.degrees != 0) m.setRotate(op.degrees.toFloat())
+    if (op.flipHorizontal) m.postScale(-1f, 1f)
+    val out = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+    if (out !== bitmap) bitmap.recycle()
+    return out
+}

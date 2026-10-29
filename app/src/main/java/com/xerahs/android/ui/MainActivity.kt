@@ -43,7 +43,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,7 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.core.content.IntentCompat
 import androidx.compose.ui.text.style.TextAlign
-import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.common.file.EditorRouting
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.xerahs.android.core.domain.model.BiometricLockMode
 import com.xerahs.android.ui.intake.IntakeUriPolicy
 
@@ -87,6 +93,12 @@ class MainActivity : FragmentActivity() {
 
         if (savedInstanceState == null) {
             handleIncomingIntent(intent)
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mainViewModel.intakeMessages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() }
+            }
         }
 
         setContent {
@@ -339,10 +351,10 @@ fun MainScreen(
     LaunchedEffect(sharedPaths) {
         val paths = sharedPaths ?: return@LaunchedEffect
         val single = paths.singleOrNull()
-        val mime = single?.let { MimeTypes.fromFileName(it) }
+        val editable = single != null && withContext(Dispatchers.IO) { EditorRouting.opensInEditor(single) }
         when {
-            // Editable raster image → editor (HEIC goes straight to upload; it is converted there).
-            single != null && MimeTypes.isRasterImage(mime) && !MimeTypes.isHeic(mime) ->
+            // Editable raster image → editor (HEIC, GIF and animated WebP go straight to upload).
+            single != null && editable ->
                 navController.navigate(Screen.Annotation.createRoute(single))
             single != null -> navController.navigate(Screen.Upload.createRoute(single))
             else -> navController.navigate(Screen.UploadBatch.createRoute(paths))

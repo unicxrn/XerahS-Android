@@ -8,7 +8,17 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.xerahs.android.core.common.file.CaptureSweeper
+import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import java.io.File
 import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
@@ -29,11 +39,35 @@ class XerahSApplication : Application(), Configuration.Provider {
             .setWorkerFactory(workerFactory)
             .build()
 
+    @Inject
+    lateinit var historyRepository: HistoryRepository
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
         scheduleUpdateCheck()
         configureCoil()
+        sweepOldCopies()
+    }
+
+    /**
+     * Deletes week-old pick/share copies. WorkManager does not expose a work's input data, so
+     * while any upload is queued, running or blocked the sweep is skipped; files that history
+     * points to are always kept.
+     */
+    private fun sweepOldCopies() {
+        appScope.launch {
+            runCatching {
+                val active = WorkManager.getInstance(this@XerahSApplication)
+                    .getWorkInfosByTagFlow(UPLOAD_WORK_TAG).first()
+                    .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
+                if (active) return@launch
+                val referenced = historyRepository.getAllHistory().first().map { it.filePath }.toSet()
+                CaptureSweeper.sweep(File(filesDir, "captures"), System.currentTimeMillis(), referenced)
+            }
+        }
     }
 
     private fun configureCoil() {

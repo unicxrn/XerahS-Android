@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":core:ui"))
 
     implementation(libs.core.ktx)
+    implementation(libs.exifinterface)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
 

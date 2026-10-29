@@ -34,4 +34,23 @@ class MimeTypesTest {
         assertTrue(MimeTypes.isText("text/markdown"))
         assertFalse(MimeTypes.isText("application/pdf"))
     }
+
+    @Test fun gifsAndHeicSkipTheEditor() {
+        assertTrue(MimeTypes.opensInEditor("image/png"))
+        assertTrue(MimeTypes.opensInEditor("image/jpeg"))
+        assertFalse(MimeTypes.opensInEditor("image/gif"))
+        assertFalse(MimeTypes.opensInEditor("image/heic"))
+        assertFalse(MimeTypes.opensInEditor("video/mp4"))
+        assertFalse(MimeTypes.opensInEditor(null))
+    }
+
+    @Test fun detectsAnimatedWebp() {
+        fun header(flags: Int) = ByteArray(32).also {
+            "RIFF".toByteArray().copyInto(it, 0); "WEBP".toByteArray().copyInto(it, 8)
+            "VP8X".toByteArray().copyInto(it, 12); it[20] = flags.toByte()
+        }
+        assertTrue(EditorRouting.isAnimatedWebp(header(0x02)))
+        assertFalse(EditorRouting.isAnimatedWebp(header(0x00)))
+        assertFalse(EditorRouting.isAnimatedWebp(ByteArray(4)))
+    }
 }

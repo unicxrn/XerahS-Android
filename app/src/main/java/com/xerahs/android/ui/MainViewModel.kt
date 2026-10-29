@@ -11,6 +11,7 @@ import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.common.file.InsufficientStorageException
 import com.xerahs.android.core.common.file.IntakeCopier
 import com.xerahs.android.core.common.file.copyToCache
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +30,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -74,10 +79,7 @@ class MainViewModel @Inject constructor(
                 if (isUploaderConfig(name)) {
                     savedStateHandle[KEY_IMPORT] = uri.toString()
                 } else {
-                    IntakeCopier<Uri>(::copyShared).intake(
-                        listOf(uri),
-                        onReady = { savedStateHandle[KEY_PATHS] = ArrayList(it.map(File::getAbsolutePath)) }
-                    )
+                    intake(listOf(uri))
                 }
             } else if (text != null) {
                 withContext(Dispatchers.IO) { writeSharedText(text) }
@@ -88,11 +90,27 @@ class MainViewModel @Inject constructor(
 
     fun handleSendMultiple(uris: List<Uri>) {
         viewModelScope.launch {
-            IntakeCopier<Uri>(::copyShared).intake(
-                uris,
-                onReady = { savedStateHandle[KEY_PATHS] = ArrayList(it.map(File::getAbsolutePath)) }
-            )
+            intake(uris)
         }
+    }
+
+    private val _intakeMessages = Channel<String>(Channel.BUFFERED)
+    /** Messages about shares that could not be read; shown as a toast by the activity. */
+    val intakeMessages: Flow<String> = _intakeMessages.receiveAsFlow()
+
+    private suspend fun intake(uris: List<Uri>) {
+        IntakeCopier<Uri>(::copyShared).intake(
+            uris,
+            onReady = { files, failed ->
+                savedStateHandle[KEY_PATHS] = ArrayList(files.map(File::getAbsolutePath))
+                if (failed > 0) _intakeMessages.trySend(if (failed == 1) "1 file couldn't be read" else "$failed files couldn't be read")
+            },
+            onFailed = { e ->
+                _intakeMessages.trySend(
+                    if (e is InsufficientStorageException) e.message ?: "Couldn't read that file" else "Couldn't read that file"
+                )
+            }
+        )
     }
 
     private suspend fun copyShared(uri: Uri): File {
@@ -114,7 +132,7 @@ class MainViewModel @Inject constructor(
     }.getOrNull()
 
     private fun newSharedDir(): File =
-        File(context.filesDir, "captures/shared_${System.currentTimeMillis()}_${(0..9999).random()}").apply { mkdirs() }
+        File(context.filesDir, "captures/shared_${UUID.randomUUID()}").apply { mkdirs() }
 
     private fun writeSharedText(text: String): String? = runCatching {
         File(newSharedDir(), "shared-text.txt").apply { writeText(text) }.absolutePath
