@@ -598,16 +598,44 @@ private fun BiometricGate(
     navController: NavHostController,
     content: @Composable () -> Unit
 ) {
-    val mainViewModel: MainViewModel = hiltViewModel()
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    // Share the activity's MainViewModel instead of creating one per destination.
+    val mainViewModel: MainViewModel = if (activity != null) {
+        hiltViewModel(viewModelStoreOwner = activity)
+    } else {
+        hiltViewModel()
+    }
     val lockMode by mainViewModel.biometricLockMode.collectAsState()
 
+    // Lock mode not loaded yet: show nothing rather than the credentials.
+    if (lockMode == null) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        return
+    }
     if (lockMode != com.xerahs.android.core.domain.model.BiometricLockMode.LOCK_CREDENTIALS) {
         content()
         return
     }
 
     var authenticated by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    var needsSetup by remember { mutableStateOf(false) }
+
+    fun authenticate() {
+        // Never unlock for free: without a usable screen lock the credentials stay hidden.
+        if (activity == null || !BiometricHelper.canAuthenticate(activity)) {
+            needsSetup = activity != null && BiometricHelper.needsScreenLockSetup(activity)
+            return
+        }
+        needsSetup = false
+        BiometricHelper.showPrompt(
+            activity = activity,
+            title = "Verify Identity",
+            subtitle = "Authenticate to access credentials",
+            onSuccess = { authenticated = true },
+            onFailure = { navController.popBackStack() }
+        )
+    }
 
     if (authenticated) {
         content()
@@ -632,39 +660,38 @@ private fun BiometricGate(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.padding(8.dp))
-                OutlinedButton(shape = CircleShape, onClick = {
-                    val activity = context as? androidx.fragment.app.FragmentActivity
-                    if (activity != null && BiometricHelper.canAuthenticate(activity)) {
-                        BiometricHelper.showPrompt(
-                            activity = activity,
-                            title = "Verify Identity",
-                            subtitle = "Authenticate to access credentials",
-                            onSuccess = { authenticated = true },
-                            onFailure = { navController.popBackStack() }
-                        )
-                    } else {
-                        authenticated = true
+                if (needsSetup) {
+                    Text(
+                        text = "Set up a screen lock to view credentials",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                    Spacer(modifier = Modifier.padding(8.dp))
+                    OutlinedButton(shape = CircleShape, onClick = {
+                        try {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            runCatching {
+                                context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                            }
+                        }
+                    }) {
+                        Text("Open settings")
                     }
-                }) {
-                    Text("Authenticate")
+                } else {
+                    OutlinedButton(shape = CircleShape, onClick = { authenticate() }) {
+                        Text("Authenticate")
+                    }
                 }
             }
         }
 
         // Auto-prompt on first composition
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            val activity = context as? androidx.fragment.app.FragmentActivity
-            if (activity != null && BiometricHelper.canAuthenticate(activity)) {
-                BiometricHelper.showPrompt(
-                    activity = activity,
-                    title = "Verify Identity",
-                    subtitle = "Authenticate to access credentials",
-                    onSuccess = { authenticated = true },
-                    onFailure = { navController.popBackStack() }
-                )
-            } else {
-                authenticated = true
-            }
+        androidx.compose.runtime.LaunchedEffect(Unit) { authenticate() }
+        // Back from the system settings: try again once a screen lock exists.
+        androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+            if (needsSetup) authenticate()
         }
     }
 }
