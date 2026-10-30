@@ -523,12 +523,8 @@ fun XerahSNavGraph(
             }
             val viewModel: ProfileManagementViewModel = hiltViewModel(parentEntry)
 
-            androidx.compose.runtime.LaunchedEffect(profileId) {
-                if (profileId == "new") {
-                    viewModel.startNewProfile()
-                } else if (profileId != null) {
-                    viewModel.startEditProfile(profileId)
-                }
+            androidx.compose.runtime.LaunchedEffect(backStackEntry.id, profileId) {
+                viewModel.openEditor(backStackEntry.id, profileId)
             }
 
             ProfileEditorScreen(

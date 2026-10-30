@@ -100,6 +100,18 @@ class ProfileManagementViewModel @Inject constructor(
         }
     }
 
+    private var editorEntry: String? = null
+
+    /**
+     * Starts the editor once per visit to the editor screen ([entryId] is its back stack entry),
+     * so a rotation keeps unsaved edits instead of reloading the profile.
+     */
+    fun openEditor(entryId: String, profileId: String?) {
+        if (editorEntry == entryId) return
+        editorEntry = entryId
+        if (profileId == "new") startNewProfile() else if (profileId != null) startEditProfile(profileId)
+    }
+
     fun startNewProfile() {
         _editorState.value = ProfileEditorUiState()
     }
