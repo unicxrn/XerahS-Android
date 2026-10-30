@@ -15,7 +15,8 @@ internal object ScreenshotUploads {
     /**
      * Copies the screenshot into app storage (a `captures/shared_*` folder, so the sweep rules
      * apply) and queues an upload with the default destination and its default profile.
-     * Duplicate detection stays on. The MediaStore URI is not needed afterwards.
+     * Duplicate detection stays on; no screen is watching, so a duplicate posts a notice. The
+     * MediaStore URI is not needed afterwards.
      */
     suspend fun copyAndEnqueue(
         context: Context,
@@ -34,7 +35,7 @@ internal object ScreenshotUploads {
         }
         UploadEnqueuer.enqueue(
             context,
-            UploadSpec(paths = listOf(file.absolutePath), destination = destination, profileId = profileId),
+            UploadSpec(paths = listOf(file.absolutePath), destination = destination, profileId = profileId, background = true),
         )
     }
 }
