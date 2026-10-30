@@ -17,6 +17,13 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -138,7 +145,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AnnotationScreen(
     imagePath: String,
@@ -414,6 +421,59 @@ fun AnnotationScreen(
         )
     }
 
+    // Landscape: the tools and actions move to a side panel so the canvas gets the full height.
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val canvasInsets = if (landscape) {
+        WindowInsets.safeDrawing
+    } else {
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+    }
+    val canvasPadding = if (landscape) {
+        PaddingValues(top = 64.dp, start = 14.dp, end = SidePanelWidth + 26.dp, bottom = 12.dp)
+    } else {
+        PaddingValues(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
+    }
+
+    // Exports the annotated, effected image to filesDir/exports and hands the path on.
+    // Upload and Beautify both take the same file.
+    val exportThen: ((String) -> Unit) -> Unit = { next ->
+        viewModel.setExporting(true)
+        coroutineScope.launch {
+            val exported = withContext(Dispatchers.Default) {
+                val annotatedBitmap = AnnotationEngine.renderAnnotations(
+                    bitmap, uiState.annotations
+                )
+                val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
+                    else ImageEffects.apply(annotatedBitmap, uiState.effects)
+                val exportsDir = File(context.filesDir, "exports")
+                if (!exportsDir.exists()) exportsDir.mkdirs()
+                val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
+                AnnotationEngine.exportToFile(finalBitmap, exportFile)
+                annotatedBitmap.recycle()
+                if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
+                exportFile.absolutePath
+            }
+            viewModel.setExporting(false)
+            next(exported)
+        }
+    }
+    val beautifyButton: @Composable () -> Unit = {
+        // Long-press shows the name; the icon alone is easy to miss.
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text("Beautify") } },
+            state = rememberTooltipState()
+        ) {
+            CircleIconButton(
+                icon = Icons.Default.Wallpaper,
+                contentDescription = "Beautify",
+                onClick = { exportThen(onBeautify) },
+                modifier = Modifier.size(if (landscape) 48.dp else 56.dp),
+                enabled = !uiState.isExporting
+            )
+        }
+    }
+
     // Canvas-first layout: image fills the whole surface, overlays float on top.
     Box(
         modifier = Modifier
@@ -427,8 +487,8 @@ fun AnnotationScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
-                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp),
+                    .windowInsetsPadding(canvasInsets)
+                    .padding(canvasPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Box(Modifier.aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())) {
@@ -464,8 +524,8 @@ fun AnnotationScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
-                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
+                    .windowInsetsPadding(canvasInsets)
+                    .padding(canvasPadding)
                     .clip(RoundedCornerShape(30.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(30.dp))
@@ -646,6 +706,7 @@ fun AnnotationScreen(
                         onClick = { viewModel.recognizeText(imagePath) }
                     )
                 }
+                if (landscape) beautifyButton()
             }
         }
         }
@@ -653,21 +714,14 @@ fun AnnotationScreen(
         // Crop mode: rotate and flip. Each bakes the annotations in first, like crop does.
         if (uiState.isCropMode) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .onSizeChanged { size ->
-                        bottomControlsHeight = with(density) { size.height.toDp() }
-                    }
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = controlsModifier(landscape) { height -> bottomControlsHeight = with(density) { height.toDp() } },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = if (landscape) Arrangement.Bottom else Arrangement.Top
             ) {
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val enabled = !uiState.isTransforming
                 CircleIconButton(
@@ -706,106 +760,90 @@ fun AnnotationScreen(
             }
         }
 
-        // Bottom controls: floating tool bar + primary action
+        // Tool bar + primary action: floating at the bottom in portrait, a side panel in landscape.
         if (!uiState.isCropMode) {
+            val toolItems: @Composable () -> Unit = {
+                ToolButtons.forEach { (icon, label, tool) ->
+                    CompactToolButton(
+                        icon = icon,
+                        label = label,
+                        selected = uiState.selectedTool == tool,
+                        onClick = {
+                            if (uiState.selectedTool == tool) {
+                                showToolOptions = true
+                            } else {
+                                viewModel.selectTool(tool)
+                            }
+                            if (tool == AnnotationTool.STICKER && uiState.pendingStickerPath == null) {
+                                pickSticker()
+                            }
+                        }
+                    )
+                }
+
+                // Options affordance for the currently selected tool
+                CompactIconButton(
+                    icon = Icons.Default.Tune,
+                    contentDescription = "Tool options",
+                    onClick = { showToolOptions = true }
+                )
+
+                if (uiState.selectedAnnotationId != null) {
+                    CompactIconButton(
+                        icon = Icons.Default.DeleteForever,
+                        contentDescription = "Delete selected",
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = viewModel::deleteSelectedAnnotation
+                    )
+                }
+
+                CompactIconButton(
+                    icon = Icons.Default.Delete,
+                    contentDescription = "Clear all",
+                    onClick = viewModel::clearAnnotations
+                )
+            }
             Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    // Measured before the paddings so the height includes the nav-bar inset.
-                    .onSizeChanged { size ->
-                        bottomControlsHeight = with(density) { size.height.toDp() }
-                    }
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
+                modifier = controlsModifier(landscape) { height -> bottomControlsHeight = with(density) { height.toDp() } },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Compact floating tool bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = CircleShape,
-                    border = BorderStroke(1.dp, Lumen.tokens.hairline),
-                    modifier = Modifier.fillMaxWidth().height(62.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (landscape) {
+                    // Tool rail: a scrolling grid that takes whatever height the actions leave.
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(28.dp),
+                        border = BorderStroke(1.dp, Lumen.tokens.hairline),
+                        modifier = Modifier.fillMaxWidth().weight(1f)
                     ) {
-                        ToolButtons.forEach { (icon, label, tool) ->
-                            CompactToolButton(
-                                icon = icon,
-                                label = label,
-                                selected = uiState.selectedTool == tool,
-                                onClick = {
-                                    if (uiState.selectedTool == tool) {
-                                        showToolOptions = true
-                                    } else {
-                                        viewModel.selectTool(tool)
-                                    }
-                                    if (tool == AnnotationTool.STICKER && uiState.pendingStickerPath == null) {
-                                        pickSticker()
-                                    }
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Options affordance for the currently selected tool
-                        CompactIconButton(
-                            icon = Icons.Default.Tune,
-                            contentDescription = "Tool options",
-                            onClick = { showToolOptions = true }
-                        )
-
-                        if (uiState.selectedAnnotationId != null) {
-                            CompactIconButton(
-                                icon = Icons.Default.DeleteForever,
-                                contentDescription = "Delete selected",
-                                tint = MaterialTheme.colorScheme.error,
-                                onClick = viewModel::deleteSelectedAnnotation
-                            )
-                        }
-
-                        CompactIconButton(
-                            icon = Icons.Default.Delete,
-                            contentDescription = "Clear all",
-                            onClick = viewModel::clearAnnotations
-                        )
+                        FlowRow(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) { toolItems() }
+                    }
+                } else {
+                    // Compact floating tool bar
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, Lumen.tokens.hairline),
+                        modifier = Modifier.fillMaxWidth().height(62.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) { toolItems() }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Exports the annotated, effected image to filesDir/exports and hands the path on.
-                // Upload and Beautify both take the same file.
-                val exportThen: ((String) -> Unit) -> Unit = { next ->
-                    viewModel.setExporting(true)
-                    coroutineScope.launch {
-                        val exported = withContext(Dispatchers.Default) {
-                            val annotatedBitmap = AnnotationEngine.renderAnnotations(
-                                bitmap, uiState.annotations
-                            )
-                            val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
-                                else ImageEffects.apply(annotatedBitmap, uiState.effects)
-                            val exportsDir = File(context.filesDir, "exports")
-                            if (!exportsDir.exists()) exportsDir.mkdirs()
-                            val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
-                            AnnotationEngine.exportToFile(finalBitmap, exportFile)
-                            annotatedBitmap.recycle()
-                            if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
-                            exportFile.absolutePath
-                        }
-                        viewModel.setExporting(false)
-                        next(exported)
-                    }
-                }
-
-                // Thumb-zone primary action - same export path as the old checkmark
+                // Thumb-zone primary action. In landscape Beautify sits in the top bar instead.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -818,20 +856,7 @@ fun AnnotationScreen(
                         enabled = !uiState.isExporting,
                         loading = uiState.isExporting
                     )
-                    // Long-press shows the name; the icon alone is easy to miss.
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                        tooltip = { PlainTooltip { Text("Beautify") } },
-                        state = rememberTooltipState()
-                    ) {
-                        CircleIconButton(
-                            icon = Icons.Default.Wallpaper,
-                            contentDescription = "Beautify",
-                            onClick = { exportThen(onBeautify) },
-                            modifier = Modifier.size(56.dp),
-                            enabled = !uiState.isExporting
-                        )
-                    }
+                    if (!landscape) beautifyButton()
                 }
             }
         }
@@ -840,10 +865,37 @@ fun AnnotationScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = bottomControlsHeight + 8.dp)
+                .padding(bottom = if (landscape) 12.dp else bottomControlsHeight + 8.dp)
         )
     }
 }
+
+/** Width of the landscape side panel that holds the tools and the primary action. */
+private val SidePanelWidth = 264.dp
+
+/**
+ * Where the editor controls sit: a full-width strip at the bottom in portrait (its height is
+ * reported so the canvas stops above it), or a full-height panel on the right in landscape.
+ */
+@Composable
+private fun BoxScope.controlsModifier(landscape: Boolean, onHeight: (Int) -> Unit): Modifier =
+    if (landscape) {
+        Modifier
+            .align(Alignment.TopEnd)
+            .fillMaxHeight()
+            .width(SidePanelWidth + 14.dp)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(top = 64.dp, end = 14.dp, bottom = 12.dp)
+    } else {
+        Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            // Measured before the paddings so the height includes the nav-bar inset.
+            .onSizeChanged { size -> onHeight(size.height) }
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp)
+    }
 
 private val ToolButtons: List<Triple<ImageVector, String, AnnotationTool>> = listOf(
     Triple(Icons.Default.Rectangle, "Rect", AnnotationTool.RECTANGLE),
