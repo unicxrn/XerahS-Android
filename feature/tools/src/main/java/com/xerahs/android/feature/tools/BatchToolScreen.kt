@@ -6,7 +6,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,7 +40,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
     val context = LocalContext.current
@@ -68,10 +69,11 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                     Text("Choose images")
                 }
             }
-            if (uris.isNotEmpty()) Text("${uris.size} images selected")
+            if (uris.isNotEmpty()) Text(if (uris.size == 1) "1 image selected" else "${uris.size} images selected")
 
             Text("Max size", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wraps on narrow screens and large fonts instead of squeezing the last chip.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0 to "Original", 3840 to "3840", 1920 to "1920", 1280 to "1280", 1080 to "1080").forEach { (dim, label) ->
                     FilterChip(
                         selected = options.maxDimension == dim,
@@ -82,7 +84,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
             }
 
             Text("Format", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutputFormat.entries.forEach { fmt ->
                     FilterChip(
                         selected = options.format == fmt,
