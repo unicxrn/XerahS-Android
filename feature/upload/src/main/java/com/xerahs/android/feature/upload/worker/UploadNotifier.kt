@@ -93,15 +93,44 @@ object UploadNotifier {
             .setContentIntent(open(context, queueUri(), id))
             .setAutoCancel(true)
         if (canRetry && retry != null) {
-            val intent = Intent(context, RetryUploadReceiver::class.java)
-                .setData(actionUri(workId, "retry"))
-                .putExtra(EXTRA_NOTIFICATION_ID, id)
-            UploadEnqueuer.inputData(retry).keyValueMap.forEach { (key, value) ->
-                if (value != null) intent.putExtra(key, value.toString())
-            }
-            builder.addAction(0, "Retry", PendingIntent.getBroadcast(context, id, intent, FLAGS))
+            builder.addAction(0, "Retry", PendingIntent.getBroadcast(context, id, enqueueIntent(context, workId, "retry", id, retry), FLAGS))
         }
         post(context, id, builder.build())
+    }
+
+    /**
+     * A background upload (a direct share) stopped at a file that is already in history. Offers the
+     * existing link and "Upload anyway", which re-enqueues the rest without the duplicate check.
+     */
+    fun duplicate(context: Context, workId: UUID, fileName: String?, url: String?, remaining: UploadSpec?) {
+        val id = notificationIdFor(workId)
+        val first = url?.lines()?.firstOrNull().orEmpty()
+        val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
+            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
+            .setContentTitle(if (fileName.isNullOrBlank()) "Already uploaded" else "Already uploaded: $fileName")
+            .setContentText(first)
+            .setContentIntent(open(context, queueUri(), id))
+            .setAutoCancel(true)
+        if (first.isNotEmpty()) {
+            val copy = CopyUrlReceiver.intent(context, url!!, fileName).setData(actionUri(workId, "copy"))
+            builder.addAction(0, "Copy link", PendingIntent.getBroadcast(context, id, copy, FLAGS))
+        }
+        if (remaining != null) {
+            val again = enqueueIntent(context, workId, "anyway", id, remaining.copy(skipDuplicateCheck = true))
+            builder.addAction(0, "Upload anyway", PendingIntent.getBroadcast(context, id + 1, again, FLAGS))
+        }
+        post(context, id, builder.build())
+    }
+
+    /** A [RetryUploadReceiver] intent that enqueues [spec] and clears notification [notificationId]. */
+    private fun enqueueIntent(context: Context, workId: UUID, action: String, notificationId: Int, spec: UploadSpec): Intent {
+        val intent = Intent(context, RetryUploadReceiver::class.java)
+            .setData(actionUri(workId, action))
+            .putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+        UploadEnqueuer.inputData(spec).keyValueMap.forEach { (key, value) ->
+            if (value != null) intent.putExtra(key, value.toString())
+        }
+        return intent
     }
 
     /** An explicit intent to our launcher activity carrying the deep link, so no other app can catch it. */

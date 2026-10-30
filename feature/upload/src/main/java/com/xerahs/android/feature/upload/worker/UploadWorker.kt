@@ -171,6 +171,15 @@ class UploadWorker @AssistedInject constructor(
                     // Carry the whole remaining spec (this file included) so the queue can retry or skip it.
                     val remaining = remainingSpec()
                     progress.clear(id)
+                    // No screen shows the duplicate dialog for a direct share, so say it here.
+                    if (spec.background) {
+                        UploadNotifier.duplicate(
+                            appContext, id,
+                            fileName = outcome.output.getString(KEY_DUPLICATE_FILE_NAME),
+                            url = outcome.output.getString(KEY_DUPLICATE_URL),
+                            remaining = remaining,
+                        )
+                    }
                     return Result.failure(
                         Data.Builder()
                             .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)

@@ -3,39 +3,42 @@ package com.xerahs.android.ui
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xerahs.android.core.common.file.InsufficientStorageException
+import com.xerahs.android.core.common.file.IntakeCopier
+import com.xerahs.android.core.common.file.copyToCache
+import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.BiometricLockMode
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
+import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
+import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import com.xerahs.android.feature.upload.worker.UploadEnqueuer
 import com.xerahs.android.feature.upload.worker.UploadSpec
-import android.widget.Toast
-import com.xerahs.android.core.common.file.InsufficientStorageException
-import com.xerahs.android.core.common.file.IntakeCopier
-import com.xerahs.android.core.common.file.copyToCache
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.UUID
-import javax.inject.Inject
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -118,8 +121,15 @@ class MainViewModel @Inject constructor(
     fun uploadToProfile(profileId: String, uris: List<Uri>, text: String?, finishAfter: Boolean) {
         viewModelScope.launch {
             val profile = profileRepository.getProfile(profileId)
-            if (profile == null) {
-                if (uris.isNotEmpty()) intake(uris) else handleSend(null, text)
+            val single = uris.singleOrNull()
+            val isConfig = single != null && isUploaderConfig(withContext(Dispatchers.IO) { displayName(single) })
+            // A deleted profile or an uploader config file takes the normal share flow.
+            if (profile == null || isConfig) {
+                when {
+                    single != null -> handleSend(single, null)
+                    uris.isNotEmpty() -> intake(uris)
+                    else -> handleSend(null, text)
+                }
                 return@launch
             }
             val paths: List<String> = if (uris.isNotEmpty()) busy {
@@ -141,9 +151,26 @@ class MainViewModel @Inject constructor(
                 listOfNotNull(text?.let { withContext(Dispatchers.IO) { writeSharedText(it) } })
             }
             if (paths.isEmpty()) return@launch
-            UploadEnqueuer.enqueue(context, UploadSpec(paths = paths, destination = profile.destination, profileId = profile.id))
+            // A custom uploader that asks for values needs the Upload screen.
+            if (asksForInput(profile)) {
+                offerSharedPaths(paths)
+                return@launch
+            }
+            UploadEnqueuer.enqueue(
+                context,
+                UploadSpec(paths = paths, destination = profile.destination, profileId = profile.id, background = true)
+            )
             Toast.makeText(context, "Uploading to ${profile.name.ifBlank { profile.destination.displayName }}", Toast.LENGTH_SHORT).show()
             if (finishAfter) _finishRequests.trySend(Unit)
+        }
+    }
+
+    private suspend fun asksForInput(profile: UploadProfile): Boolean {
+        if (profile.destination != UploadDestination.CUSTOM_HTTP) return false
+        return withContext(Dispatchers.IO) {
+            val config = profileRepository.getProfileConfig(profile.id, UploadDestination.CUSTOM_HTTP)
+                as? UploadConfig.CustomUploaderConfig ?: return@withContext false
+            ShareXSyntax.inputPrompts(config.spec.requestTemplates()).isNotEmpty()
         }
     }
 

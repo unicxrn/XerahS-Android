@@ -1,20 +1,14 @@
 package com.xerahs.android.ui
 
 import android.content.ActivityNotFoundException
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
-import com.xerahs.android.core.ui.lumen.LumenCard
-import androidx.core.content.pm.ShortcutManagerCompat
-import com.xerahs.android.shortcuts.ProfileShortcuts
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
 import android.widget.Toast
-import android.os.Bundle
-import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -27,19 +21,25 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,42 +49,42 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.core.content.IntentCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.launch
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.common.file.EditorRouting
+import com.xerahs.android.core.domain.model.BiometricLockMode
+import com.xerahs.android.core.ui.lumen.LumenCard
 import com.xerahs.android.core.ui.lumen.LumenNavPill
 import com.xerahs.android.core.ui.lumen.NavPillItem
+import com.xerahs.android.feature.upload.intake.LinkIntakeSheet
+import com.xerahs.android.feature.upload.intake.LinkIntakeViewModel
+import com.xerahs.android.feature.upload.intake.singleUrlOrNull
+import com.xerahs.android.shortcuts.ProfileShortcuts
+import com.xerahs.android.ui.intake.ClipAction
+import com.xerahs.android.ui.intake.ClipboardIntake
+import com.xerahs.android.ui.intake.IntakeUriPolicy
 import com.xerahs.android.ui.navigation.Screen
-import com.xerahs.android.ui.navigation.setupRouteFor
 import com.xerahs.android.ui.navigation.XerahSNavGraph
+import com.xerahs.android.ui.navigation.setupRouteFor
 import com.xerahs.android.ui.onboarding.OnboardingScreen
 import com.xerahs.android.ui.theme.XerahSTheme
 import com.xerahs.android.util.BiometricHelper
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
-import androidx.core.content.IntentCompat
-import androidx.compose.ui.text.style.TextAlign
-import com.xerahs.android.core.common.file.EditorRouting
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.xerahs.android.core.domain.model.BiometricLockMode
-import com.xerahs.android.ui.intake.IntakeUriPolicy
-import com.xerahs.android.ui.intake.ClipAction
-import com.xerahs.android.ui.intake.ClipboardIntake
-import com.xerahs.android.feature.upload.intake.LinkIntakeSheet
-import com.xerahs.android.feature.upload.intake.LinkIntakeViewModel
-import com.xerahs.android.feature.upload.intake.singleUrlOrNull
-import android.content.ClipboardManager
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -344,6 +344,8 @@ class MainActivity : FragmentActivity() {
 
     /** [fresh] is true when this activity was started for [intent], so it may finish after a direct share. */
     private fun handleIncomingIntent(intent: Intent, fresh: Boolean) {
+        // Reopened from recents: the share or shortcut was handled when it first arrived.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
         if (intent.action == Intent.ACTION_VIEW && intent.data?.scheme == DEEP_LINK_SCHEME) {
             mainViewModel.setDeepLink(intent.data.toString())
             // Navigate once, from MainScreen (after onboarding and the app lock), not again when
@@ -369,10 +371,11 @@ class MainActivity : FragmentActivity() {
                 }
                 // A shared link alone opens the link sheet; other text uploads as a text file.
                 val link = if (uri == null && text != null) singleUrlOrNull(text) else null
+                // A profile shortcut uploads straight away, a lone link included (as text).
                 val profileId = shortcutProfileId(intent)
                 when {
-                    link != null -> linkIntakeViewModel.open(link)
                     profileId != null -> mainViewModel.uploadToProfile(profileId, listOfNotNull(uri), text, finishAfter = fresh)
+                    link != null -> linkIntakeViewModel.open(link)
                     else -> mainViewModel.handleSend(uri, text)
                 }
             }

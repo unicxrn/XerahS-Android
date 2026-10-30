@@ -11,6 +11,7 @@ import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.feature.upload.worker.CopyUrlReceiver
 import com.xerahs.android.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,7 +29,13 @@ class CopyLastLinkActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
-            val item = runCatching { historyRepository.latest().firstOrNull() }.getOrNull()
+            val item = try {
+                historyRepository.latest().firstOrNull()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
             val url = item?.url?.takeIf { it.isNotBlank() }
             when {
                 item == null -> toast("No uploads yet")

@@ -24,6 +24,8 @@ data class UploadSpec(
     val tagIds: List<String> = emptyList(),
     val inputValues: Map<String, String> = emptyMap(),
     val skipDuplicateCheck: Boolean = false,
+    /** No screen is watching this upload (a direct share), so a duplicate is reported by notification. */
+    val background: Boolean = false,
 ) {
     companion object {
         fun from(data: Data): UploadSpec? = fromStrings(data.keyValueMap.mapValues { it.value?.toString() })
@@ -46,6 +48,7 @@ data class UploadSpec(
                 tagIds = values[UploadWorker.KEY_TAG_IDS]?.split("|")?.filter { it.isNotBlank() }.orEmpty(),
                 inputValues = UploadWorker.decodeInputValues(values[UploadWorker.KEY_INPUT_VALUES]),
                 skipDuplicateCheck = values[UploadWorker.KEY_SKIP_DUPLICATE_CHECK].toBoolean(),
+                background = values[UploadEnqueuer.KEY_BACKGROUND].toBoolean(),
             )
         }
     }
@@ -56,6 +59,7 @@ object UploadEnqueuer {
     const val TAG_NAME = "name:"
     const val TAG_COUNT = "count:"
     const val TAG_AT = "at:"
+    const val KEY_BACKGROUND = "background"
 
     /** WorkManager does not expose input data, so the queue reads these tags to label queued and running work. */
     fun tagsFor(spec: UploadSpec, now: Long = System.currentTimeMillis()): List<String> {
@@ -79,6 +83,7 @@ object UploadEnqueuer {
         val builder = Data.Builder()
             .putString(UploadWorker.KEY_DESTINATION, spec.destination.name)
             .putBoolean(UploadWorker.KEY_SKIP_DUPLICATE_CHECK, spec.skipDuplicateCheck)
+        if (spec.background) builder.putBoolean(KEY_BACKGROUND, true)
         spec.profileId?.let { builder.putString(UploadWorker.KEY_PROFILE_ID, it) }
         spec.albumId?.let { builder.putString(UploadWorker.KEY_ALBUM_ID, it) }
         if (spec.tagIds.isNotEmpty()) builder.putString(UploadWorker.KEY_TAG_IDS, spec.tagIds.joinToString("|"))

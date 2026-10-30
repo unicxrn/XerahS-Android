@@ -6,7 +6,6 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.xerahs.android.R
-import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadProfile
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
@@ -16,7 +15,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,23 +25,35 @@ object ProfileShortcuts {
     const val MAX = 4
     private const val PREFIX = "profile:"
 
+    /** What a published shortcut shows; two equal entries need no republish. */
+    data class Entry(val id: String, val label: String, val rank: Int)
+
     fun shortcutId(profileId: String): String = PREFIX + profileId
 
     /** The profile id behind a sharing shortcut id, or null for any other shortcut. */
     fun profileIdOf(shortcutId: String?): String? =
         shortcutId?.takeIf { it.startsWith(PREFIX) }?.removePrefix(PREFIX)?.takeIf { it.isNotBlank() }
 
-    /** When each profile was last used, from upload history. */
-    fun lastUsed(history: List<HistoryItem>): Map<String, Long> =
-        history.mapNotNull { item -> item.profileId?.let { it to item.timestamp } }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, times) -> times.max() }
-
     /** Up to [max] profiles, most recently used first; unused ones keep their list order. */
     fun choose(profiles: List<UploadProfile>, lastUsed: Map<String, Long>, max: Int = MAX): List<UploadProfile> =
         profiles.sortedByDescending { lastUsed[it.id] ?: Long.MIN_VALUE }.take(max)
 
     fun shortLabel(profile: UploadProfile): String = profile.name.trim().ifEmpty { profile.destination.displayName }
+
+    fun entries(chosen: List<UploadProfile>): List<Entry> =
+        chosen.mapIndexed { rank, profile -> Entry(shortcutId(profile.id), shortLabel(profile), rank) }
+
+    /** The [desired] entries that are missing from, or differ in, the [published] ones. */
+    fun changed(desired: List<Entry>, published: List<Entry>): List<Entry> {
+        val current = published.associateBy { it.id }
+        return desired.filter { current[it.id] != it }
+    }
+
+    /** Profile shortcut ids in [published] that are no longer [desired]. */
+    fun stale(desired: List<Entry>, published: List<String>): List<String> {
+        val keep = desired.map { it.id }.toSet()
+        return published.filter { profileIdOf(it) != null && it !in keep }.distinct()
+    }
 }
 
 /** Keeps one sharing shortcut per profile (up to four) in step with the saved profiles. */
@@ -57,12 +67,12 @@ class ProfileShortcutPublisher @Inject constructor(
         scope.launch {
             combine(
                 profileRepository.getAllProfiles(),
-                historyRepository.getAllHistory().map(ProfileShortcuts::lastUsed).distinctUntilChanged()
-            ) { profiles, used -> ProfileShortcuts.choose(profiles, used) }
+                historyRepository.lastUsedByProfile()
+            ) { profiles, used -> ProfileShortcuts.entries(ProfileShortcuts.choose(profiles, used)) }
                 .distinctUntilChanged()
-                .collect { chosen ->
+                .collect { desired ->
                     try {
-                        publish(chosen)
+                        publish(desired)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Exception) {
@@ -72,26 +82,26 @@ class ProfileShortcutPublisher @Inject constructor(
         }
     }
 
-    private fun publish(chosen: List<UploadProfile>) {
-        val keep = chosen.map { ProfileShortcuts.shortcutId(it.id) }.toSet()
-        val stale = ShortcutManagerCompat.getShortcuts(
+    private fun publish(desired: List<ProfileShortcuts.Entry>) {
+        val all = ShortcutManagerCompat.getShortcuts(
             context,
             ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or ShortcutManagerCompat.FLAG_MATCH_CACHED
-        ).map { it.id }.filter { ProfileShortcuts.profileIdOf(it) != null && it !in keep }.distinct()
+        ).map { it.id }
+        val stale = ProfileShortcuts.stale(desired, all)
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeLongLivedShortcuts(context, stale)
 
-        chosen.forEachIndexed { rank, profile ->
-            val label = ProfileShortcuts.shortLabel(profile)
-            val shortcut = ShortcutInfoCompat.Builder(context, ProfileShortcuts.shortcutId(profile.id))
-                .setShortLabel(label)
-                .setLongLabel("Upload to $label")
+        val published = ShortcutManagerCompat.getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_DYNAMIC)
+            .map { ProfileShortcuts.Entry(it.id, it.shortLabel.toString(), it.rank) }
+        ProfileShortcuts.changed(desired, published).forEach { entry ->
+            val shortcut = ShortcutInfoCompat.Builder(context, entry.id)
+                .setShortLabel(entry.label)
+                .setLongLabel("Upload to ${entry.label}")
                 .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
                 .setIntent(Intent(Intent.ACTION_MAIN, null, context, MainActivity::class.java))
                 .setCategories(setOf(ProfileShortcuts.SHARE_CATEGORY))
                 .setLongLived(true)
-                // Share sheet only, so the launcher menu keeps room for the static shortcuts.
-                .setExcludedFromSurfaces(ShortcutInfoCompat.SURFACE_LAUNCHER)
-                .setRank(rank)
+                // Not excluded from the launcher: on API 34 an excluded shortcut was never published.
+                .setRank(entry.rank)
                 .build()
             ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
         }

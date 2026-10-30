@@ -3,6 +3,7 @@ package com.xerahs.android
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -10,6 +11,9 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
 import com.xerahs.android.core.common.file.CaptureSweeper
 import com.xerahs.android.core.common.permission.ScreenshotAccess
 import com.xerahs.android.core.common.permission.screenshotAccess
@@ -17,23 +21,19 @@ import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.feature.upload.screenshots.ScreenshotNotifier
 import com.xerahs.android.feature.upload.screenshots.ScreenshotWatchWorker
-import kotlinx.coroutines.flow.distinctUntilChanged
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
+import com.xerahs.android.shortcuts.ProfileShortcutPublisher
+import com.xerahs.android.worker.UpdateCheckWorker
+import dagger.hilt.android.HiltAndroidApp
+import java.io.File
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.File
-import coil.Coil
-import coil.ImageLoader
-import coil.disk.DiskCache
-import com.xerahs.android.worker.UpdateCheckWorker
-import com.xerahs.android.shortcuts.ProfileShortcutPublisher
-import dagger.hilt.android.HiltAndroidApp
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import androidx.hilt.work.HiltWorkerFactory
 
 @HiltAndroidApp
 class XerahSApplication : Application(), Configuration.Provider {

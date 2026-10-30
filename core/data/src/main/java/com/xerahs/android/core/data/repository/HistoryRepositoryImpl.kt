@@ -34,6 +34,9 @@ class HistoryRepositoryImpl @Inject constructor(
     override fun latest(): Flow<HistoryItem?> =
         historyDao.getLatest().map { it?.toDomain() }
 
+    override fun lastUsedByProfile(): Flow<Map<String, Long>> =
+        historyDao.getLastUsedByProfile().map { rows -> rows.associate { it.profileId to it.lastUsed } }
+
     override fun getHistoryByDestination(destination: UploadDestination): Flow<List<HistoryItem>> =
         historyDao.getHistoryByDestination(destination.name).map { entities ->
             entities.map { it.toDomain() }

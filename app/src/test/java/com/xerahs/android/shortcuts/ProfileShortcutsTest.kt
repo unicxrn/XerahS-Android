@@ -1,6 +1,5 @@
 package com.xerahs.android.shortcuts
 
-import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadProfile
 import org.junit.Assert.assertEquals
@@ -10,11 +9,6 @@ import org.junit.Test
 class ProfileShortcutsTest {
     private fun profile(id: String, name: String = id) =
         UploadProfile(id = id, name = name, destination = UploadDestination.S3, createdAt = 0)
-
-    private fun upload(profileId: String?, at: Long) = HistoryItem(
-        id = "h$at", filePath = "/f", uploadDestination = UploadDestination.S3,
-        timestamp = at, fileName = "f", profileId = profileId
-    )
 
     @Test fun idRoundTrips() = assertEquals("abc-1", ProfileShortcuts.profileIdOf(ProfileShortcuts.shortcutId("abc-1")))
     @Test fun idKeepsColonsInProfileId() = assertEquals("a:b", ProfileShortcuts.profileIdOf("profile:a:b"))
@@ -36,9 +30,22 @@ class ProfileShortcutsTest {
     @Test fun fewerThanFourKeepsAll() =
         assertEquals(2, ProfileShortcuts.choose(listOf(profile("a"), profile("b")), emptyMap()).size)
 
-    @Test fun lastUsedTakesNewestPerProfile() {
-        val history = listOf(upload("a", 5), upload("a", 9), upload("b", 3), upload(null, 100))
-        assertEquals(mapOf("a" to 9L, "b" to 3L), ProfileShortcuts.lastUsed(history))
+    @Test fun unchangedEntriesAreNotRepublished() {
+        val desired = ProfileShortcuts.entries(listOf(profile("a"), profile("b")))
+        assertEquals(emptyList<ProfileShortcuts.Entry>(), ProfileShortcuts.changed(desired, desired))
+    }
+
+    @Test fun renamedOrMovedEntriesAreRepublished() {
+        val published = ProfileShortcuts.entries(listOf(profile("a"), profile("b"), profile("c")))
+        val desired = ProfileShortcuts.entries(listOf(profile("b"), profile("a"), profile("c", "Cee"), profile("d")))
+        assertEquals(listOf("profile:b", "profile:a", "profile:c", "profile:d"), ProfileShortcuts.changed(desired, published).map { it.id })
+        val same = ProfileShortcuts.entries(listOf(profile("a"), profile("b"), profile("c", "Cee")))
+        assertEquals(listOf("profile:c"), ProfileShortcuts.changed(same, published).map { it.id })
+    }
+
+    @Test fun staleKeepsOtherShortcuts() {
+        val desired = ProfileShortcuts.entries(listOf(profile("a")))
+        assertEquals(listOf("profile:gone"), ProfileShortcuts.stale(desired, listOf("profile:a", "profile:gone", "copy_last_link", "profile:gone")))
     }
 
     @Test fun blankNameFallsBackToDestination() = assertEquals("S3", ProfileShortcuts.shortLabel(profile("x", " ")))
