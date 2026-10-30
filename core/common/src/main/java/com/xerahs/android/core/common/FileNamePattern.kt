@@ -25,8 +25,7 @@ object FileNamePattern {
 
 object PathPattern {
 
-    fun resolve(path: String): String {
-        val now = Date()
+    fun resolve(path: String, now: Date = Date()): String {
         return path
             .replace("{yyyy}", SimpleDateFormat("yyyy", Locale.US).format(now))
             .replace("{yy}", SimpleDateFormat("yy", Locale.US).format(now))

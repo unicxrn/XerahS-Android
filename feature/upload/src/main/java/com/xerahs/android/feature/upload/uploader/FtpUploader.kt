@@ -26,7 +26,7 @@ class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFac
                     config.useFtps, config.usePassiveMode
                 )
 
-                // Change to remote directory
+                // Change to remote directory. Resolved once so the link uses the same date folders.
                 val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     if (!client.changeWorkingDirectory(remotePath)) {
@@ -44,11 +44,10 @@ class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFac
                 }
 
                 if (success) {
-                    val url = if (config.httpUrl.isNotEmpty()) {
-                        "${config.httpUrl.trimEnd('/')}/$remoteFileName"
-                    } else {
-                        "ftp://${config.host}$remotePath/$remoteFileName"
-                    }
+                    val url = RemoteLink.build(
+                        config.httpUrl, config.remotePath, remotePath, remoteFileName,
+                        fallbackBase = "ftp://${config.host}"
+                    )
 
                     // The actual directory the file landed in: when remotePath was blank
                     // and no cd happened, this is the login home dir, not "/". If the

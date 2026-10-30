@@ -33,7 +33,7 @@ class SftpUploader @Inject constructor(private val sshSessionFactory: SshSession
                 channel = session.openChannel("sftp") as ChannelSftp
                 channel.connect(30000)
 
-                // Navigate to remote directory
+                // Navigate to remote directory. Resolved once so the link uses the same date folders.
                 val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     try {
@@ -51,11 +51,10 @@ class SftpUploader @Inject constructor(private val sshSessionFactory: SshSession
                     channel.put(inputStream, uploadName)
                 }
 
-                val url = if (config.httpUrl.isNotEmpty()) {
-                    "${config.httpUrl.trimEnd('/')}/$uploadName"
-                } else {
-                    "sftp://${config.host}$remotePath/$uploadName"
-                }
+                val url = RemoteLink.build(
+                    config.httpUrl, config.remotePath, remotePath, uploadName,
+                    fallbackBase = "sftp://${config.host}"
+                )
 
                 // The actual directory the file landed in: when remotePath was blank
                 // and no cd happened, this is the login home dir, not "/". If we can't

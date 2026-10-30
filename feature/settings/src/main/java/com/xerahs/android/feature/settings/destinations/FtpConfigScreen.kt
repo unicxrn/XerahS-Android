@@ -207,6 +207,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = ftpHttpUrl, onValueChange = { ftpHttpUrl = it },
                                 label = { Text("HTTP URL (for link generation)") },
+                                supportingText = { Text("Web address of Remote Path up to the first token. Date folders are added to each link.") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
@@ -346,6 +347,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = sftpHttpUrl, onValueChange = { sftpHttpUrl = it },
                                 label = { Text("HTTP URL (for link generation)") },
+                                supportingText = { Text("Web address of Remote Path up to the first token. Date folders are added to each link.") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
