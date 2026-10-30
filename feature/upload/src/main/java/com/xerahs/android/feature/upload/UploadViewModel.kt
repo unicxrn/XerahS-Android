@@ -1,6 +1,7 @@
 package com.xerahs.android.feature.upload
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
@@ -78,6 +79,8 @@ data class UploadUiState(
     // Name and type of a single finished upload, for formatting its link.
     val resultFileName: String? = null,
     val resultIsImage: Boolean? = null,
+    // One-shot: the screen asks for the notification permission, the upload doesn't wait for it.
+    val askNotificationPermission: Boolean = false,
 ) {
     /** [links] (one per line) in the "Copy link as" format. */
     fun formatLinks(links: String, fileName: String? = resultFileName, isImage: Boolean? = resultIsImage): String =
@@ -262,6 +265,7 @@ class UploadViewModel @Inject constructor(
 
     /** Asks for {inputbox} values first when the selected custom uploader needs them. */
     private fun startUpload(paths: List<String>) {
+        viewModelScope.launch { maybeAskNotificationPermission() }
         viewModelScope.launch {
             val prompts = customUploaderPrompts()
             if (prompts.isEmpty()) {
@@ -271,6 +275,17 @@ class UploadViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(pendingPrompts = prompts)
             }
         }
+    }
+
+    private suspend fun maybeAskNotificationPermission() {
+        val asked = settingsRepository.getNotificationPermissionAsked().first()
+        if (!shouldAskNotificationPermission(Build.VERSION.SDK_INT, context.hasNotificationPermission(), asked)) return
+        settingsRepository.setNotificationPermissionAsked()
+        _uiState.value = _uiState.value.copy(askNotificationPermission = true)
+    }
+
+    fun consumeNotificationPermissionRequest() {
+        _uiState.value = _uiState.value.copy(askNotificationPermission = false)
     }
 
     private suspend fun customUploaderPrompts(): List<InputPrompt> {

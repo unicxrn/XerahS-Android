@@ -238,6 +238,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setScreenshotSeenIds(csv: String) = settingsDataStore.setScreenshotSeenIds(csv)
     override fun getScreenshotPermissionLost(): Flow<Boolean> = settingsDataStore.getScreenshotPermissionLost()
     override suspend fun setScreenshotPermissionLost(lost: Boolean) = settingsDataStore.setScreenshotPermissionLost(lost)
+    override fun getNotificationPermissionAsked(): Flow<Boolean> = settingsDataStore.getNotificationPermissionAsked()
+    override suspend fun setNotificationPermissionAsked() = settingsDataStore.setNotificationPermissionAsked()
 
     override fun getRouteProfileId(kind: FileKind): Flow<String?> = settingsDataStore.getRouteProfileId(kind)
     override suspend fun setRouteProfileId(kind: FileKind, profileId: String?) =

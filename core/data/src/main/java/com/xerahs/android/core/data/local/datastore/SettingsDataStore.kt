@@ -44,6 +44,7 @@ class SettingsDataStore @Inject constructor(
         val LAST_SCREENSHOT_CHECK = longPreferencesKey("last_screenshot_check")
         val SCREENSHOT_SEEN_IDS = stringPreferencesKey("screenshot_seen_ids")
         val SCREENSHOT_PERMISSION_LOST = booleanPreferencesKey("screenshot_permission_lost")
+        val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val IMAGE_QUALITY = intPreferencesKey("image_quality")
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
         val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
@@ -363,5 +364,12 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setScreenshotPermissionLost(lost: Boolean) {
         context.dataStore.edit { it[Keys.SCREENSHOT_PERMISSION_LOST] = lost }
+    }
+
+    fun getNotificationPermissionAsked(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.NOTIFICATION_PERMISSION_ASKED] ?: false }
+
+    suspend fun setNotificationPermissionAsked() {
+        context.dataStore.edit { it[Keys.NOTIFICATION_PERMISSION_ASKED] = true }
     }
 }

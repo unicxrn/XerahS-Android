@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload
 
+import android.Manifest
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -55,6 +56,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -123,6 +126,17 @@ fun UploadScreen(
 
     var showDestinationSheet by remember { mutableStateOf(false) }
     var albumTagExpanded by remember { mutableStateOf(false) }
+
+    // Asked once, on the first upload. The upload is already queued, so the answer doesn't matter here.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(uiState.askNotificationPermission) {
+        if (uiState.askNotificationPermission) {
+            viewModel.consumeNotificationPermissionRequest()
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->

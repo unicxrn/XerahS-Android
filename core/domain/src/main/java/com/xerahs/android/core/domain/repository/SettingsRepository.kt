@@ -117,6 +117,9 @@ interface SettingsRepository {
     /** True when the watcher turned itself off because photo access was revoked; enabling clears it. */
     fun getScreenshotPermissionLost(): Flow<Boolean>
     suspend fun setScreenshotPermissionLost(lost: Boolean)
+    /** True once the upload screen has asked for the notification permission, whatever the answer. */
+    fun getNotificationPermissionAsked(): Flow<Boolean>
+    suspend fun setNotificationPermissionAsked()
 
     /** Profile id that files of [kind] are routed to on the upload screen; null = Default. */
     fun getRouteProfileId(kind: FileKind): Flow<String?>
