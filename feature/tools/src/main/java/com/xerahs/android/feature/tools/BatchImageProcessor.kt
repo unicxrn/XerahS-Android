@@ -2,6 +2,8 @@ package com.xerahs.android.feature.tools
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import com.xerahs.android.core.common.image.BatchSizing
@@ -43,6 +45,16 @@ internal object BatchImageProcessor {
                 OutputFormat.PNG -> Bitmap.CompressFormat.PNG to "png"
                 OutputFormat.WEBP -> (if (Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else @Suppress("DEPRECATION") Bitmap.CompressFormat.WEBP) to "webp"
                 else -> Bitmap.CompressFormat.JPEG to "jpg"
+            }
+            // JPEG has no alpha: without this, see-through areas come out black.
+            if (compress == Bitmap.CompressFormat.JPEG && bmp.hasAlpha()) {
+                val flat = Bitmap.createBitmap(bmp.width, bmp.height, Bitmap.Config.ARGB_8888)
+                Canvas(flat).apply {
+                    drawColor(Color.WHITE)
+                    drawBitmap(bmp, 0f, 0f, null)
+                }
+                if (bmp !== src) bmp.recycle()
+                bmp = flat
             }
             val out = File(outDir.apply { mkdirs() }, "xerahs_${System.currentTimeMillis()}_$index.$ext")
             out.outputStream().use { bmp.compress(compress, options.quality, it) }
