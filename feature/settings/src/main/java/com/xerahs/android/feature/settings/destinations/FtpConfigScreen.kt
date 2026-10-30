@@ -80,6 +80,7 @@ fun FtpConfigScreen(
     var sftpUsername by remember { mutableStateOf("") }
     var sftpPassword by remember { mutableStateOf("") }
     var sftpKeyPath by remember { mutableStateOf("") }
+    var sftpKeyPassphrase by remember { mutableStateOf("") }
     var sftpRemotePath by remember { mutableStateOf("/") }
     var sftpHttpUrl by remember { mutableStateOf("") }
 
@@ -100,6 +101,7 @@ fun FtpConfigScreen(
         sftpUsername = sftpConfig.username
         sftpPassword = sftpConfig.password
         sftpKeyPath = sftpConfig.keyPath ?: ""
+        sftpKeyPassphrase = sftpConfig.keyPassphrase ?: ""
         sftpRemotePath = sftpConfig.remotePath
         sftpHttpUrl = sftpConfig.httpUrl
     }
@@ -328,6 +330,13 @@ fun FtpConfigScreen(
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
+                            OutlinedTextField(
+                                value = sftpKeyPassphrase, onValueChange = { sftpKeyPassphrase = it },
+                                label = { Text("Key Passphrase (optional)") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                shape = RoundedCornerShape(18.dp),
+                                visualTransformation = PasswordVisualTransformation()
+                            )
                         }
                     }
 
@@ -363,6 +372,7 @@ fun FtpConfigScreen(
                                     sftpHost, sftpPort.toIntOrNull() ?: 22,
                                     sftpUsername, sftpPassword,
                                     sftpKeyPath.ifEmpty { null },
+                                    sftpKeyPassphrase.ifEmpty { null },
                                     sftpRemotePath, sftpHttpUrl
                                 )
                                 snackbarHostState.showSnackbar("SFTP settings saved")
@@ -382,7 +392,8 @@ fun FtpConfigScreen(
                                 val result = viewModel.testSftpConnection(
                                     sftpHost, sftpPort.toIntOrNull() ?: 22,
                                     sftpUsername, sftpPassword,
-                                    sftpKeyPath.ifEmpty { null }
+                                    sftpKeyPath.ifEmpty { null },
+                                    sftpKeyPassphrase.ifEmpty { null }
                                 )
                                 isTesting = false
                                 snackbarHostState.showSnackbar(result, duration = SnackbarDuration.Long)

@@ -46,12 +46,13 @@ class FtpConfigViewModel @Inject constructor(
 
     suspend fun saveSftpConfig(
         host: String, port: Int, username: String, password: String,
-        keyPath: String?, remotePath: String, httpUrl: String
+        keyPath: String?, keyPassphrase: String?, remotePath: String, httpUrl: String
     ) {
         settingsRepository.saveSftpConfig(
             UploadConfig.SftpConfig(
                 host = host, port = port, username = username, password = password,
-                keyPath = keyPath, remotePath = remotePath, httpUrl = httpUrl
+                keyPath = keyPath, keyPassphrase = keyPassphrase,
+                remotePath = remotePath, httpUrl = httpUrl
             )
         )
     }
@@ -72,13 +73,11 @@ class FtpConfigViewModel @Inject constructor(
     }
 
     suspend fun testSftpConnection(
-        host: String, port: Int, username: String, password: String, keyPath: String?
+        host: String, port: Int, username: String, password: String, keyPath: String?, keyPassphrase: String?
     ): String = withContext(Dispatchers.IO) {
         try {
             val key = keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() }
-            // The screen has no passphrase field, so use the one saved with the config.
-            val passphrase = settingsRepository.getSftpConfig().keyPassphrase
-            val session = sshSessionFactory.open(host, port, username, password, key, passphrase, timeoutMs = 10_000)
+            val session = sshSessionFactory.open(host, port, username, password, key, keyPassphrase, timeoutMs = 10_000)
             session.disconnect()
             "Connection successful"
         } catch (e: HostKeyChangedException) {
