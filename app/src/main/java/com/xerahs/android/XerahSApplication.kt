@@ -85,7 +85,7 @@ class XerahSApplication : Application(), Configuration.Provider {
     }
 
     /**
-     * Deletes week-old pick/share copies and day-old tool output. WorkManager does not expose a work's input data, so
+     * Deletes week-old pick/share copies and editor exports, and day-old tool output. WorkManager does not expose a work's input data, so
      * while any upload is queued, running or blocked the sweep is skipped; files that history
      * points to are always kept.
      */
@@ -99,8 +99,9 @@ class XerahSApplication : Application(), Configuration.Provider {
                 val referenced = historyRepository.getAllHistory().first().map { it.filePath }.toSet()
                 val now = System.currentTimeMillis()
                 CaptureSweeper.sweep(File(filesDir, "captures"), now, referenced)
-                // Tool renders (tools_out) and copy folders a closed tool left behind (tools_combine).
-                CaptureSweeper.sweepToolCache(cacheDir, now, referenced)
+                // Tool renders (tools_out), copy folders a closed tool left behind (tools_combine,
+                // tools_beautify), and week-old editor exports (filesDir/exports).
+                CaptureSweeper.sweepToolCache(cacheDir, now, referenced, exportsDir = File(filesDir, "exports"))
             }
         }
     }

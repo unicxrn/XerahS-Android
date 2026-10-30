@@ -58,4 +58,30 @@ class CaptureSweeperTest {
     @Test fun toolSweepToleratesMissingFolders() {
         assertEquals(0, CaptureSweeper.sweepToolCache(tmp.newFolder(), System.currentTimeMillis(), emptySet()))
     }
+
+    @Test fun toolSweepDeletesOrphanedBeautifyFoldersButKeepsProtected() {
+        val cache = tmp.newFolder(); val now = System.currentTimeMillis()
+        val root = File(cache, CaptureSweeper.TOOLS_BEAUTIFY)
+        val orphan = dir(root, "a1", 2, now)
+        val held = dir(root, "c3", 2, now)
+        val live = File(root, "b2").apply { mkdirs(); File(this, "f.png").writeText("x") }
+        assertEquals(1, CaptureSweeper.sweepToolCache(cache, now, setOf(File(held, "f.png").absolutePath)))
+        assertFalse(orphan.exists()); assertTrue(held.exists()); assertTrue(live.exists())
+    }
+
+    @Test fun exportsAreSweptAfterAWeekUnlessReferenced() {
+        val cache = tmp.newFolder(); val exports = tmp.newFolder("exports"); val now = System.currentTimeMillis()
+        val old = file(exports, "export_1.png", 8 * day, now)
+        val referenced = file(exports, "export_2.png", 30 * day, now)
+        val recent = file(exports, "export_3.png", 3 * day, now)
+        assertEquals(1, CaptureSweeper.sweepToolCache(cache, now, setOf(referenced.absolutePath), exportsDir = exports))
+        assertFalse(old.exists()); assertTrue(referenced.exists()); assertTrue(recent.exists())
+    }
+
+    @Test fun exportsAreLeftAloneWithoutExportsDir() {
+        val cache = tmp.newFolder(); val exports = tmp.newFolder("exports"); val now = System.currentTimeMillis()
+        val old = file(exports, "export_1.png", 30 * day, now)
+        assertEquals(0, CaptureSweeper.sweepToolCache(cache, now, emptySet()))
+        assertTrue(old.exists())
+    }
 }

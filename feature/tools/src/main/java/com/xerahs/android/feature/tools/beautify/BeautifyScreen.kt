@@ -48,6 +48,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -55,6 +58,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -169,19 +175,8 @@ fun BeautifyScreen(
 
 @Composable
 private fun Controls(options: BeautifyOptions, accent: Color, viewModel: BeautifyViewModel) {
-    Eyebrow("Padding  ${(options.paddingPct * 100).roundToInt()}%")
-    Slider(
-        value = options.paddingPct,
-        onValueChange = viewModel::setPadding,
-        valueRange = 0f..BeautifyViewModel.MAX_PADDING
-    )
-
-    Eyebrow("Corners  ${(options.cornerRadiusPct * 100).roundToInt()}%")
-    Slider(
-        value = options.cornerRadiusPct,
-        onValueChange = viewModel::setRadius,
-        valueRange = 0f..BeautifyViewModel.MAX_RADIUS
-    )
+    PercentSlider("Padding", options.paddingPct, BeautifyViewModel.MAX_PADDING, viewModel::setPadding)
+    PercentSlider("Corners", options.cornerRadiusPct, BeautifyViewModel.MAX_RADIUS, viewModel::setRadius)
 
     Eyebrow("Background")
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -231,6 +226,21 @@ private fun Controls(options: BeautifyOptions, accent: Color, viewModel: Beautif
 }
 
 @Composable
+private fun PercentSlider(label: String, value: Float, max: Float, onChange: (Float) -> Unit) {
+    val pct = "${(value * 100).roundToInt()}%"
+    Eyebrow("$label  $pct")
+    Slider(
+        value = value,
+        onValueChange = onChange,
+        valueRange = 0f..max,
+        modifier = Modifier.semantics {
+            contentDescription = label
+            stateDescription = pct
+        }
+    )
+}
+
+@Composable
 private fun BackgroundChip(label: String, selected: Boolean, swatch: Brush?, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
@@ -239,11 +249,20 @@ private fun BackgroundChip(label: String, selected: Boolean, swatch: Brush?, onC
         leadingIcon = {
             val m = Modifier.size(14.dp).clip(CircleShape)
             Box(
-                (if (swatch != null) m.background(swatch) else m.background(Color.Transparent))
+                (if (swatch != null) m.background(swatch) else m.drawBehind(checkerboard))
                     .border(1.dp, Lumen.tokens.hairline, CircleShape)
             )
         }
     )
+}
+
+// 3x3 light and dark grey squares, the usual sign for "see-through".
+private val checkerboard: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
+    val cell = size.width / 3f
+    drawRect(Color(0xFFFFFFFF))
+    for (row in 0 until 3) for (col in 0 until 3) {
+        if ((row + col) % 2 == 1) drawRect(Color(0xFFBDBDC6), Offset(col * cell, row * cell), Size(cell, cell))
+    }
 }
 
 @Composable

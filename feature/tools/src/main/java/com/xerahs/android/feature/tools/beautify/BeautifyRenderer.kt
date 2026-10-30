@@ -83,6 +83,38 @@ internal fun placement(srcW: Int, srcH: Int, o: BeautifyOptions, outW: Int, outH
     return ImagePlacement(left, top, left + iw, top + ih, radius)
 }
 
+/**
+ * Blur radius for the drop shadow: 3% of the image's long edge, but small enough that the blur
+ * plus its downward offset (0.4 x blur) stays inside the narrowest margin, so the shadow is never
+ * cut off at the canvas edge. Returns 0 (no shadow) when there's no room for a 1 px blur.
+ */
+internal fun shadowBlur(p: ImagePlacement, outW: Int, outH: Int): Float {
+    val long = max(p.right - p.left, p.bottom - p.top)
+    val margin = minOf(p.left, p.top, outW - p.right, outH - p.bottom)
+    val blur = min(long * 0.03f, margin / 1.4f)
+    return if (blur < 1f) 0f else blur
+}
+
+internal const val SHADOW_OFFSET = 0.4f
+
+/** String form of [Background] for SavedStateHandle. */
+internal object BackgroundCodec {
+    fun encode(bg: Background): String = when (bg) {
+        is Background.Gradient -> "g:${bg.preset}"
+        is Background.Solid -> "s:${bg.argb}"
+        Background.Accent -> "accent"
+        Background.Transparent -> "none"
+    }
+
+    fun decode(s: String): Background = when {
+        s.startsWith("g:") -> Background.Gradient(s.removePrefix("g:").toIntOrNull() ?: 0)
+        s.startsWith("s:") -> Background.Solid(s.removePrefix("s:").toIntOrNull() ?: 0xFFFFFFFF.toInt())
+        s == "accent" -> Background.Accent
+        s == "none" -> Background.Transparent
+        else -> Background.Gradient(0)
+    }
+}
+
 /** True when the output can have see-through pixels and so must be saved as PNG. */
 fun BeautifyOptions.needsAlpha(): Boolean = background == Background.Transparent
 
@@ -110,14 +142,14 @@ fun render(src: Bitmap, o: BeautifyOptions, accent: Int, maxEdge: Int = 4096): B
 
         val p = placement(src.width, src.height, o, w, h)
         val rect = RectF(p.left, p.top, p.right, p.bottom)
-        if (o.shadow) {
-            val blur = (max(rect.width(), rect.height()) * 0.03f).coerceAtLeast(1f)
+        val blur = if (o.shadow) shadowBlur(p, w, h) else 0f
+        if (blur > 0f) {
             val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = 0x4D000000 // black at 30%
                 maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
             }
             canvas.save()
-            canvas.translate(0f, blur * 0.4f)
+            canvas.translate(0f, blur * SHADOW_OFFSET)
             canvas.drawRoundRect(rect, p.radius, p.radius, shadow)
             canvas.restore()
         }

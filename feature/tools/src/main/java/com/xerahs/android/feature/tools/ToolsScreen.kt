@@ -28,13 +28,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,7 +61,7 @@ enum class ToolId(val title: String, val subtitle: String, val icon: ImageVector
     QR("QR decode", "Read a QR code from an image", Icons.Default.QrCodeScanner),
     COLOR("Color picker", "Pick colours from an image", Icons.Default.Colorize),
     COMBINE("Combine images", "Stack images into one", Icons.Default.ViewAgenda),
-    BEAUTIFY("Beautify", "Background, padding, shadow", Icons.Default.AutoAwesome),
+    BEAUTIFY("Beautify", "Background, padding, shadow", Icons.Default.Wallpaper),
 }
 
 @Composable
@@ -82,16 +82,29 @@ fun ToolsScreen(onOpen: (ToolId) -> Unit) {
             Text("Tools", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(bottom = 8.dp))
             ToolHero(ToolId.BATCH) { onOpen(ToolId.BATCH) }
             ToolId.entries.filter { it != ToolId.BATCH }.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { tool ->
-                        LumenCard(Modifier.weight(1f).heightIn(min = 136.dp), contentPadding = 16.dp, onClick = { onOpen(tool) }) {
+                if (row.size == 1) {
+                    // A lone last tile spans the row as a horizontal card instead of leaving a gap.
+                    val tool = row.single()
+                    LumenCard(Modifier.fillMaxWidth(), contentPadding = 16.dp, onClick = { onOpen(tool) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             IconTile(tool.icon)
-                            Spacer(Modifier.weight(1f).heightIn(min = 24.dp))
-                            Text(tool.title, style = MaterialTheme.typography.titleSmall)
-                            Text(tool.subtitle, style = monoStyle(11), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(tool.title, style = MaterialTheme.typography.titleSmall)
+                                Text(tool.subtitle, style = monoStyle(11), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { tool ->
+                            LumenCard(Modifier.weight(1f).heightIn(min = 136.dp), contentPadding = 16.dp, onClick = { onOpen(tool) }) {
+                                IconTile(tool.icon)
+                                Spacer(Modifier.weight(1f).heightIn(min = 24.dp))
+                                Text(tool.title, style = MaterialTheme.typography.titleSmall)
+                                Text(tool.subtitle, style = monoStyle(11), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
         }

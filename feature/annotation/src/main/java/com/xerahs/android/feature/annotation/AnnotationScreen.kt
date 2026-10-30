@@ -38,8 +38,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.AutoFixOff
 import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -83,6 +83,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -811,13 +815,20 @@ fun AnnotationScreen(
                         enabled = !uiState.isExporting,
                         loading = uiState.isExporting
                     )
-                    CircleIconButton(
-                        icon = Icons.Default.AutoAwesome,
-                        contentDescription = "Beautify",
-                        onClick = { exportThen(onBeautify) },
-                        modifier = Modifier.size(56.dp),
-                        enabled = !uiState.isExporting
-                    )
+                    // Long-press shows the name; the icon alone is easy to miss.
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = { PlainTooltip { Text("Beautify") } },
+                        state = rememberTooltipState()
+                    ) {
+                        CircleIconButton(
+                            icon = Icons.Default.Wallpaper,
+                            contentDescription = "Beautify",
+                            onClick = { exportThen(onBeautify) },
+                            modifier = Modifier.size(56.dp),
+                            enabled = !uiState.isExporting
+                        )
+                    }
                 }
             }
         }
