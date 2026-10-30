@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -266,7 +267,7 @@ fun HistoryScreen(
                             }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
+                                    contentDescription = "Copy link",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -369,7 +370,7 @@ fun HistoryScreen(
     if (showBulkDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
-            title = { Text("Delete ${uiState.selectedIds.size} items?") },
+            title = { Text(uiState.selectedIds.size.let { if (it == 1) "Delete 1 item?" else "Delete $it items?" }) },
             text = { Text("This will permanently delete the selected items. This cannot be undone.") },
             confirmButton = {
                 TextButton(
@@ -478,6 +479,8 @@ fun HistoryScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Keep the actions above the gesture handle and nav buttons.
+                            .navigationBarsPadding()
                             .padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
@@ -1127,7 +1130,7 @@ private fun HistoryItemCard(
                             IconButton(onClick = { onCopyUrl(url) }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
+                                    contentDescription = "Copy link",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
