@@ -24,6 +24,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.background
+import android.os.Build
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -114,6 +121,18 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Android 15 always lays apps out under the display cutout once they target SDK 35. Opt in
+        // on older versions too, so landscape looks and behaves the same everywhere instead of
+        // leaving a black band beside the camera.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+        }
 
         if (savedInstanceState == null) {
             handleIncomingIntent(intent, fresh = true)
@@ -525,12 +544,16 @@ fun MainScreen(
         Screen.Settings.route
     )
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         XerahSNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
             // Edge to edge, the window no longer pans for the keyboard; shrink the screens instead.
-            modifier = Modifier.fillMaxSize().imePadding(),
+            // Keep every screen clear of a side cutout in landscape; the band shows the background.
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                .imePadding(),
             onUploadClipboard = onUploadClipboard,
             onUploadFromLink = { linkIntakeViewModel.openEntry() }
         )
