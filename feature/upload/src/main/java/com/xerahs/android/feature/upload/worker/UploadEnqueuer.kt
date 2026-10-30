@@ -60,6 +60,11 @@ object UploadEnqueuer {
     const val TAG_COUNT = "count:"
     const val TAG_AT = "at:"
     const val KEY_BACKGROUND = "background"
+    /** Marks a retry with the work it replaces, so the queue hides the old failed row. */
+    const val TAG_RETRY_OF = "retryOf:"
+
+    /** Unique name of the retry of [oldWorkId]: the queue and the notification share it, so only one runs. */
+    fun retryName(oldWorkId: UUID) = "retry-$oldWorkId"
 
     /** WorkManager does not expose input data, so the queue reads these tags to label queued and running work. */
     fun tagsFor(spec: UploadSpec, now: Long = System.currentTimeMillis()): List<String> {
@@ -96,8 +101,15 @@ object UploadEnqueuer {
         return builder.build()
     }
 
+    /**
+     * Requeues what is left of failed work [oldWorkId]. KEEP under [retryName] makes a second tap,
+     * from the queue or the notification, a no-op. Nobody watches a retry, so it is [UploadSpec.background].
+     */
+    fun enqueueRetry(context: Context, oldWorkId: UUID, spec: UploadSpec): UUID =
+        enqueue(context, spec.copy(background = true), uniqueName = retryName(oldWorkId), retryOf = oldWorkId)
+
     /** Enqueues a tagged, uniquely named upload so it can be listed and cancelled. Returns the work id. */
-    fun enqueue(context: Context, spec: UploadSpec, uniqueName: String? = null): UUID {
+    fun enqueue(context: Context, spec: UploadSpec, uniqueName: String? = null, retryOf: UUID? = null): UUID {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(
                 if (spec.destination == UploadDestination.LOCAL) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED
@@ -110,6 +122,7 @@ object UploadEnqueuer {
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(UPLOAD_WORK_TAG)
             .apply { tagsFor(spec).forEach { addTag(it) } }
+            .apply { retryOf?.let { addTag(TAG_RETRY_OF + it) } }
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(uniqueName ?: "upload-${request.id}", ExistingWorkPolicy.KEEP, request)

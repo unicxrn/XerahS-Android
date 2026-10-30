@@ -20,6 +20,7 @@ object UploadNotifier {
     const val CHANNEL_PROGRESS = "upload_channel"
     const val CHANNEL_RESULT = "upload_complete_channel"
     const val EXTRA_NOTIFICATION_ID = "notification_id"
+    const val EXTRA_WORK_ID = "old_work_id"
 
     private const val ID_BASE = 2000
     private const val ID_SPAN = 100000
@@ -127,6 +128,7 @@ object UploadNotifier {
         val intent = Intent(context, RetryUploadReceiver::class.java)
             .setData(actionUri(workId, action))
             .putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            .putExtra(EXTRA_WORK_ID, workId.toString())
         UploadEnqueuer.inputData(spec).keyValueMap.forEach { (key, value) ->
             if (value != null) intent.putExtra(key, value.toString())
         }

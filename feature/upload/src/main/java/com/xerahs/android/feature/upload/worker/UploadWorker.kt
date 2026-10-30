@@ -85,19 +85,11 @@ class UploadWorker @AssistedInject constructor(
                     // Android stops dataSync services after a daily limit on API 35: tell the user why.
                     WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> withContext(NonCancellable) {
                         val remaining = remainingSpec()
-                        val message = "Upload stopped by Android after running too long"
+                        val message = STOPPED_MESSAGE
                         UploadNotifier.failure(appContext, id, message, canRetry = remaining != null, retry = remaining)
-                        // WorkManager ignores a result after a stop, so leave the retry payload in the progress.
-                        // The queue shows this cancelled work under Failed with a Retry button.
-                        runCatching {
-                            setProgress(
-                                Data.Builder()
-                                    .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
-                                    .putString(KEY_ERROR_MESSAGE, message)
-                                    .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
-                                    .build()
-                            )
-                        }
+                        // WorkManager ignores a result after a stop and may drop progress set now, so the
+                        // retry payload goes to a file. The queue shows this cancelled work under Failed with Retry.
+                        runCatching { StoppedUploadStore.forCache(appContext.cacheDir).save(id, remaining, message, System.currentTimeMillis()) }
                         progress.clear(id)
                         // Cancel so WorkManager does not reschedule the stopped batch.
                         WorkManager.getInstance(applicationContext).cancelWorkById(id)
@@ -560,6 +552,8 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_FINISHED_AT = "finished_at"
         const val KEY_PROGRESS_DONE = "progress_done"
         const val KEY_PROGRESS_TOTAL = "progress_total"
+
+        const val STOPPED_MESSAGE = "Android stopped the upload. Tap Retry to continue."
 
         /** Total runs of one work, the first included. [runAttemptCount] starts at 0. */
         private const val MAX_ATTEMPTS = 3

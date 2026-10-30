@@ -153,6 +153,7 @@ class QueueDuplicateRetryTest {
         val info = WorkInfo(UUID.randomUUID(), WorkInfo.State.CANCELLED, setOf(UPLOAD_WORK_TAG), Data.EMPTY, payload)
         val item = QueueSections.build(listOf(info), now, emptySet()).failed.single()
         assertEquals(listOf("/c/3.png"), item.retrySpec!!.paths)
+        assertEquals(UploadWorker.STOPPED_MESSAGE, item.error)
     }
 
     @Test fun waitingSortsByEnqueueTimeAndFailedHonoursTheWindow() {
@@ -164,6 +165,31 @@ class QueueDuplicateRetryTest {
         val s = QueueSections.build(listOf(late, early, old), now, emptySet())
         assertEquals(listOf(early.id, late.id), s.waiting.map { it.id })
         assertTrue(s.failed.isEmpty())
+    }
+
+    @Test fun failedWorkThatARetryReplacedIsHidden() {
+        val out = Data.Builder()
+            .putAll(UploadEnqueuer.inputData(spec))
+            .putString(UploadWorker.KEY_ERROR_MESSAGE, "Connection refused")
+            .putLong(UploadWorker.KEY_FINISHED_AT, now)
+            .build()
+        val failed = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, setOf(UPLOAD_WORK_TAG), out, Data.EMPTY)
+        val other = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, setOf(UPLOAD_WORK_TAG), out, Data.EMPTY)
+        // The retry the notification enqueued: the queue has no in-memory record of it.
+        val retry = WorkInfo(UUID.randomUUID(), WorkInfo.State.ENQUEUED,
+            setOf(UPLOAD_WORK_TAG, UploadEnqueuer.TAG_RETRY_OF + failed.id) + UploadEnqueuer.tagsFor(spec, now), Data.EMPTY, Data.EMPTY)
+
+        val s = QueueSections.build(listOf(failed, other, retry), now, emptySet())
+        assertEquals(listOf(other.id), s.failed.map { it.id })
+        assertEquals(listOf(retry.id), s.waiting.map { it.id })
+        assertEquals(setOf(failed.id), QueueSections.retriedIds(listOf(failed, other, retry)))
+    }
+
+    @Test fun retryIsUniquePerOldWorkAndUnwatched() {
+        val old = UUID.randomUUID()
+        assertEquals("retry-$old", UploadEnqueuer.retryName(old))
+        val data = UploadEnqueuer.inputData(spec.copy(background = true))
+        assertTrue(UploadSpec.from(data)!!.background)
     }
 
     @Test fun nameTrimDoesNotSplitSurrogatePairs() {

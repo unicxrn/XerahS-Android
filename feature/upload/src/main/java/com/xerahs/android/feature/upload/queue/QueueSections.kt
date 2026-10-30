@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload.queue
 
+import androidx.work.Data
 import androidx.work.WorkInfo
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.feature.upload.worker.UploadEnqueuer
@@ -50,8 +51,18 @@ data class QueueSections(
     companion object {
         const val DONE_WINDOW_MS = 24L * 60 * 60 * 1000
 
-        /** Sorts work into sections. [hidden] holds finished work the user cleared or already retried. */
-        fun build(infos: List<WorkInfo>, now: Long, hidden: Set<UUID>): QueueSections {
+        /**
+         * Sorts work into sections. [hidden] holds finished work the user cleared or already
+         * retried. [stopped] holds the retry payloads of works Android stopped (see StoppedUploadStore).
+         * Failed work that a retry already replaced (a work tagged with its id) is left out.
+         */
+        fun build(
+            infos: List<WorkInfo>,
+            now: Long,
+            hidden: Set<UUID>,
+            stopped: Map<UUID, Data> = emptyMap(),
+        ): QueueSections {
+            val gone = hidden + retriedIds(infos)
             val running = mutableListOf<QueueItem>()
             val waiting = mutableListOf<QueueItem>()
             val failed = mutableListOf<QueueItem>()
@@ -60,18 +71,23 @@ data class QueueSections(
                 when (info.state) {
                     WorkInfo.State.RUNNING -> running += item(info)
                     WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> waiting += item(info)
-                    WorkInfo.State.FAILED -> if (info.id !in hidden) {
+                    WorkInfo.State.FAILED -> if (info.id !in gone) {
                         val it = item(info)
                         if (it.finishedAt == null || now - it.finishedAt <= DONE_WINDOW_MS) failed += it
                     }
-                    WorkInfo.State.SUCCEEDED -> if (info.id !in hidden) {
+                    WorkInfo.State.SUCCEEDED -> if (info.id !in gone) {
                         val at = info.outputData.getLong(UploadWorker.KEY_FINISHED_AT, 0L)
                         if (at > 0 && now - at <= DONE_WINDOW_MS) done += item(info)
                     }
-                    // Stopped by Android's foreground service limit: the worker leaves its retry payload in the progress.
-                    WorkInfo.State.CANCELLED -> if (info.id !in hidden && info.progress.getString(UploadWorker.KEY_ERROR_MESSAGE) != null) {
-                        val it = item(info, stopped = true)
-                        if (it.finishedAt == null || now - it.finishedAt <= DONE_WINDOW_MS) failed += it
+                    // Stopped by Android's foreground service limit: the worker saved its retry payload to a file
+                    // (older builds left it in the progress, which WorkManager may drop).
+                    WorkInfo.State.CANCELLED -> if (info.id !in gone) {
+                        val payload = stopped[info.id]
+                            ?: info.progress.takeIf { it.getString(UploadWorker.KEY_ERROR_MESSAGE) != null }
+                        if (payload != null) {
+                            val it = item(info, stoppedPayload = payload)
+                            if (it.finishedAt == null || now - it.finishedAt <= DONE_WINDOW_MS) failed += it
+                        }
                     }
                 }
             }
@@ -84,11 +100,17 @@ data class QueueSections(
             )
         }
 
+        /** Ids of works that a retry has replaced, read from the retries' tags. */
+        fun retriedIds(infos: List<WorkInfo>): Set<UUID> = infos.mapNotNullTo(HashSet()) { info ->
+            tag(info, UploadEnqueuer.TAG_RETRY_OF)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        }
+
         private fun tag(info: WorkInfo, prefix: String): String? =
             info.tags.firstOrNull { it.startsWith(prefix) }?.removePrefix(prefix)
 
-        private fun item(info: WorkInfo, stopped: Boolean = false): QueueItem {
-            val out = if (stopped) info.progress else info.outputData
+        private fun item(info: WorkInfo, stoppedPayload: Data? = null): QueueItem {
+            val stopped = stoppedPayload != null
+            val out = stoppedPayload ?: info.outputData
             val destination = (tag(info, UploadEnqueuer.TAG_DEST) ?: out.getString(UploadWorker.KEY_DESTINATION))
                 ?.let { name -> UploadDestination.entries.firstOrNull { it.name == name } }
             val total = info.progress.getInt(UploadWorker.KEY_PROGRESS_TOTAL, 0)
@@ -97,6 +119,7 @@ data class QueueSections(
             val isDuplicate = failed && out.getBoolean(UploadWorker.KEY_DUPLICATE_FOUND, false)
             val error = if (!failed) null else when {
                 isDuplicate -> "Already uploaded"
+                stopped -> UploadWorker.STOPPED_MESSAGE
                 else -> out.getString(UploadWorker.KEY_ERROR_MESSAGE) ?: "Upload failed"
             }
             val retry = if (failed) UploadSpec.from(out) else null
