@@ -212,9 +212,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun deleteSelectedAnnotation() {
-        val state = _uiState.value
+        var state = _uiState.value
         val selectedId = state.selectedAnnotationId ?: return
-        pushUndo()
+        state = pushUndo()
         _uiState.value = state.copy(
             annotations = state.annotations.filter { it.id != selectedId },
             selectedAnnotationId = null,
@@ -228,11 +228,15 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun addAnnotation(startX: Float, startY: Float, endX: Float, endY: Float, sampledColor: Int? = null) {
-        val state = _uiState.value
+        var state = _uiState.value
         // Highlighter pen uses addFreehandAnnotation; a sticker needs a chosen image first.
         if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) return
         if (state.selectedTool == AnnotationTool.STICKER && state.pendingStickerPath == null) return
-        pushUndo()
+        if (state.selectedTool == AnnotationTool.TEXT) {
+            _uiState.value = state.copy(pendingTextPosition = Pair(startX, startY))
+            return
+        }
+        state = pushUndo()
 
         val annotation = when (state.selectedTool) {
             AnnotationTool.RECTANGLE -> Annotation.Rectangle(
@@ -254,10 +258,7 @@ class AnnotationViewModel @Inject constructor(
                 startX = startX, startY = startY,
                 endX = endX, endY = endY
             )
-            AnnotationTool.TEXT -> {
-                _uiState.value = state.copy(pendingTextPosition = Pair(startX, startY))
-                return
-            }
+            AnnotationTool.TEXT -> return
             AnnotationTool.BLUR -> Annotation.Blur(
                 id = generateId(),
                 zIndex = state.annotations.size,
@@ -370,8 +371,7 @@ class AnnotationViewModel @Inject constructor(
 
     fun addFreehandAnnotation(points: List<Pair<Float, Float>>) {
         if (points.size < 2) return
-        val state = _uiState.value
-        pushUndo()
+        val state = pushUndo()
 
         val annotation = if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) {
             Annotation.HighlighterPen(
@@ -399,8 +399,7 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun addNumberedStep(x: Float, y: Float) {
-        val state = _uiState.value
-        pushUndo()
+        val state = pushUndo()
 
         val annotation = Annotation.NumberedStep(
             id = generateId(),
@@ -444,9 +443,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun updateTextAnnotation(text: String) {
-        val state = _uiState.value
+        var state = _uiState.value
         val editId = state.editingAnnotationId ?: return
-        pushUndo()
+        state = pushUndo()
         val updated = state.annotations.map { annotation ->
             if (annotation.id == editId && annotation is Annotation.Text) {
                 annotation.copy(text = text)
@@ -468,9 +467,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun addTextAnnotation(text: String) {
-        val state = _uiState.value
+        var state = _uiState.value
         val position = state.pendingTextPosition ?: return
-        pushUndo()
+        state = pushUndo()
 
         val annotation = Annotation.Text(
             id = generateId(),
@@ -560,11 +559,12 @@ class AnnotationViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(effects = EffectSettings())
     }
 
-    private fun pushUndo() {
+    /** Records the current annotations for undo and returns the updated state for callers to copy from. */
+    private fun pushUndo(): AnnotationUiState {
         val state = _uiState.value
-        _uiState.value = state.copy(
-            undoStack = state.undoStack + listOf(state.annotations)
-        )
+        val updated = state.copy(undoStack = state.undoStack + listOf(state.annotations))
+        _uiState.value = updated
+        return updated
     }
 }
 
