@@ -60,13 +60,8 @@
                 <data android:mimeType="application/json" />
             </intent-filter>
 
-            <!-- In-app deep links, used by upload notifications: xerahs://share/{historyId}, xerahs://queue -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="xerahs" android:host="share" />
-                <data android:scheme="xerahs" android:host="queue" />
-            </intent-filter>
+            <!-- xerahs://share/{historyId} and xerahs://queue need no filter: notifications, the
+                 widget and the shortcut send them in explicit intents to this activity. -->
 
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>

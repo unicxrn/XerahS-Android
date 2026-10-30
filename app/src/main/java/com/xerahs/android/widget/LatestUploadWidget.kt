@@ -248,8 +248,10 @@ class LatestUploadWidget : GlanceAppWidget() {
                 val bitmap = runCatching {
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(path, bounds)
+                    // Sample by the long edge: the original may be a panorama, and RemoteViews
+                    // rejects a bitmap that is too large even when the short edge is small.
                     val opts = BitmapFactory.Options().apply {
-                        inSampleSize = calculateInSampleSize(minOf(bounds.outWidth, bounds.outHeight), minOf(bounds.outWidth, bounds.outHeight), MAX_THUMB_EDGE)
+                        inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_THUMB_EDGE)
                     }
                     BitmapFactory.decodeFile(path, opts)
                 }.getOrNull()

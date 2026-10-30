@@ -100,6 +100,7 @@ import coil.compose.AsyncImage
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toDateGroupKey
 import com.xerahs.android.core.common.toShortDate
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DateFilter
 import com.xerahs.android.core.domain.model.HistoryItem
@@ -260,8 +261,8 @@ fun HistoryScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             FilledTonalIconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(url))
-                                scope.launch { snackbarHostState.showSnackbar("URL copied") }
+                                clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(currentItem, uiState.linkFormat, url)))
+                                scope.launch { snackbarHostState.showSnackbar("Link copied") }
                             }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
@@ -876,8 +877,8 @@ fun HistoryScreen(
                                         onClick = { viewModel.toggleItemSelection(item.id) },
                                         onLongClick = { viewModel.toggleItemSelection(item.id) },
                                         onCopyUrl = { url ->
-                                            clipboardManager.setText(AnnotatedString(url))
-                                            scope.launch { snackbarHostState.showSnackbar("URL copied") }
+                                            clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(item, uiState.linkFormat, url)))
+                                            scope.launch { snackbarHostState.showSnackbar("Link copied") }
                                         },
                                         onShare = { shareHistoryItem(context, item) }
                                     )
@@ -891,9 +892,9 @@ fun HistoryScreen(
                                             viewModel.toggleItemSelection(item.id)
                                         },
                                         onCopyUrl = { url ->
-                                            clipboardManager.setText(AnnotatedString(url))
+                                            clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(item, uiState.linkFormat, url)))
                                             scope.launch {
-                                                snackbarHostState.showSnackbar("URL copied")
+                                                snackbarHostState.showSnackbar("Link copied")
                                             }
                                         },
                                         onShare = { shareHistoryItem(context, item) },

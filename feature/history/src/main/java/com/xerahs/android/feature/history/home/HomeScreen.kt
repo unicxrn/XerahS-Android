@@ -2,6 +2,7 @@ package com.xerahs.android.feature.history.home
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -423,7 +424,10 @@ fun HomeScreen(
                                             .background(Lumen.tokens.tint)
                                             .clickable(role = Role.Button) {
                                                 clipboard.setText(AnnotatedString(LinkFormatter.forItem(latest, uiState.linkFormat, latestUrl)))
-                                                Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                                // Android 13 and later confirm copies on their own.
+                                                if (Build.VERSION.SDK_INT < 33) {
+                                                    Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                                }
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
