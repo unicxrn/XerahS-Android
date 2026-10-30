@@ -19,6 +19,7 @@ class SshSessionFactoryTest {
         override suspend fun get(hostPort: String) = map[hostPort]
         override suspend fun put(hostPort: String, fingerprint: String) { map[hostPort] = fingerprint }
         override suspend fun remove(hostPort: String) { map.remove(hostPort) }
+        override suspend fun all(): Map<String, String> = map.toMap()
         override suspend fun putIfAbsent(hostPort: String, fingerprint: String): String? =
             synchronized(map) { map[hostPort] ?: run { map[hostPort] = fingerprint; null } }
     }

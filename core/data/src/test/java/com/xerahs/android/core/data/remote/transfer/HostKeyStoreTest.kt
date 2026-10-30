@@ -38,6 +38,14 @@ class HostKeyStoreTest {
         assertEquals("SHA256:first", store.get("h:22"))
     }
 
+    @Test fun allListsEveryPinnedKey() = runBlocking {
+        assertEquals(emptyMap<String, String>(), store.all())
+        store.put("a:22", "SHA256:x")
+        store.put("b:2022", "SHA256:y")
+        store.remove("a:22")
+        assertEquals(mapOf("b:2022" to "SHA256:y"), store.all())
+    }
+
     @Test fun codecRoundTrips() {
         val map = mapOf("a:22" to "SHA256:x", "b:2022" to "SHA256:y")
         assertEquals(map, DataStoreHostKeyStore.decode(DataStoreHostKeyStore.encode(map)))

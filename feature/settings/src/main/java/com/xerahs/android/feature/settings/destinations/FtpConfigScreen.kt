@@ -3,6 +3,7 @@ package com.xerahs.android.feature.settings.destinations
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,13 +35,16 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +55,7 @@ import com.xerahs.android.core.ui.StatusBanner
 import com.xerahs.android.core.ui.lumen.LumenSwitch
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,6 +68,7 @@ fun FtpConfigScreen(
     val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(viewModel.initialTab) }
     var isTesting by remember { mutableStateOf(false) }
+    val savedHostKeys by viewModel.savedHostKeys.collectAsState()
 
     // FTP fields
     var ftpHost by remember { mutableStateOf("") }
@@ -435,9 +441,63 @@ fun FtpConfigScreen(
                     ) {
                         Text("Forget saved host key")
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SavedHostKeys(
+                        keys = savedHostKeys,
+                        onForget = { key ->
+                            viewModel.forgetHostKey(key.hostPort)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Forgot the key for ${key.hostPort}. The next connection saves the new one.")
+                            }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+/** Pinned SFTP host keys for every server, including the ones only profiles use. */
+@Composable
+private fun SavedHostKeys(keys: List<SavedHostKey>, onForget: (SavedHostKey) -> Unit) {
+    SectionHeader("Saved host keys")
+    SettingsGroupCard {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (keys.isEmpty()) {
+                Text(
+                    "No saved host keys yet. A server's key is saved the first time you connect to it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            keys.forEach { key ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(key.hostPort, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            key.fingerprint,
+                            style = monoStyle(11),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    OutlinedButton(
+                        onClick = { onForget(key) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Forget")
+                    }
+                }
             }
         }
     }

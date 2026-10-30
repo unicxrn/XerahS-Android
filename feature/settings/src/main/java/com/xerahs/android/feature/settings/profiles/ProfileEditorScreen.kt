@@ -1,5 +1,7 @@
 package com.xerahs.android.feature.settings.profiles
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -29,11 +33,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -45,6 +51,7 @@ import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.feature.settings.AfterUploadActionChips
 import com.xerahs.android.feature.settings.destinations.NativeDestinationFields
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -514,6 +521,31 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     )
+    Spacer(modifier = Modifier.height(12.dp))
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    OutlinedButton(
+        onClick = {
+            scope.launch {
+                val had = viewModel.forgetSftpHostKey()
+                Toast.makeText(
+                    context,
+                    if (had) "Saved host key forgotten. The next connection will save the new one."
+                    else "No saved host key for this server",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        },
+        shape = CircleShape,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        enabled = state.sftpHost.isNotBlank(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+    ) {
+        Text("Forget saved host key")
+    }
 }
 
 @Composable

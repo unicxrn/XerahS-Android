@@ -10,6 +10,9 @@ interface HostKeyStore {
     suspend fun put(hostPort: String, fingerprint: String)
     suspend fun remove(hostPort: String)
 
+    /** Every pinned key, `host:port` to fingerprint. */
+    suspend fun all(): Map<String, String>
+
     /** Atomically pins [fingerprint] unless a key is already pinned; returns the existing one, or null if it pinned. */
     suspend fun putIfAbsent(hostPort: String, fingerprint: String): String?
 }
@@ -44,6 +47,8 @@ class DataStoreHostKeyStore internal constructor(private val pref: StringPref) :
 
     override suspend fun remove(hostPort: String) =
         pref.update { encode(decode(it) - hostPort) }
+
+    override suspend fun all(): Map<String, String> = decode(pref.read())
 
     internal companion object {
         // One `hostPort=fingerprint` per line. Neither side can contain '=' or a newline:
