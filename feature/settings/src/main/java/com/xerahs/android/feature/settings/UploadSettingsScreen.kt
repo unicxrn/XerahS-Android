@@ -55,6 +55,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -524,9 +526,11 @@ fun UploadSettingsScreen(
                     }
                     RouteRow(
                         title = title,
+                        defaultLabel = "Default (${uiState.defaultDestination.displayName})",
                         profiles = uiState.allProfiles,
                         selectedId = uiState.routes[kind],
-                        onSelect = { viewModel.setRouteProfileId(kind, it) }
+                        onSelect = { viewModel.setRouteProfileId(kind, it) },
+                        onAddProfile = onNavigateToProfiles
                     )
                 }
                 Text(
@@ -687,33 +691,49 @@ private fun DestinationItem(
     )
 }
 
-/** Profile picker for one file kind. A missing (deleted) profile shows as Default. */
+/**
+ * Profile picker for one file kind. "Default" names the destination it resolves to, and a
+ * missing (deleted) profile shows as Default. With no profiles, the menu says how to get some.
+ */
 @Composable
 private fun RouteRow(
     title: String,
+    defaultLabel: String,
     profiles: List<UploadProfile>,
     selectedId: String?,
     onSelect: (String?) -> Unit,
+    onAddProfile: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     val current = profiles.find { it.id == selectedId }
+    val check: @Composable () -> Unit = { Icon(Icons.Default.Check, contentDescription = "Selected") }
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = {
-            Text(current?.let { "${it.name} (${it.destination.displayName})" } ?: "Default")
+            Text(current?.let { "${it.name} (${it.destination.displayName})" } ?: defaultLabel)
         },
         modifier = Modifier.clickable { menu = true },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         trailingContent = {
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Default") },
+                    text = { Text(defaultLabel) },
+                    trailingIcon = if (current == null) check else null,
                     onClick = { onSelect(null); menu = false }
                 )
                 profiles.forEach { p ->
                     DropdownMenuItem(
                         text = { Text("${p.name} (${p.destination.displayName})") },
+                        trailingIcon = if (current?.id == p.id) check else null,
                         onClick = { onSelect(p.id); menu = false }
+                    )
+                }
+                if (profiles.isEmpty()) {
+                    HorizontalDivider(color = Lumen.tokens.hairline)
+                    DropdownMenuItem(
+                        text = { Text("Add a profile to send these somewhere else") },
+                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        onClick = { menu = false; onAddProfile() }
                     )
                 }
             }
