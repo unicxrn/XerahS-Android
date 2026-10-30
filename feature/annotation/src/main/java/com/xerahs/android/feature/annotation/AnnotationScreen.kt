@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -41,6 +43,9 @@ import androidx.compose.material.icons.filled.AutoFixOff
 import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -89,10 +94,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -110,10 +118,10 @@ import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
 import com.xerahs.android.feature.annotation.canvas.SmartEraserSampler
-import com.xerahs.android.feature.annotation.crop.CropEngine
 import com.xerahs.android.feature.annotation.crop.CropOverlay
 import com.xerahs.android.feature.annotation.effects.EffectsSheet
 import com.xerahs.android.feature.annotation.engine.AnnotationEngine
+import com.xerahs.android.feature.annotation.engine.Op
 import com.xerahs.android.feature.annotation.toolbar.ColorPickerDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -395,12 +403,32 @@ fun AnnotationScreen(
     ) {
         // Full-bleed canvas / crop area
         if (uiState.isCropMode) {
-            CropOverlay(
-                imageWidth = bitmap.width,
-                imageHeight = bitmap.height,
-                onCropRectChanged = { cropRect = it },
-                modifier = Modifier.fillMaxSize()
-            )
+            // The image, fitted to its own aspect ratio, with the crop frame on top so the frame's
+            // fractions map straight onto image pixels.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
+                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val preview = remember(displayBitmap) { displayBitmap.asImageBitmap() }
+                Box(Modifier.aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())) {
+                    Image(
+                        bitmap = preview,
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    CropOverlay(
+                        imageWidth = bitmap.width,
+                        imageHeight = bitmap.height,
+                        onCropRectChanged = { cropRect = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                if (uiState.isTransforming) CircularProgressIndicator()
+            }
         } else {
             // Bezel frame around the canvas. Insets: 64dp + status bar on top (clears the
             // chrome bar), 14dp on the sides, and the measured height of the floating bottom
@@ -538,12 +566,8 @@ fun AnnotationScreen(
 
             if (uiState.isCropMode) {
                 Button(
-                    onClick = {
-                        val cropped = CropEngine.cropBitmap(bitmap, cropRect)
-                        viewModel.setBitmap(cropped)
-                        viewModel.setCropMode(false)
-                        viewModel.clearAnnotations()
-                    },
+                    onClick = { viewModel.applyCrop(cropRect) },
+                    enabled = !uiState.isTransforming,
                     shape = CircleShape
                 ) {
                     Text("Apply Crop")
@@ -607,6 +631,50 @@ fun AnnotationScreen(
                 }
             }
         }
+        }
+
+        // Crop mode: rotate and flip. Each bakes the annotations in first, like crop does.
+        if (uiState.isCropMode) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { size ->
+                        bottomControlsHeight = with(density) { size.height.toDp() }
+                    }
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val enabled = !uiState.isTransforming
+                CircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.RotateLeft,
+                    contentDescription = "Rotate left",
+                    onClick = { viewModel.transform(Op.ROTATE_LEFT) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.RotateRight,
+                    contentDescription = "Rotate right",
+                    onClick = { viewModel.transform(Op.ROTATE_RIGHT) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.Default.Flip,
+                    contentDescription = "Flip horizontally",
+                    onClick = { viewModel.transform(Op.FLIP_HORIZONTAL) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.Default.Flip,
+                    contentDescription = "Flip vertically",
+                    onClick = { viewModel.transform(Op.FLIP_VERTICAL) },
+                    enabled = enabled,
+                    modifier = Modifier.rotate(90f)
+                )
+            }
         }
 
         // Bottom controls: floating tool bar + primary action
