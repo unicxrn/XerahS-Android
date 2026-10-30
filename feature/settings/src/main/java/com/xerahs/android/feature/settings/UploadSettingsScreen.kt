@@ -3,7 +3,21 @@ package com.xerahs.android.feature.settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.xerahs.android.core.common.permission.ScreenshotAccess
+import com.xerahs.android.core.common.permission.screenshotAccess
+import com.xerahs.android.core.common.permission.screenshotPermissions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -476,8 +490,115 @@ fun UploadSettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ScreenshotSettings(
+                watch = uiState.screenshotWatch,
+                auto = uiState.screenshotAutoUpload,
+                onWatchChange = viewModel::setScreenshotWatch,
+                onAutoChange = viewModel::setScreenshotAutoUpload,
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun ScreenshotSettings(
+    watch: Boolean,
+    auto: Boolean,
+    onWatchChange: (Boolean) -> Unit,
+    onAutoChange: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    var access by remember { mutableStateOf(context.screenshotAccess()) }
+    var denied by remember { mutableStateOf(false) }
+
+    // Access can change in system settings while we are in the background.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) access = context.screenshotAccess()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        access = context.screenshotAccess()
+        if (access == ScreenshotAccess.DENIED) {
+            denied = true
+            onWatchChange(false)
+        } else {
+            denied = false
+            onWatchChange(true)
+        }
+    }
+
+    SectionHeader("Screenshots")
+    SettingsGroupCard {
+        ListItem(
+            headlineContent = { Text("Offer to upload new screenshots") },
+            supportingContent = { Text("Get a notification with Upload and Edit when you take one") },
+            trailingContent = {
+                LumenSwitch(
+                    checked = watch,
+                    onCheckedChange = { on ->
+                        if (!on) {
+                            denied = false
+                            onWatchChange(false)
+                        } else if (context.screenshotAccess() != ScreenshotAccess.DENIED) {
+                            access = context.screenshotAccess()
+                            denied = false
+                            onWatchChange(true)
+                        } else {
+                            launcher.launch(screenshotPermissions())
+                        }
+                    }
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+
+        if (denied && !watch) {
+            Text(
+                "XerahS needs photo access to see new screenshots",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        if (watch && access == ScreenshotAccess.LIMITED) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    "XerahS can only see photos you picked. Allow all photos to catch new screenshots",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }) { Text("Open app settings") }
+            }
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = Lumen.tokens.hairline
+        )
+
+        ListItem(
+            headlineContent = { Text("Upload new screenshots without asking") },
+            supportingContent = { Text("Sends them to your default destination") },
+            trailingContent = {
+                LumenSwitch(checked = auto, onCheckedChange = onAutoChange, enabled = watch)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
     }
 }
 

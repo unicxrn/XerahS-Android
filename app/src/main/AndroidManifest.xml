@@ -88,6 +88,10 @@
             android:name="com.xerahs.android.feature.upload.worker.RetryUploadReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name="com.xerahs.android.feature.upload.screenshots.ScreenshotActionReceiver"
+            android:exported="false" />
+
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"

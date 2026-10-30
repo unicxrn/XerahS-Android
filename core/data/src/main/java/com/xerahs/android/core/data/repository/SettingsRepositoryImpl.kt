@@ -225,4 +225,11 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction> =
         profileId?.let { settingsDataStore.getProfileAfterUploadActions(it).first() }
             ?: settingsDataStore.getDefaultAfterUploadActions().first()
+
+    override fun getScreenshotWatchEnabled(): Flow<Boolean> = settingsDataStore.getScreenshotWatchEnabled()
+    override suspend fun setScreenshotWatchEnabled(enabled: Boolean) = settingsDataStore.setScreenshotWatchEnabled(enabled)
+    override fun getScreenshotAutoUpload(): Flow<Boolean> = settingsDataStore.getScreenshotAutoUpload()
+    override suspend fun setScreenshotAutoUpload(enabled: Boolean) = settingsDataStore.setScreenshotAutoUpload(enabled)
+    override suspend fun getLastScreenshotCheck(): Long = settingsDataStore.getLastScreenshotCheck()
+    override suspend fun setLastScreenshotCheck(seconds: Long) = settingsDataStore.setLastScreenshotCheck(seconds)
 }

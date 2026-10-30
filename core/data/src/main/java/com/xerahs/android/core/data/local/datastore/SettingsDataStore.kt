@@ -37,6 +37,9 @@ class SettingsDataStore @Inject constructor(
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val COLOR_THEME = stringPreferencesKey("color_theme")
         val OLED_BLACK = booleanPreferencesKey("oled_black")
+        val SCREENSHOT_WATCH_ENABLED = booleanPreferencesKey("screenshot_watch_enabled")
+        val SCREENSHOT_AUTO_UPLOAD = booleanPreferencesKey("screenshot_auto_upload")
+        val LAST_SCREENSHOT_CHECK = longPreferencesKey("last_screenshot_check")
         val IMAGE_QUALITY = intPreferencesKey("image_quality")
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
         val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
@@ -286,5 +289,28 @@ class SettingsDataStore @Inject constructor(
             prefs[Keys.RECENT_COLORS] = (listOf(ColorFormat.hex(color)) + current)
                 .distinct().take(10).joinToString(",")
         }
+    }
+
+    fun getScreenshotWatchEnabled(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_WATCH_ENABLED] ?: false }
+
+    /** Turning it on also resets the check time to now, so older screenshots are ignored. */
+    suspend fun setScreenshotWatchEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.SCREENSHOT_WATCH_ENABLED] = enabled
+            if (enabled) prefs[Keys.LAST_SCREENSHOT_CHECK] = System.currentTimeMillis() / 1000
+        }
+    }
+
+    fun getScreenshotAutoUpload(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_AUTO_UPLOAD] ?: false }
+
+    suspend fun setScreenshotAutoUpload(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_AUTO_UPLOAD] = enabled }
+    }
+
+    /** Seconds since the epoch, as in MediaStore DATE_ADDED. */
+    suspend fun getLastScreenshotCheck(): Long = context.dataStore.data.first()[Keys.LAST_SCREENSHOT_CHECK] ?: 0L
+
+    suspend fun setLastScreenshotCheck(seconds: Long) {
+        context.dataStore.edit { it[Keys.LAST_SCREENSHOT_CHECK] = seconds }
     }
 }

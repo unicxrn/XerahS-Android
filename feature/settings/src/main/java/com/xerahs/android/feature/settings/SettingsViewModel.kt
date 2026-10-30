@@ -38,6 +38,8 @@ data class SettingsUiState(
     val dynamicColor: Boolean = false,
     val colorTheme: ColorTheme = ColorTheme.VIOLET,
     val oledBlack: Boolean = true,
+    val screenshotWatch: Boolean = false,
+    val screenshotAutoUpload: Boolean = false,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
     val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
@@ -110,6 +112,16 @@ class SettingsViewModel @Inject constructor(
             launch {
                 settingsRepository.getOledBlack().collect { enabled ->
                     _uiState.value = _uiState.value.copy(oledBlack = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getScreenshotWatchEnabled().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(screenshotWatch = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getScreenshotAutoUpload().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(screenshotAutoUpload = enabled)
                 }
             }
             launch {
@@ -249,6 +261,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setOledBlack(enabled)
         }
+    }
+
+    fun setScreenshotWatch(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setScreenshotWatchEnabled(enabled) }
+    }
+
+    fun setScreenshotAutoUpload(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setScreenshotAutoUpload(enabled) }
     }
 
     fun setImageQuality(quality: Int) {

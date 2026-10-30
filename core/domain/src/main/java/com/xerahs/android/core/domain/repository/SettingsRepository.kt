@@ -100,4 +100,13 @@ interface SettingsRepository {
     suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?)
     // Profile set if it has one, otherwise the default set.
     suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction>
+
+    fun getScreenshotWatchEnabled(): Flow<Boolean>
+    /** Enabling also resets the last check time to now. */
+    suspend fun setScreenshotWatchEnabled(enabled: Boolean)
+    fun getScreenshotAutoUpload(): Flow<Boolean>
+    suspend fun setScreenshotAutoUpload(enabled: Boolean)
+    /** MediaStore DATE_ADDED seconds of the newest image the watcher has looked at. */
+    suspend fun getLastScreenshotCheck(): Long
+    suspend fun setLastScreenshotCheck(seconds: Long)
 }

@@ -11,7 +11,13 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.xerahs.android.core.common.file.CaptureSweeper
+import com.xerahs.android.core.common.permission.ScreenshotAccess
+import com.xerahs.android.core.common.permission.screenshotAccess
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.feature.upload.screenshots.ScreenshotNotifier
+import com.xerahs.android.feature.upload.screenshots.ScreenshotWatchWorker
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +48,9 @@ class XerahSApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var historyRepository: HistoryRepository
 
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -50,6 +59,23 @@ class XerahSApplication : Application(), Configuration.Provider {
         scheduleUpdateCheck()
         configureCoil()
         sweepOldCopies()
+        watchScreenshotSetting()
+    }
+
+    /** Keeps the screenshot watcher scheduled while the setting is on, and cancels it when it is off. */
+    private fun watchScreenshotSetting() {
+        appScope.launch {
+            settingsRepository.getScreenshotWatchEnabled().distinctUntilChanged().collect { enabled ->
+                if (!enabled) {
+                    ScreenshotWatchWorker.cancel(this@XerahSApplication)
+                } else if (screenshotAccess() == ScreenshotAccess.DENIED) {
+                    // Permission was revoked in system settings: turn the toggle off.
+                    settingsRepository.setScreenshotWatchEnabled(false)
+                } else {
+                    ScreenshotWatchWorker.enqueue(this@XerahSApplication, replace = false)
+                }
+            }
+        }
     }
 
     /**
@@ -117,6 +143,15 @@ class XerahSApplication : Application(), Configuration.Provider {
             description = "Notifications for completed uploads"
         }
 
+        val screenshotChannel = NotificationChannel(
+            ScreenshotNotifier.CHANNEL,
+            "Screenshots",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Offers to upload new screenshots"
+        }
+
+        manager.createNotificationChannel(screenshotChannel)
         manager.createNotificationChannel(uploadChannel)
         manager.createNotificationChannel(uploadCompleteChannel)
     }
