@@ -73,6 +73,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.domain.LinkFormatter
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
+import com.xerahs.android.core.domain.model.UploadProfile
+import com.xerahs.android.core.ui.lumen.monoStyle
+import androidx.compose.ui.text.style.TextOverflow
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import androidx.compose.material.icons.filled.CheckCircle
@@ -490,6 +496,44 @@ fun UploadSettingsScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = Lumen.tokens.hairline
+                )
+
+                LinkFormatRow(current = uiState.linkFormat, onSelect = viewModel::setLinkFormat)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SectionHeader("Routing")
+
+            SettingsGroupCard {
+                listOf(
+                    FileKind.IMAGE to "Images go to",
+                    FileKind.TEXT to "Text goes to",
+                    FileKind.OTHER to "Other files go to",
+                ).forEachIndexed { index, (kind, title) ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = Lumen.tokens.hairline
+                        )
+                    }
+                    RouteRow(
+                        title = title,
+                        profiles = uiState.allProfiles,
+                        selectedId = uiState.routes[kind],
+                        onSelect = { viewModel.setRouteProfileId(kind, it) }
+                    )
+                }
+                Text(
+                    "Picked for you on the upload screen. You can still change it there.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -639,5 +683,71 @@ private fun DestinationItem(
         leadingContent = { IconTile(icon, size = 38.dp) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick)
+    )
+}
+
+/** Profile picker for one file kind. A missing (deleted) profile shows as Default. */
+@Composable
+private fun RouteRow(
+    title: String,
+    profiles: List<UploadProfile>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    val current = profiles.find { it.id == selectedId }
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = {
+            Text(current?.let { "${it.name} (${it.destination.displayName})" } ?: "Default")
+        },
+        modifier = Modifier.clickable { menu = true },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        trailingContent = {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Default") },
+                    onClick = { onSelect(null); menu = false }
+                )
+                profiles.forEach { p ->
+                    DropdownMenuItem(
+                        text = { Text("${p.name} (${p.destination.displayName})") },
+                        onClick = { onSelect(p.id); menu = false }
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun LinkFormatRow(current: LinkFormat, onSelect: (LinkFormat) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    ListItem(
+        headlineContent = { Text("Copy link as") },
+        supportingContent = {
+            Column {
+                Text(current.label)
+                Text(
+                    LinkFormatter.format("https://example.com/photo.png", "photo.png", true, current),
+                    style = monoStyle(12),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        modifier = Modifier.clickable { menu = true },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        trailingContent = {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                LinkFormat.entries.forEach { format ->
+                    DropdownMenuItem(
+                        text = { Text(format.label) },
+                        onClick = { onSelect(format); menu = false }
+                    )
+                }
+            }
+        }
     )
 }

@@ -37,7 +37,7 @@ class CopyLastLinkActivity : ComponentActivity() {
                         // Reuse a running app: onNewIntent opens the share screen.
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 )
-                else -> CopyUrlReceiver.copy(applicationContext, url)
+                else -> CopyUrlReceiver.copy(applicationContext, url, item.fileName, item.isImage)
             }
             finish()
         }

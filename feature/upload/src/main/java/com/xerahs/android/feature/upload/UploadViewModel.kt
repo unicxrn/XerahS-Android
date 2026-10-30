@@ -15,6 +15,8 @@ import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DestinationCapabilities
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.fileKindOf
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -43,7 +45,13 @@ data class DuplicateInfo(
     val destination: String
 )
 
-data class AfterUploadEvent(val urls: List<String>, val actions: Set<AfterUploadAction>)
+data class AfterUploadEvent(
+    val urls: List<String>,
+    val actions: Set<AfterUploadAction>,
+    // Set for a single upload, so the copied link can use the real file name.
+    val fileName: String? = null,
+    val isImage: Boolean? = null,
+)
 
 data class UploadUiState(
     val isUploading: Boolean = false,
@@ -128,9 +136,17 @@ class UploadViewModel @Inject constructor(
     private var pendingPaths: List<String> = emptyList()
     private var lastInputValues: Map<String, String> = emptyMap()
 
+    // Profile per file kind from "Images go to" and friends. Only a preselection: once the user
+    // picks a destination or profile themselves, routing leaves it alone.
+    private var routes: Map<FileKind, String> = emptyMap()
+    private var userPicked = false
+
     init {
         viewModelScope.launch {
             val defaultDest = settingsRepository.getDefaultDestination().first()
+            routes = FileKind.entries.mapNotNull { kind ->
+                settingsRepository.getRouteProfileId(kind).first()?.let { kind to it }
+            }.toMap()
             val globalCustomTypes = withContext(Dispatchers.IO) {
                 settingsRepository.getCustomUploaderConfig().spec.destinationTypes
             }
@@ -138,6 +154,7 @@ class UploadViewModel @Inject constructor(
                 selectedDestination = defaultDest,
                 globalCustomTypes = globalCustomTypes
             )
+            applyRoute()
             ensureAllowedSelection()
         }
         viewModelScope.launch {
@@ -161,12 +178,14 @@ class UploadViewModel @Inject constructor(
                         }
                 }
                 _uiState.value = _uiState.value.copy(profiles = profiles, profileCustomTypes = customTypes)
+                applyRoute()
                 ensureAllowedSelection()
             }
         }
     }
 
     fun selectProfile(profileId: String?) {
+        userPicked = true
         _uiState.value = _uiState.value.copy(selectedProfileId = profileId)
         if (profileId != null) {
             val profile = _uiState.value.profiles.find { it.id == profileId }
@@ -188,6 +207,7 @@ class UploadViewModel @Inject constructor(
     }
 
     fun selectDestination(destination: UploadDestination) {
+        userPicked = true
         val (dest, profileId) = _uiState.value.resolveDestination(destination)
         _uiState.value = _uiState.value.copy(selectedDestination = dest, selectedProfileId = profileId)
     }
@@ -196,7 +216,21 @@ class UploadViewModel @Inject constructor(
         val mimes = paths.map { MimeTypes.fromFileName(it) }
         if (mimes == _uiState.value.fileMimeTypes) return
         _uiState.value = _uiState.value.copy(fileMimeTypes = mimes)
+        applyRoute()
         ensureAllowedSelection()
+    }
+
+    /**
+     * Preselects the profile routed for the first file's kind. A missing (deleted) or unsuitable
+     * profile leaves the Default selection in place.
+     */
+    private fun applyRoute() {
+        if (userPicked) return
+        val s = _uiState.value
+        val kind = fileKindOf(s.fileMimeTypes.firstOrNull() ?: return)
+        val profile = s.profiles.find { it.id == routes[kind] } ?: return
+        if (!s.allows(profile)) return
+        _uiState.value = s.copy(selectedDestination = profile.destination, selectedProfileId = profile.id)
     }
 
     /** If the current destination/profile can't take these files, fall back to one that can. */
@@ -290,7 +324,9 @@ class UploadViewModel @Inject constructor(
                             batchUrls = urls,
                             pendingAfterUpload = AfterUploadEvent(
                                 urls,
-                                AfterUploadAction.decode(workInfo.outputData.getString(UploadWorker.KEY_ACTIONS))
+                                AfterUploadAction.decode(workInfo.outputData.getString(UploadWorker.KEY_ACTIONS)),
+                                fileName = workInfo.outputData.getString(UploadWorker.KEY_RESULT_FILE_NAME),
+                                isImage = workInfo.outputData.keyValueMap[UploadWorker.KEY_RESULT_IS_IMAGE] as? Boolean,
                             ).takeIf { it.urls.isNotEmpty() && it.actions.isNotEmpty() }
                         )
                     }

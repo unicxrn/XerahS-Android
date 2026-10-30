@@ -11,6 +11,8 @@ import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -58,6 +60,9 @@ data class SettingsUiState(
     val pendingImportJson: String? = null,
     val shortenerProfileId: String? = null,
     val shortenerProfiles: List<UploadProfile> = emptyList(),
+    val allProfiles: List<UploadProfile> = emptyList(),
+    val routes: Map<FileKind, String?> = emptyMap(),
+    val linkFormat: LinkFormat = LinkFormat.PLAIN,
     val backupPassphraseRequest: BackupPassphraseRequest? = null,
     val pendingBackupPayload: String? = null,
     val passphraseError: String? = null
@@ -195,6 +200,23 @@ class SettingsViewModel @Inject constructor(
             launch {
                 settingsRepository.getAllCustomThemes().collect { themes ->
                     _uiState.value = _uiState.value.copy(customThemes = themes)
+                }
+            }
+            launch {
+                profileRepository.getAllProfiles().collect { profiles ->
+                    _uiState.value = _uiState.value.copy(allProfiles = profiles)
+                }
+            }
+            FileKind.entries.forEach { kind ->
+                launch {
+                    settingsRepository.getRouteProfileId(kind).collect { id ->
+                        _uiState.value = _uiState.value.copy(routes = _uiState.value.routes + (kind to id))
+                    }
+                }
+            }
+            launch {
+                settingsRepository.getLinkFormat().collect { format ->
+                    _uiState.value = _uiState.value.copy(linkFormat = format)
                 }
             }
             launch {
@@ -497,6 +519,14 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(exportImportMessage = null)
+    }
+
+    fun setRouteProfileId(kind: FileKind, profileId: String?) {
+        viewModelScope.launch { settingsRepository.setRouteProfileId(kind, profileId) }
+    }
+
+    fun setLinkFormat(format: LinkFormat) {
+        viewModelScope.launch { settingsRepository.setLinkFormat(format) }
     }
 
     fun setShortenerProfileId(id: String?) {

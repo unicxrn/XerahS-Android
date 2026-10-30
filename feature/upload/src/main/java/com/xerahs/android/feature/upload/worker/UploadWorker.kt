@@ -118,7 +118,7 @@ class UploadWorker @AssistedInject constructor(
     }
 
     private sealed interface FileOutcome {
-        data class Uploaded(val url: String?, val historyId: String) : FileOutcome
+        data class Uploaded(val url: String?, val historyId: String, val fileName: String, val isImage: Boolean) : FileOutcome
         data class Duplicate(val output: Data) : FileOutcome
         data class Failed(val result: UploadResult) : FileOutcome
     }
@@ -139,6 +139,7 @@ class UploadWorker @AssistedInject constructor(
         val actions = settingsRepository.resolveAfterUploadActions(spec.profileId)
         val urls = progress.urls(id).toMutableList()
         var lastHistoryId: String? = null
+        var lastUploaded: FileOutcome.Uploaded? = null
         for ((index, path) in paths.withIndex()) {
             if (path in done) continue
             trySetForeground("Uploading ${index + 1}/${paths.size}...", index, paths.size)
@@ -162,6 +163,7 @@ class UploadWorker @AssistedInject constructor(
                 is FileOutcome.Uploaded -> {
                     outcome.url?.let { urls.add(it) }
                     lastHistoryId = outcome.historyId
+                    lastUploaded = outcome
                     reportProgress(++finished, paths.size)
                 }
                 is FileOutcome.Duplicate -> {
@@ -182,18 +184,28 @@ class UploadWorker @AssistedInject constructor(
 
         progress.clear(id)
         val combinedUrl = urls.joinToString("\n")
+        // Name and type of a single upload, for the "Copy link as" format. Batches use the URLs.
+        val single = lastUploaded.takeIf { paths.size == 1 }
         if (urls.isNotEmpty()) {
             UploadNotifier.success(
                 appContext, id,
                 historyId = lastHistoryId.takeIf { paths.size == 1 },
                 url = combinedUrl,
                 count = urls.size,
-                actions = actions
+                actions = actions,
+                fileName = single?.fileName,
+                isImage = single?.isImage,
             )
         }
 
         val outputData = Data.Builder()
             .putString(KEY_RESULT_URL, combinedUrl)
+            .apply {
+                if (single != null) {
+                    putString(KEY_RESULT_FILE_NAME, single.fileName)
+                    putBoolean(KEY_RESULT_IS_IMAGE, single.isImage)
+                }
+            }
             .putString(KEY_ACTIONS, AfterUploadAction.encode(actions))
             .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
             .build()
@@ -322,7 +334,7 @@ class UploadWorker @AssistedInject constructor(
                     throw e
                 } catch (_: Exception) {
                 }
-                FileOutcome.Uploaded(finalUrl, itemId)
+                FileOutcome.Uploaded(finalUrl, itemId, resolvedName, MimeTypes.isRasterImage(mimeType))
             }
         } finally {
             // Clean up temp files (after the thumbnail, which may read the converted HEIC)
@@ -526,6 +538,8 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_TAG_IDS = "tag_ids"
         const val KEY_PROFILE_ID = "profile_id"
         const val KEY_RESULT_URL = "result_url"
+        const val KEY_RESULT_FILE_NAME = "result_file_name"
+        const val KEY_RESULT_IS_IMAGE = "result_is_image"
         const val KEY_SKIP_DUPLICATE_CHECK = "skip_duplicate_check"
         const val KEY_DUPLICATE_FOUND = "duplicate_found"
         const val KEY_DUPLICATE_URL = "duplicate_url"

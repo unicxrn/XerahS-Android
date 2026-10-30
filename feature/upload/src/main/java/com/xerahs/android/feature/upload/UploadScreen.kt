@@ -80,6 +80,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.feature.upload.worker.CopyUrlReceiver
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.common.file.MimeTypes
@@ -245,7 +246,7 @@ fun UploadScreen(
         viewModel.consumeAfterUpload()
         val first = event.urls.first()
         if (AfterUploadAction.COPY_URL in event.actions) {
-            clipboardManager.setText(AnnotatedString(event.urls.joinToString("\n")))
+            CopyUrlReceiver.copy(context, event.urls.joinToString("\n"), event.fileName, event.isImage, toast = false)
             scope.launch { snackbarHostState.showSnackbar(if (event.urls.size > 1) "Links copied" else "Link copied") }
         }
         val shared = AfterUploadAction.SHARE_SHEET in event.actions

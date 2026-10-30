@@ -3,7 +3,9 @@ package com.xerahs.android.core.domain.repository
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
+import com.xerahs.android.core.domain.model.FileKind
 import com.xerahs.android.core.domain.model.ImageFormat
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -115,4 +117,12 @@ interface SettingsRepository {
     /** True when the watcher turned itself off because photo access was revoked; enabling clears it. */
     fun getScreenshotPermissionLost(): Flow<Boolean>
     suspend fun setScreenshotPermissionLost(lost: Boolean)
+
+    /** Profile id that files of [kind] are routed to on the upload screen; null = Default. */
+    fun getRouteProfileId(kind: FileKind): Flow<String?>
+    suspend fun setRouteProfileId(kind: FileKind, profileId: String?)
+
+    /** How links are written when copied. */
+    fun getLinkFormat(): Flow<LinkFormat>
+    suspend fun setLinkFormat(format: LinkFormat)
 }

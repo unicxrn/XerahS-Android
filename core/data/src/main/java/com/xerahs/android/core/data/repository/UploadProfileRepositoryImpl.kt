@@ -50,6 +50,7 @@ class UploadProfileRepositoryImpl @Inject constructor(
         profileDao.deleteProfile(id)
         credentialStore.deleteProfileConfig(id)
         settingsDataStore.setProfileAfterUploadActions(id, null)
+        settingsDataStore.clearRoutesTo(id)
     }
 
     override suspend fun setDefault(id: String, destination: UploadDestination) {

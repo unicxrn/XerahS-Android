@@ -6,7 +6,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +63,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xerahs.android.core.common.formatSize
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.lumen.AccentGlow
 import com.xerahs.android.core.ui.lumen.BezelCard
@@ -78,6 +84,7 @@ import com.xerahs.android.core.ui.lumen.relativeTime
  * The "Link copied" moment - the emotional payoff after a successful share.
  * A calm confirmation surface: thumbnail, the copyable link, where it went, and the next actions.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ShareCard(
     item: HistoryItem,
@@ -170,19 +177,43 @@ fun ShareCard(
                         }
                     }
                     Spacer(Modifier.size(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable(role = Role.Button) { onCopy(effectiveLink) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy link",
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
+                    // Tap copies the plain link; long-press offers every link format.
+                    var formatMenu by remember { mutableStateOf(false) }
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .combinedClickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Copy link",
+                                    onLongClickLabel = "Copy link as",
+                                    onLongClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        formatMenu = true
+                                    },
+                                    onClick = { onCopy(effectiveLink) }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy link",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        DropdownMenu(expanded = formatMenu, onDismissRequest = { formatMenu = false }) {
+                            LinkFormat.entries.forEach { format ->
+                                DropdownMenuItem(
+                                    text = { Text(format.label) },
+                                    onClick = {
+                                        formatMenu = false
+                                        onCopy(LinkFormatter.format(effectiveLink, item.fileName, item.isImage, format))
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

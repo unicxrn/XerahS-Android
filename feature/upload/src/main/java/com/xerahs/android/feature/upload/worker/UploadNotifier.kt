@@ -54,11 +54,13 @@ object UploadNotifier {
         url: String,
         count: Int = 1,
         actions: Set<AfterUploadAction> = emptySet(),
+        fileName: String? = null,
+        isImage: Boolean? = null,
     ) {
         val id = notificationIdFor(workId)
         val first = url.lines().firstOrNull().orEmpty()
         val target = if (count == 1 && historyId != null) shareUri(historyId) else queueUri()
-        val copy = Intent(context, CopyUrlReceiver::class.java).setData(actionUri(workId, "copy")).putExtra("url", url)
+        val copy = CopyUrlReceiver.intent(context, url, fileName, isImage).setData(actionUri(workId, "copy"))
 
         val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
             .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)

@@ -12,7 +12,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.xerahs.android.core.common.image.ColorFormat
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.FileKind
 import com.xerahs.android.core.domain.model.ImageFormat
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -55,6 +57,7 @@ class SettingsDataStore @Inject constructor(
         val DEFAULT_AFTER_UPLOAD_ACTIONS = stringPreferencesKey("after_upload_actions")
         val RECENT_COLORS = stringPreferencesKey("recent_colors")
         val PINNED_HOST_KEYS = stringPreferencesKey("pinned_host_keys")
+        val LINK_FORMAT = stringPreferencesKey("link_format")
     }
 
     // SSH host-key pins, one `host:port=SHA256:...` per line. Fingerprints aren't secrets.
@@ -65,6 +68,35 @@ class SettingsDataStore @Inject constructor(
             val next = transform(prefs[Keys.PINNED_HOST_KEYS])
             if (next.isNullOrEmpty()) prefs.remove(Keys.PINNED_HOST_KEYS) else prefs[Keys.PINNED_HOST_KEYS] = next
         }
+    }
+
+    private fun routeKey(kind: FileKind) = stringPreferencesKey(
+        when (kind) {
+            FileKind.IMAGE -> "route_image"
+            FileKind.TEXT -> "route_text"
+            FileKind.OTHER -> "route_other"
+        }
+    )
+
+    fun getRouteProfileId(kind: FileKind): Flow<String?> = context.dataStore.data.map { it[routeKey(kind)] }
+
+    suspend fun setRouteProfileId(kind: FileKind, profileId: String?) {
+        context.dataStore.edit { prefs ->
+            if (profileId == null) prefs.remove(routeKey(kind)) else prefs[routeKey(kind)] = profileId
+        }
+    }
+
+    /** Drops every route that points at [profileId], so those files go to Default again. */
+    suspend fun clearRoutesTo(profileId: String) {
+        context.dataStore.edit { prefs ->
+            FileKind.entries.map(::routeKey).filter { prefs[it] == profileId }.forEach { prefs.remove(it) }
+        }
+    }
+
+    fun getLinkFormat(): Flow<LinkFormat> = context.dataStore.data.map { LinkFormat.fromName(it[Keys.LINK_FORMAT]) }
+
+    suspend fun setLinkFormat(format: LinkFormat) {
+        context.dataStore.edit { it[Keys.LINK_FORMAT] = format.name }
     }
 
     private fun profileActionsKey(profileId: String) = stringPreferencesKey("after_upload_actions_$profileId")

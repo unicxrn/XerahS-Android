@@ -274,10 +274,8 @@ fun XerahSNavGraph(
                                 Intent.createChooser(sendIntent, "Share link")
                             )
                         },
-                        onCopy = {
-                            val link = s.shortUrl ?: item.url ?: item.filePath
-                            clipboard.setText(AnnotatedString(link))
-                        },
+                        // ShareCard passes the link, plain or in the format picked from its menu.
+                        onCopy = { text -> clipboard.setText(AnnotatedString(text)) },
                         onShorten = vm::shorten,
                         shortUrl = s.shortUrl,
                         isShortening = s.isShortening,

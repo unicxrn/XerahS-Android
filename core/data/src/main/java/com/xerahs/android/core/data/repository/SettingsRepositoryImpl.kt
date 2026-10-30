@@ -5,6 +5,8 @@ import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.CustomThemeEntity
 import com.xerahs.android.core.domain.model.AfterUploadAction
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -236,4 +238,11 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setScreenshotSeenIds(csv: String) = settingsDataStore.setScreenshotSeenIds(csv)
     override fun getScreenshotPermissionLost(): Flow<Boolean> = settingsDataStore.getScreenshotPermissionLost()
     override suspend fun setScreenshotPermissionLost(lost: Boolean) = settingsDataStore.setScreenshotPermissionLost(lost)
+
+    override fun getRouteProfileId(kind: FileKind): Flow<String?> = settingsDataStore.getRouteProfileId(kind)
+    override suspend fun setRouteProfileId(kind: FileKind, profileId: String?) =
+        settingsDataStore.setRouteProfileId(kind, profileId)
+
+    override fun getLinkFormat(): Flow<LinkFormat> = settingsDataStore.getLinkFormat()
+    override suspend fun setLinkFormat(format: LinkFormat) = settingsDataStore.setLinkFormat(format)
 }
