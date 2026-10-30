@@ -78,7 +78,7 @@ fun CustomHttpConfigScreen(
         } else {
             sxcu = normalized
             error = null
-            scope.launch { snackbarHostState.showSnackbar("Loaded — review and tap Save") }
+            scope.launch { snackbarHostState.showSnackbar("Loaded. Check it, then tap Save") }
         }
     }
 
@@ -120,7 +120,7 @@ fun CustomHttpConfigScreen(
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     shape = RoundedCornerShape(18.dp),
                     isError = error != null,
-                    supportingText = { Text(error ?: "ShareX .sxcu JSON — supports {json:}, {regex:}, {xml:}, {inputbox:} …") },
+                    supportingText = { Text(error ?: "ShareX .sxcu JSON. Supports {json:}, {regex:}, {xml:}, {inputbox:} and more") },
                     minLines = 14,
                     modifier = Modifier
                         .fillMaxWidth()

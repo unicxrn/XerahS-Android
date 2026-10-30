@@ -260,8 +260,8 @@ class ExportImportManager @Inject constructor(
         importedCustomUploader(json)?.let { imported ->
             val current = settingsRepository.getCustomUploaderConfig().spec
             val changed = SxcuWriter.write(current) != SxcuWriter.write(imported.spec)
-            val cur = "${current.name} — ${current.requestURL}"
-            var imp = "${imported.spec.name} — ${imported.spec.requestURL}"
+            val cur = "${current.name}: ${current.requestURL}"
+            var imp = "${imported.spec.name}: ${imported.spec.requestURL}"
             if (changed && imp == cur) imp += " (settings differ)"
             sections.add(
                 ImportSection(
