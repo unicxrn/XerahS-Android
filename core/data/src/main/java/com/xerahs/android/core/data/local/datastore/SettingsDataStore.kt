@@ -40,6 +40,8 @@ class SettingsDataStore @Inject constructor(
         val SCREENSHOT_WATCH_ENABLED = booleanPreferencesKey("screenshot_watch_enabled")
         val SCREENSHOT_AUTO_UPLOAD = booleanPreferencesKey("screenshot_auto_upload")
         val LAST_SCREENSHOT_CHECK = longPreferencesKey("last_screenshot_check")
+        val SCREENSHOT_SEEN_IDS = stringPreferencesKey("screenshot_seen_ids")
+        val SCREENSHOT_PERMISSION_LOST = booleanPreferencesKey("screenshot_permission_lost")
         val IMAGE_QUALITY = intPreferencesKey("image_quality")
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
         val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
@@ -297,7 +299,10 @@ class SettingsDataStore @Inject constructor(
     suspend fun setScreenshotWatchEnabled(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.SCREENSHOT_WATCH_ENABLED] = enabled
-            if (enabled) prefs[Keys.LAST_SCREENSHOT_CHECK] = System.currentTimeMillis() / 1000
+            if (enabled) {
+                prefs[Keys.LAST_SCREENSHOT_CHECK] = System.currentTimeMillis() / 1000
+                prefs[Keys.SCREENSHOT_PERMISSION_LOST] = false
+            }
         }
     }
 
@@ -312,5 +317,19 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun setLastScreenshotCheck(seconds: Long) {
         context.dataStore.edit { it[Keys.LAST_SCREENSHOT_CHECK] = seconds }
+    }
+
+    /** Comma separated MediaStore ids the watcher has already handled (newest last). */
+    suspend fun getScreenshotSeenIds(): String = context.dataStore.data.first()[Keys.SCREENSHOT_SEEN_IDS] ?: ""
+
+    suspend fun setScreenshotSeenIds(csv: String) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_SEEN_IDS] = csv }
+    }
+
+    /** True when the watcher turned itself off because photo access was revoked. */
+    fun getScreenshotPermissionLost(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_PERMISSION_LOST] ?: false }
+
+    suspend fun setScreenshotPermissionLost(lost: Boolean) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_PERMISSION_LOST] = lost }
     }
 }

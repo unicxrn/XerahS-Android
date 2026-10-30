@@ -71,8 +71,9 @@ class XerahSApplication : Application(), Configuration.Provider {
                 } else if (screenshotAccess() == ScreenshotAccess.DENIED) {
                     // Permission was revoked in system settings: turn the toggle off.
                     settingsRepository.setScreenshotWatchEnabled(false)
+                    settingsRepository.setScreenshotPermissionLost(true)
                 } else {
-                    ScreenshotWatchWorker.enqueue(this@XerahSApplication, replace = false)
+                    ScreenshotWatchWorker.enqueue(this@XerahSApplication)
                 }
             }
         }

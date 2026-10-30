@@ -16,15 +16,15 @@ fun screenshotAccessFor(sdk: Int, images: Boolean, userSelected: Boolean, legacy
     else -> ScreenshotAccess.DENIED
 }
 
-/** Permissions to ask for when the screenshot watcher is turned on. */
-fun screenshotPermissions(sdk: Int = Build.VERSION.SDK_INT): Array<String> = when {
-    sdk >= 34 -> arrayOf(
-        Manifest.permission.READ_MEDIA_IMAGES,
-        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-        Manifest.permission.POST_NOTIFICATIONS,
-    )
-    sdk >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.POST_NOTIFICATIONS)
-    else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+/** Permissions to ask for when the screenshot watcher is turned on; notifications only matter when offering. */
+fun screenshotPermissions(sdk: Int = Build.VERSION.SDK_INT, notifications: Boolean = true): Array<String> {
+    val media = when {
+        sdk >= 34 -> listOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+        sdk >= 33 -> listOf(Manifest.permission.READ_MEDIA_IMAGES)
+        else -> listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+    val extra = if (sdk >= 33 && notifications) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+    return (media + extra).toTypedArray()
 }
 
 fun Context.screenshotAccess(): ScreenshotAccess {

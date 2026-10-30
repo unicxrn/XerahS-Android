@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationManagerCompat
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -495,6 +497,7 @@ fun UploadSettingsScreen(
             ScreenshotSettings(
                 watch = uiState.screenshotWatch,
                 auto = uiState.screenshotAutoUpload,
+                permissionLost = uiState.screenshotPermissionLost,
                 onWatchChange = viewModel::setScreenshotWatch,
                 onAutoChange = viewModel::setScreenshotAutoUpload,
             )
@@ -508,18 +511,29 @@ fun UploadSettingsScreen(
 private fun ScreenshotSettings(
     watch: Boolean,
     auto: Boolean,
+    permissionLost: Boolean,
     onWatchChange: (Boolean) -> Unit,
     onAutoChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     var access by remember { mutableStateOf(context.screenshotAccess()) }
     var denied by remember { mutableStateOf(false) }
+    var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    val openAppSettings = {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 
     // Access can change in system settings while we are in the background.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) access = context.screenshotAccess()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                access = context.screenshotAccess()
+                notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -527,6 +541,7 @@ private fun ScreenshotSettings(
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         access = context.screenshotAccess()
+        notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
         if (access == ScreenshotAccess.DENIED) {
             denied = true
             onWatchChange(false)
@@ -548,12 +563,15 @@ private fun ScreenshotSettings(
                         if (!on) {
                             denied = false
                             onWatchChange(false)
-                        } else if (context.screenshotAccess() != ScreenshotAccess.DENIED) {
+                        } else if (
+                            context.screenshotAccess() != ScreenshotAccess.DENIED &&
+                            (auto || Build.VERSION.SDK_INT < 33 || notificationsOn)
+                        ) {
                             access = context.screenshotAccess()
                             denied = false
                             onWatchChange(true)
                         } else {
-                            launcher.launch(screenshotPermissions())
+                            launcher.launch(screenshotPermissions(notifications = !auto))
                         }
                     }
                 )
@@ -561,7 +579,7 @@ private fun ScreenshotSettings(
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
 
-        if (denied && !watch) {
+        if ((denied || permissionLost) && !watch) {
             Text(
                 "XerahS needs photo access to see new screenshots",
                 style = MaterialTheme.typography.bodySmall,
@@ -577,12 +595,18 @@ private fun ScreenshotSettings(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }) { Text("Open app settings") }
+                TextButton(onClick = { openAppSettings() }) { Text("Open app settings") }
+            }
+        }
+
+        if (watch && !auto && !notificationsOn) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    "Notifications are off, so XerahS can't offer uploads",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { openAppSettings() }) { Text("Open app settings") }
             }
         }
 

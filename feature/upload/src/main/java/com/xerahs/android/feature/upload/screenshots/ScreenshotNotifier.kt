@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
+import android.util.Size
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.xerahs.android.core.common.image.calculateInSampleSize
@@ -20,13 +22,14 @@ object ScreenshotNotifier {
 
     private const val ID_BASE = 400000
     private const val ID_SPAN = 100000
-    private const val MAX_PREVIEW_EDGE = 512
+    private const val MAX_PREVIEW_EDGE = 1024
     private const val FLAGS = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
 
     /** One notification per image, derived from its MediaStore id. */
     fun notificationIdFor(mediaId: Long): Int = ID_BASE + (mediaId % ID_SPAN).toInt()
 
-    fun show(context: Context, mediaId: Long, uri: Uri) {
+    /** Posts the notification. Returns false when it could not be posted (e.g. notifications are off). */
+    fun show(context: Context, mediaId: Long, uri: Uri): Boolean {
         val id = notificationIdFor(mediaId)
         val upload = Intent(context, ScreenshotActionReceiver::class.java)
             .setAction(ACTION_UPLOAD)
@@ -52,12 +55,16 @@ object ScreenshotNotifier {
             builder.setLargeIcon(bmp)
             builder.setStyle(NotificationCompat.BigPictureStyle().bigPicture(bmp).bigLargeIcon(null as Bitmap?))
         }
-        post(context, id, builder.build())
+        return post(context, id, builder.build())
     }
 
-    /** A bitmap no larger than 512 px on its long edge, or null if the image can't be read. */
+    /** A bitmap no larger than 1024 px on its long edge, or null if the image can't be read. */
     private fun preview(context: Context, uri: Uri): Bitmap? = runCatching {
         val resolver = context.contentResolver
+        if (Build.VERSION.SDK_INT >= 29) {
+            runCatching { resolver.loadThumbnail(uri, Size(MAX_PREVIEW_EDGE, MAX_PREVIEW_EDGE), null) }
+                .getOrNull()?.let { return@runCatching it }
+        }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         val opts = BitmapFactory.Options().apply {
@@ -67,9 +74,9 @@ object ScreenshotNotifier {
     }.getOrNull()
 
     @SuppressLint("MissingPermission")
-    private fun post(context: Context, id: Int, notification: android.app.Notification) {
+    private fun post(context: Context, id: Int, notification: android.app.Notification): Boolean {
         val manager = NotificationManagerCompat.from(context)
-        if (manager.areNotificationsEnabled()) runCatching { manager.notify(id, notification) }
+        return manager.areNotificationsEnabled() && runCatching { manager.notify(id, notification) }.isSuccess
     }
 
     fun cancel(context: Context, id: Int) {

@@ -109,4 +109,10 @@ interface SettingsRepository {
     /** MediaStore DATE_ADDED seconds of the newest image the watcher has looked at. */
     suspend fun getLastScreenshotCheck(): Long
     suspend fun setLastScreenshotCheck(seconds: Long)
+    /** Comma separated MediaStore ids already handled by the screenshot watcher. */
+    suspend fun getScreenshotSeenIds(): String
+    suspend fun setScreenshotSeenIds(csv: String)
+    /** True when the watcher turned itself off because photo access was revoked; enabling clears it. */
+    fun getScreenshotPermissionLost(): Flow<Boolean>
+    suspend fun setScreenshotPermissionLost(lost: Boolean)
 }

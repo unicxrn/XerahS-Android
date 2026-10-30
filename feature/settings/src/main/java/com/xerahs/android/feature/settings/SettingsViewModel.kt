@@ -40,6 +40,7 @@ data class SettingsUiState(
     val oledBlack: Boolean = true,
     val screenshotWatch: Boolean = false,
     val screenshotAutoUpload: Boolean = false,
+    val screenshotPermissionLost: Boolean = false,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
     val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
@@ -117,6 +118,11 @@ class SettingsViewModel @Inject constructor(
             launch {
                 settingsRepository.getScreenshotWatchEnabled().collect { enabled ->
                     _uiState.value = _uiState.value.copy(screenshotWatch = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getScreenshotPermissionLost().collect { lost ->
+                    _uiState.value = _uiState.value.copy(screenshotPermissionLost = lost)
                 }
             }
             launch {

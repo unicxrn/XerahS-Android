@@ -232,4 +232,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setScreenshotAutoUpload(enabled: Boolean) = settingsDataStore.setScreenshotAutoUpload(enabled)
     override suspend fun getLastScreenshotCheck(): Long = settingsDataStore.getLastScreenshotCheck()
     override suspend fun setLastScreenshotCheck(seconds: Long) = settingsDataStore.setLastScreenshotCheck(seconds)
+    override suspend fun getScreenshotSeenIds(): String = settingsDataStore.getScreenshotSeenIds()
+    override suspend fun setScreenshotSeenIds(csv: String) = settingsDataStore.setScreenshotSeenIds(csv)
+    override fun getScreenshotPermissionLost(): Flow<Boolean> = settingsDataStore.getScreenshotPermissionLost()
+    override suspend fun setScreenshotPermissionLost(lost: Boolean) = settingsDataStore.setScreenshotPermissionLost(lost)
 }
