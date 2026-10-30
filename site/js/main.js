@@ -25,22 +25,26 @@
 
   // Nav background once the page moves.
   const nav = document.querySelector("[data-nav]");
-  const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 24);
-  onScroll();
-  window.addEventListener("scroll", onScroll, { passive: true });
+  if (nav) {
+    const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
 
   // Mobile menu.
   const toggle = document.querySelector("[data-menu-toggle]");
   const menu = document.querySelector("[data-menu]");
-  const setMenu = (open) => {
-    toggle.setAttribute("aria-expanded", String(open));
-    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
-    menu.hidden = !open;
-    document.body.style.overflow = open ? "hidden" : "";
-  };
-  toggle.addEventListener("click", () => setMenu(toggle.getAttribute("aria-expanded") !== "true"));
-  menu.addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) setMenu(false); });
+  if (toggle && menu) {
+    const setMenu = (open) => {
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      menu.hidden = !open;
+      document.body.style.overflow = open ? "hidden" : "";
+    };
+    toggle.addEventListener("click", () => setMenu(toggle.getAttribute("aria-expanded") !== "true"));
+    menu.addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) setMenu(false); });
+  }
 
   // The marquee scrolls by half its width, so it needs a second copy of the list.
   const track = document.querySelector(".marquee__track");
@@ -57,7 +61,7 @@
   const heroPhone = stage && stage.querySelector(".phone--hero");
   if (stage && heroPhone && !reduceMotion && window.matchMedia("(pointer: fine)").matches) {
     heroPhone.addEventListener("animationend", () => { heroPhone.style.animation = "none"; }, { once: true });
-    const hero = document.querySelector(".hero");
+    const hero = document.querySelector(".hero") || stage;
     hero.addEventListener("pointermove", (e) => {
       const r = stage.getBoundingClientRect();
       const x = (e.clientX - (r.left + r.width / 2)) / r.width;
@@ -112,8 +116,10 @@
   const gallery = document.querySelector("[data-gallery]");
   if (gallery) {
     const step = () => Math.max(260, gallery.clientWidth * 0.6);
-    document.querySelector("[data-gallery-prev]").addEventListener("click", () => gallery.scrollBy({ left: -step(), behavior: "smooth" }));
-    document.querySelector("[data-gallery-next]").addEventListener("click", () => gallery.scrollBy({ left: step(), behavior: "smooth" }));
+    const prev = document.querySelector("[data-gallery-prev]");
+    const next = document.querySelector("[data-gallery-next]");
+    if (prev) prev.addEventListener("click", () => gallery.scrollBy({ left: -step(), behavior: "smooth" }));
+    if (next) next.addEventListener("click", () => gallery.scrollBy({ left: step(), behavior: "smooth" }));
 
     let startX = 0;
     let startScroll = 0;
@@ -134,8 +140,31 @@
     gallery.addEventListener("pointercancel", stop);
   }
 
-  // Releases: fill in the download links and the changelog from GitHub.
+  // Guides: the table of contents starts closed on small screens and marks the section being read.
+  const toc = document.querySelector("[data-toc]");
+  if (toc) {
+    const wide = window.matchMedia("(min-width: 981px)");
+    const syncToc = () => { toc.open = wide.matches; };
+    syncToc();
+    if (wide.addEventListener) wide.addEventListener("change", syncToc);
+    toc.addEventListener("click", (e) => { if (e.target.closest("a") && !wide.matches) toc.open = false; });
+
+    const links = [...toc.querySelectorAll('a[href^="#"]')];
+    const targets = links.map((a) => document.getElementById(a.getAttribute("href").slice(1))).filter(Boolean);
+    if (targets.length && "IntersectionObserver" in window) {
+      const mark = (id) => links.forEach((a) => a.classList.toggle("is-current", a.getAttribute("href") === `#${id}`));
+      const tocIO = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) mark(entry.target.id);
+        }
+      }, { rootMargin: "-20% 0px -70% 0px" });
+      targets.forEach((t) => tocIO.observe(t));
+    }
+  }
+
+  // Releases: fill in the download links and the changelog from GitHub. Only the home page has them.
   const releasesBox = document.querySelector("[data-releases]");
+  if (!releasesBox) return;
 
   const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FAQ | XerahS for Android</title>
+  <meta name="description" content="Installing the APK, notifications, battery settings and the messages you might see in XerahS for Android.">
+  <meta name="theme-color" content="#07070a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="FAQ | XerahS for Android">
+  <meta property="og:description" content="Installing the APK, notifications, battery settings and the messages you might see in XerahS for Android.">
+  <meta property="og:image" content="assets/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="assets/fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav" data-nav>
+    <a class="nav__brand" href="index.html" aria-label="XerahS home">
+      <img src="assets/img/logo.svg" width="30" height="30" alt="">
+      <span>XerahS</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#features">Features</a>
+      <a href="guides.html">Guides</a>
+      <a href="faq.html" aria-current="page">FAQ</a>
+      <a href="index.html#changelog">Changelog</a>
+    </nav>
+    <a class="nav__cta" href="index.html#download">Download</a>
+    <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" data-menu-toggle>
+      <span></span><span></span>
+    </button>
+  </header>
+
+  <div class="menu" data-menu hidden>
+    <a href="index.html">Home</a>
+    <a href="index.html#features">Features</a>
+    <a href="guides.html">Guides</a>
+    <a href="faq.html" aria-current="page">FAQ</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="index.html#download">Download</a>
+  </div>
+
+  <main id="top" class="page">
+    <div class="page__glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <header class="page__head">
+        <span class="eyebrow">FAQ</span>
+        <h1>Questions people ask.</h1>
+        <p class="page__lede">Installing, permissions, and the messages that tend to raise an eyebrow. If yours isn't here, ask on <a href="https://github.com/unicxrn/XerahS-Android/issues">GitHub Issues</a>.</p>
+      </header>
+
+      <article class="doc">
+        <h2 id="install">Installing</h2>
+        <div class="faq">
+          <details id="apk">
+            <summary>How do I install the APK? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>XerahS isn't on the Play Store, so it comes as an APK file from <a href="https://github.com/unicxrn/XerahS-Android/releases/latest">GitHub Releases</a>. You need Android 8.0 or newer.</p>
+              <ol>
+                <li>Open the latest release on your phone and download the <code>.apk</code> file.</li>
+                <li>Open it from your notifications or your Downloads folder.</li>
+                <li>Tap Install. If Android asks for permission first, see the next question.</li>
+              </ol>
+              <p>Updates install over the version you have, and your history and settings stay put.</p>
+            </div>
+          </details>
+
+          <details id="unknown-apps">
+            <summary>Android says it can't install apps from this source <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>That's Android's guard for apps that don't come from an app store. It asks once for each app that wants to install something.</p>
+              <ul>
+                <li>The first install comes from your browser or file manager, so allow that app. You can turn it off again afterwards.</li>
+                <li>Updates you download under Settings, Updates are installed by XerahS itself, so Android asks you to allow XerahS the first time.</li>
+              </ul>
+              <p>Play Protect might also show a warning, since it doesn't know apps from outside the Play Store. The source code is all on <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a> if you want to check what you're installing.</p>
+            </div>
+          </details>
+        </div>
+
+        <h2 id="background">Notifications and background uploads</h2>
+        <div class="faq">
+          <details id="notifications">
+            <summary>Why doesn't XerahS show any notifications? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>On Android 13 and newer, apps need permission to post notifications. XerahS asks for it when you turn on <strong>Offer to upload new screenshots</strong>. If you never turned that on, or said no, open Android's settings, then Apps, XerahS, Notifications, and allow them.</p>
+              <p>Uploads still work without notifications. You just won't see progress, or the Retry button when one fails. The upload queue in the app always shows both.</p>
+            </div>
+          </details>
+
+          <details id="battery">
+            <summary>Uploads or screenshot offers stop when I leave the app <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>Some phones are aggressive about stopping apps in the background to save battery. Samsung, Xiaomi, OnePlus and Huawei are the usual suspects. XerahS runs uploads as a foreground service with a notification, which most phones respect, but some still step in.</p>
+              <p>Open Android's settings, then Apps, XerahS, Battery, and choose <strong>Unrestricted</strong> or turn off battery optimisation. The exact wording changes from phone to phone. <a href="https://dontkillmyapp.com/">dontkillmyapp.com</a> has steps for most brands.</p>
+            </div>
+          </details>
+
+          <details id="widget">
+            <summary>The widget isn't showing my latest upload <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>The widget refreshes when an upload finishes. It doesn't poll in the background, so if it missed that moment it stays as it was until the next upload.</p>
+              <ul>
+                <li>Upload something and check again.</li>
+                <li>If it still doesn't change, remove the widget and add it again.</li>
+                <li>Battery restrictions can block the refresh too. See the question above.</li>
+              </ul>
+              <p>"No uploads yet" means your history is empty.</p>
+            </div>
+          </details>
+        </div>
+
+        <h2 id="messages">Messages in the app</h2>
+        <div class="faq">
+          <details id="duplicates">
+            <summary>What does "Already uploaded" mean? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>XerahS keeps a SHA-256 hash of every file you upload. When a new file has the same hash as one in your history, it's the same file, so XerahS offers the link you already have.</p>
+              <ul>
+                <li><strong>Copy existing</strong> copies the old link and skips the upload.</li>
+                <li><strong>Upload anyway</strong> sends it again and gives you a new link.</li>
+              </ul>
+              <p>In a batch, the queue marks the file "Already uploaded". Its <strong>Upload anyway</strong> button lets you choose between <strong>Skip this file</strong> and sending it again.</p>
+              <p>If you delete the old upload from your history, the file counts as new again. When a batch is retried after a dropped connection, files that already finished are skipped, not flagged as duplicates.</p>
+            </div>
+          </details>
+
+          <details id="host-key">
+            <summary>"The server's identity changed" when uploading over SFTP <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>XerahS remembers each SFTP server's key from the first connection. This message means the server now has a different key. The message shows the saved fingerprint and the new one.</p>
+              <p>That's expected after you reinstall the server or change its key. In that case, open the SFTP settings and tap <strong>Forget saved host key</strong>, and the next connection saves the new key.</p>
+              <p>If nothing changed on your side, hold off. A different key can also mean something between you and the server is pretending to be it. The <a href="guides.html#sftp">SFTP guide</a> shows how to check the fingerprint on the server.</p>
+            </div>
+          </details>
+
+          <details id="ocr">
+            <summary>"Text recognition isn't available on this device" <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="faq__body">
+              <p>Text recognition (OCR) runs on your phone using Google Play Services. Phones without Play Services, such as many de-Googled ROMs and recent Huawei phones, can't use it. Everything else in the app works the same.</p>
+              <p>If you see "Text recognition is still downloading", Play Services is fetching the recognition model. Give it a minute on a working connection and try again.</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="page-links">
+          <a class="btn btn--ghost" href="guides.html">
+            Setup guides
+            <span class="btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></span>
+          </a>
+          <a class="btn btn--ghost" href="https://github.com/unicxrn/XerahS-Android/issues">
+            Ask on GitHub
+            <span class="btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></span>
+          </a>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/img/logo.svg" width="28" height="28" alt="">
+        <span>XerahS for Android</span>
+      </div>
+      <nav class="footer__links" aria-label="Project links">
+        <a href="guides.html">Guides</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/releases">Releases</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/issues">Issues</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+      <p class="footer__note">An unofficial app inspired by <a href="https://xerahs.com/">XerahS</a> and <a href="https://getsharex.com/">ShareX</a>. It isn't affiliated with or endorsed by either project, and it uses none of their code.</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js?v=4" defer></script>
+</body>
+</html>

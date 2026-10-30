@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Privacy | XerahS for Android</title>
+  <meta name="description" content="What XerahS for Android keeps on your phone, what it sends and where. No analytics, no tracking, no accounts.">
+  <meta name="theme-color" content="#07070a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Privacy | XerahS for Android">
+  <meta property="og:description" content="What XerahS for Android keeps on your phone, what it sends and where. No analytics, no tracking, no accounts.">
+  <meta property="og:image" content="assets/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="assets/fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav" data-nav>
+    <a class="nav__brand" href="index.html" aria-label="XerahS home">
+      <img src="assets/img/logo.svg" width="30" height="30" alt="">
+      <span>XerahS</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#features">Features</a>
+      <a href="guides.html">Guides</a>
+      <a href="faq.html">FAQ</a>
+      <a href="index.html#changelog">Changelog</a>
+    </nav>
+    <a class="nav__cta" href="index.html#download">Download</a>
+    <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" data-menu-toggle>
+      <span></span><span></span>
+    </button>
+  </header>
+
+  <div class="menu" data-menu hidden>
+    <a href="index.html">Home</a>
+    <a href="index.html#features">Features</a>
+    <a href="guides.html">Guides</a>
+    <a href="faq.html">FAQ</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a href="index.html#download">Download</a>
+  </div>
+
+  <main id="top" class="page">
+    <div class="page__glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <header class="page__head">
+        <span class="eyebrow">Privacy</span>
+        <h1>Your files go where you send them.</h1>
+        <p class="page__lede">XerahS has no servers and no accounts. It doesn't know who you are. This page lists what the app keeps on your phone and every time it talks to the internet.</p>
+        <p class="page__meta">Last updated 30 October 2026, for version 0.8</p>
+      </header>
+
+      <article class="doc">
+        <h2 id="short">The short version</h2>
+        <ul class="summary">
+          <li>No analytics, no tracking, no ads and no crash reporting. Nothing about how you use the app is sent anywhere.</li>
+          <li>Files only go to the destinations you set up yourself.</li>
+          <li>Passwords, API keys and tokens are kept in Android's encrypted storage and left out of Android backups.</li>
+          <li>Apart from your uploads, the app makes a few requests of its own. They're all listed below.</li>
+        </ul>
+
+        <h2 id="on-your-phone">What stays on your phone</h2>
+        <p>Everything below lives in the app's private storage. Other apps can't read it, and it's deleted when you uninstall XerahS.</p>
+        <dl class="fields">
+          <dt>Upload history</dt>
+          <dd>For each upload: the file name, size and type, the link, the delete link if the host gave one, which destination and profile it went to, and when. It also keeps a SHA-256 hash of the file, which is how XerahS notices when you upload the same thing twice. Albums and tags live here too.</dd>
+          <dt>Settings and profiles</dt>
+          <dd>Your preferences and the names of your upload profiles. Secrets are not stored here.</dd>
+          <dt>Thumbnails</dt>
+          <dd>Small previews for the history list.</dd>
+          <dt>Copies of your files</dt>
+          <dd>When you share or pick a file, XerahS makes its own copy straight away so the upload can run in the background. Copies that aren't in your history any more are cleaned up after a week.</dd>
+          <dt>Local uploads</dt>
+          <dd>If you upload to the Local destination, the file is kept in the app's folder and removed when you delete it from history.</dd>
+          <dt>Passwords and keys</dt>
+          <dd>Stored with Android's encrypted shared preferences, using a key held by the Android Keystore.</dd>
+          <dt>SFTP host keys</dt>
+          <dd>The fingerprint of each SFTP server you connect to, so XerahS can warn you if it changes. Fingerprints are public, so they're stored with the other settings.</dd>
+          <dt>S3 previews</dt>
+          <dd>The S3 explorer caches image previews, up to 50 MB, in the app's cache.</dd>
+        </dl>
+
+        <h2 id="backups">Backups</h2>
+        <h3>Android backup</h3>
+        <p>If Android backup is turned on, your history, albums, tags and settings can be included in your Google backup or a transfer to a new phone. These are always left out:</p>
+        <ul>
+          <li>passwords, API keys and tokens;</li>
+          <li>the copies of your files, the thumbnails and Local uploads.</li>
+        </ul>
+        <p>So after a restore you'll need to enter your passwords again.</p>
+        <h3>XerahS backup</h3>
+        <p>Settings, Backup exports a file that you save wherever you like. It does include your passwords and keys, so it's encrypted with a passphrase you choose (AES-256-GCM, with the key derived using PBKDF2). Without that passphrase the file can't be opened, by you or anyone else.</p>
+
+        <h2 id="network">When XerahS goes online</h2>
+        <h3>Your uploads</h3>
+        <p>Files go to the destination you pick, signed in with the details you entered for it. That might be Imgur, your S3 bucket, your Nextcloud, or any other host you set up. From then on, that service's own privacy policy applies to the file.</p>
+        <p>Photos can carry GPS location and camera details. Turn on <strong>Strip EXIF metadata</strong> under Settings, Uploads to remove them before upload. It's off by default.</p>
+        <h3>Update check</h3>
+        <p>About once a day, when you're online, XerahS asks the GitHub API for the latest release of XerahS for Android. It also checks when you open Settings, Updates. If you download an update in the app, the APK comes from GitHub too. GitHub sees your IP address, as with any web request.</p>
+        <h3>Link shortener</h3>
+        <p>Only when you shorten a link, that link is sent to is.gd, or to the shortener you picked instead, such as Bitly.</p>
+        <h3>Upload from a link</h3>
+        <p>When you ask XerahS to upload the file behind a link, it downloads that file from the address you gave it.</p>
+        <h3>Text recognition</h3>
+        <p>OCR runs on your phone using Google Play Services. The first time you use it, Play Services may need to download the recognition model. Your images are not uploaded for this.</p>
+
+        <h2 id="permissions">Permissions</h2>
+        <dl class="fields">
+          <dt>Internet</dt>
+          <dd>To upload, and for the requests listed above.</dd>
+          <dt>Notifications</dt>
+          <dd>Upload progress, failures with a Retry button, and new screenshot offers.</dd>
+          <dt>Photos</dt>
+          <dd>Only asked for when you turn on screenshot uploads, so XerahS can see new screenshots. Picking a file yourself doesn't need it.</dd>
+          <dt>Foreground service</dt>
+          <dd>Keeps an upload running when you leave the app.</dd>
+          <dt>Biometrics</dt>
+          <dd>For the biometric lock under Settings, Security, if you turn it on.</dd>
+          <dt>Install apps</dt>
+          <dd>Lets XerahS install an update you downloaded in the app. Android asks you first.</dd>
+        </dl>
+
+        <h2 id="contact">Questions</h2>
+        <p>XerahS for Android is open source, so you can check all of this in the <a href="https://github.com/unicxrn/XerahS-Android">code on GitHub</a>. If something here is wrong or you have a question, open an issue on <a href="https://github.com/unicxrn/XerahS-Android/issues">GitHub Issues</a>.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/img/logo.svg" width="28" height="28" alt="">
+        <span>XerahS for Android</span>
+      </div>
+      <nav class="footer__links" aria-label="Project links">
+        <a href="guides.html">Guides</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/releases">Releases</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/issues">Issues</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+      <p class="footer__note">An unofficial app inspired by <a href="https://xerahs.com/">XerahS</a> and <a href="https://getsharex.com/">ShareX</a>. It isn't affiliated with or endorsed by either project, and it uses none of their code.</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js?v=4" defer></script>
+</body>
+</html>
