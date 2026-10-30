@@ -13,6 +13,9 @@ interface HistoryDao {
     @Query("SELECT * FROM history ORDER BY timestamp DESC")
     fun getAllHistory(): Flow<List<HistoryEntity>>
 
+    @Query("SELECT * FROM history ORDER BY timestamp DESC LIMIT 1")
+    fun getLatest(): Flow<HistoryEntity?>
+
     @Query("SELECT * FROM history WHERE uploadDestination = :destination ORDER BY timestamp DESC")
     fun getHistoryByDestination(destination: String): Flow<List<HistoryEntity>>
 

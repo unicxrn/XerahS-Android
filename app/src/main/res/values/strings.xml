@@ -9,4 +9,8 @@
     <string name="widget_upload">Upload</string>
     <string name="widget_preview_link">xerahs.app/a8Kd2</string>
     <string name="widget_preview_host">xerahs.app</string>
+    <string name="widget_empty">No uploads yet</string>
+    <string name="widget_tap_to_copy">Tap to copy</string>
+    <string name="widget_tap_to_open">Tap to open</string>
+    <string name="widget_copy_link">Copy link</string>
 </resources>

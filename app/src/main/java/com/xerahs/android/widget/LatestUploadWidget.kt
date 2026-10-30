@@ -7,6 +7,9 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -31,11 +34,14 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.height
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.unit.ColorProvider
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.text.FontFamily
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -51,6 +57,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
@@ -71,19 +78,45 @@ class LatestUploadWidget : GlanceAppWidget() {
         val repo = EntryPointAccessors
             .fromApplication(context.applicationContext, LatestUploadWidgetEntryPoint::class.java)
             .historyRepository()
-        val item = runCatching { repo.getAllHistory().firstOrNull()?.firstOrNull() }.getOrNull()
-        val thumb = item?.let { withContext(Dispatchers.IO) { loadThumbnail(it) } }
-        provideContent { WidgetContent(context, item, thumb) }
+        val first = try {
+            repo.latest().firstOrNull()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        val firstThumb = first?.let { withContext(Dispatchers.IO) { loadThumbnail(it) } }
+        provideContent {
+            // Keep collecting so a refresh during the same Glance session shows the newest item.
+            val item by repo.latest().collectAsState(initial = first)
+            val thumb by produceState(initialValue = firstThumb.takeIf { item?.id == first?.id }, item?.id) {
+                value = item?.let { withContext(Dispatchers.IO) { loadThumbnail(it) } }
+            }
+            WidgetContent(context, item, thumb)
+        }
     }
 
     @Composable
     private fun WidgetContent(context: Context, item: HistoryItem?, thumb: Bitmap?) {
+        val isLocal = item?.uploadDestination == UploadDestination.LOCAL
         val tall = LocalSize.current.height >= SIZE_TALL.height
         val captureIntent = Intent(context, MainActivity::class.java)
             .setAction(MainActivity.ACTION_CAPTURE)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val url = item?.url?.takeIf { it.isNotBlank() }
         val firstUrl = url?.lines()?.firstOrNull().orEmpty()
+        val copyDescription = context.getString(R.string.widget_copy_link)
+        val tapAction = when {
+            item == null -> null
+            isLocal -> actionStartActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("xerahs://share/${item.id}"), context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            firstUrl.isNotEmpty() -> actionSendBroadcast(
+                Intent(context, CopyUrlReceiver::class.java).putExtra("url", url)
+            )
+            else -> null
+        }
         val thumbSize = if (tall) 72.dp else 48.dp
 
         Box(
@@ -98,12 +131,10 @@ class LatestUploadWidget : GlanceAppWidget() {
                     Spacer(GlanceModifier.width(12.dp))
                     Column(
                         modifier = GlanceModifier.defaultWeight().then(
-                            if (firstUrl.isNotEmpty()) {
-                                GlanceModifier.clickable(
-                                    actionSendBroadcast(
-                                        Intent(context, CopyUrlReceiver::class.java).putExtra("url", url)
-                                    )
-                                )
+                            if (tapAction != null) {
+                                GlanceModifier
+                                    .clickable(tapAction)
+                                    .semantics { contentDescription = if (isLocal) item.fileName else copyDescription }
                             } else GlanceModifier
                         )
                     ) {
@@ -113,7 +144,11 @@ class LatestUploadWidget : GlanceAppWidget() {
                             style = TextStyle(color = TEXT, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                         )
                         Text(
-                            text = if (tall) "Tap to copy" else hostOf(item),
+                            text = when {
+                                !tall -> hostOf(item)
+                                isLocal -> context.getString(R.string.widget_tap_to_open)
+                                else -> context.getString(R.string.widget_tap_to_copy)
+                            },
                             maxLines = 1,
                             style = TextStyle(color = MUTED, fontSize = 11.sp)
                         )
@@ -141,20 +176,26 @@ class LatestUploadWidget : GlanceAppWidget() {
                     }
                 } else {
                     Text(
-                        text = "No uploads yet",
+                        text = context.getString(R.string.widget_empty),
                         modifier = GlanceModifier.defaultWeight(),
                         style = TextStyle(color = TEXT, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     )
                 }
                 Spacer(GlanceModifier.width(8.dp))
-                Text(
-                    text = "Upload",
+                Box(
                     modifier = GlanceModifier
-                        .background(ImageProvider(R.drawable.widget_button))
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .height(48.dp)
                         .clickable(actionStartActivity(captureIntent)),
-                    style = TextStyle(color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = context.getString(R.string.widget_upload),
+                        modifier = GlanceModifier
+                            .background(ImageProvider(R.drawable.widget_button))
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        style = TextStyle(color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    )
+                }
             }
         }
     }
@@ -183,7 +224,7 @@ class LatestUploadWidget : GlanceAppWidget() {
 
     companion object {
         private val SIZE_WIDE = DpSize(250.dp, 56.dp)
-        private val SIZE_TALL = DpSize(250.dp, 120.dp)
+        private val SIZE_TALL = DpSize(250.dp, 100.dp)
 
         private val INK = ColorProvider(Color(0xFF0E0F12))
         private val TEXT = ColorProvider(Color(0xFFF2F3F5))
@@ -208,7 +249,7 @@ class LatestUploadWidget : GlanceAppWidget() {
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(path, bounds)
                     val opts = BitmapFactory.Options().apply {
-                        inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_THUMB_EDGE)
+                        inSampleSize = calculateInSampleSize(minOf(bounds.outWidth, bounds.outHeight), minOf(bounds.outWidth, bounds.outHeight), MAX_THUMB_EDGE)
                     }
                     BitmapFactory.decodeFile(path, opts)
                 }.getOrNull()

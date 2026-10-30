@@ -10,6 +10,7 @@ import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadStatistics
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -30,6 +31,9 @@ class HistoryRepositoryImpl @Inject constructor(
             entities.map { it.toDomain() }
         }
 
+    override fun latest(): Flow<HistoryItem?> =
+        historyDao.getLatest().map { it?.toDomain() }
+
     override fun getHistoryByDestination(destination: UploadDestination): Flow<List<HistoryItem>> =
         historyDao.getHistoryByDestination(destination.name).map { entities ->
             entities.map { it.toDomain() }
@@ -49,13 +53,22 @@ class HistoryRepositoryImpl @Inject constructor(
         if (item?.uploadDestination == UploadDestination.LOCAL.name && LocalUploads.isKept(context.filesDir, item.url)) {
             withContext(Dispatchers.IO) { runCatching { File(item.url!!).delete() } }
         }
-        runCatching { uploadCompletedHook.onUploadCompleted() }
+        notifyHistoryChanged()
     }
 
     override suspend fun clearHistory() {
         historyDao.clearHistory()
         withContext(Dispatchers.IO) { runCatching { LocalUploads.dir(context.filesDir).deleteRecursively() } }
-        runCatching { uploadCompletedHook.onUploadCompleted() }
+        notifyHistoryChanged()
+    }
+
+    private suspend fun notifyHistoryChanged() {
+        try {
+            uploadCompletedHook.onUploadCompleted()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     override fun searchHistory(query: String): Flow<List<HistoryItem>> =

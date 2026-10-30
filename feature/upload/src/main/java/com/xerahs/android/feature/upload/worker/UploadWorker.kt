@@ -316,7 +316,12 @@ class UploadWorker @AssistedInject constructor(
                     },
                     addTags = { spec.tagIds.forEach { tagRepository.addTagToHistory(itemId, it) } },
                 )
-                runCatching { uploadCompletedHook.onUploadCompleted() }
+                try {
+                    uploadCompletedHook.onUploadCompleted()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                }
                 FileOutcome.Uploaded(finalUrl, itemId)
             }
         } finally {
