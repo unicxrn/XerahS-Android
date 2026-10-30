@@ -1,12 +1,17 @@
 package com.xerahs.android.feature.tools
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.media.MediaScannerConnection
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -17,13 +22,27 @@ import java.io.File
 object ToolOutput {
     private const val OUT_DIR = "tools_out"
 
-    /** Writes [bitmap] as PNG into cacheDir/tools_out and returns the file. Call off the main thread. */
-    fun writeToCache(context: Context, bitmap: Bitmap, prefix: String): File {
+    /**
+     * Writes [bitmap] into cacheDir/tools_out (PNG unless [format] says otherwise) and returns the
+     * file. Call off the main thread.
+     */
+    fun writeToCache(
+        context: Context,
+        bitmap: Bitmap,
+        prefix: String,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.PNG,
+        quality: Int = 100,
+    ): File {
         val dir = File(context.cacheDir, OUT_DIR).apply { mkdirs() }
-        val out = File(dir, "${prefix}_${System.currentTimeMillis()}.png")
+        val ext = when (format) {
+            Bitmap.CompressFormat.PNG -> "png"
+            Bitmap.CompressFormat.JPEG -> "jpg"
+            else -> "webp"
+        }
+        val out = File(dir, "${prefix}_${System.currentTimeMillis()}.$ext")
         try {
             out.outputStream().buffered().use { stream ->
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) { "Couldn't encode the image" }
+                check(bitmap.compress(format, quality, stream)) { "Couldn't encode the image" }
             }
         } catch (t: Throwable) {
             out.delete()
@@ -47,12 +66,18 @@ object ToolOutput {
         context.startActivity(chooser)
     }
 
+    /** True on Android 9 and older when saving to Pictures still needs WRITE_EXTERNAL_STORAGE. */
+    fun needsLegacyWritePermission(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+
     /**
-     * Copies [file] into Pictures/XerahS. Returns false below Android 10 or on failure; never
-     * throws (storage-full and similar I/O errors are swallowed).
+     * Copies [file] into Pictures/XerahS. On Android 9 and older this needs WRITE_EXTERNAL_STORAGE
+     * (see [rememberPicturesWriteAccess]) and returns false without it. Returns false on failure;
+     * never throws (storage-full and similar I/O errors are swallowed).
      */
     fun saveToPictures(context: Context, file: File): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return saveLegacy(context, file)
         return runCatching {
             val resolver = context.contentResolver
             val values = ContentValues().apply {
@@ -76,6 +101,34 @@ object ToolOutput {
                 copied
             }
         }.getOrDefault(false)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun saveLegacy(context: Context, file: File): Boolean {
+        if (needsLegacyWritePermission(context)) return false
+        return runCatching {
+            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "XerahS")
+            if (!dir.isDirectory && !dir.mkdirs()) return@runCatching false
+            val out = uniqueFile(dir, file.name)
+            try {
+                file.inputStream().use { input -> out.outputStream().use { input.copyTo(it) } }
+            } catch (e: Exception) {
+                out.delete()
+                throw e
+            }
+            MediaScannerConnection.scanFile(context, arrayOf(out.absolutePath), arrayOf(mimeFor(out)), null)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun uniqueFile(dir: File, name: String): File {
+        var candidate = File(dir, name)
+        var n = 1
+        while (candidate.exists()) {
+            candidate = File(dir, "${name.substringBeforeLast('.')}_$n.${name.substringAfterLast('.', "png")}")
+            n++
+        }
+        return candidate
     }
 
     private fun mimeFor(file: File): String = when (file.extension.lowercase()) {

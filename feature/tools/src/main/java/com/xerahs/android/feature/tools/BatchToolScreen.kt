@@ -112,7 +112,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            val processOnClick: () -> Unit = {
+            val process: (Boolean) -> Unit = { canSave ->
                 scope.launch {
                     busy = true
                     val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
@@ -122,7 +122,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                             ensureActive()
                             runCatching {
                                 val f = BatchImageProcessor.process(context, uri, options, outDir, i)
-                                val gallerySaved = ToolOutput.saveToPictures(context, f)
+                                val gallerySaved = canSave && ToolOutput.saveToPictures(context, f)
                                 f to gallerySaved
                             }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
                                 .onFailure { failed++ }
@@ -136,6 +136,9 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                     }
                 }
             }
+
+            // On Android 9 and older saving to Pictures needs a permission; ask, then process either way.
+            val processOnClick = rememberPicturesWriteAccess(process)
 
             if (results.isNotEmpty()) {
                 // Upload is the one accent CTA once results exist; Process drops to an outline.

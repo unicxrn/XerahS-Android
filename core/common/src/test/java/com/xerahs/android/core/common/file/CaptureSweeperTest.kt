@@ -32,4 +32,30 @@ class CaptureSweeperTest {
         assertEquals(0, CaptureSweeper.sweep(root, now, setOf(File(old, "f.png").absolutePath)))
         assertTrue(old.exists())
     }
+
+    private fun file(root: File, name: String, ageMs: Long, now: Long): File =
+        File(root, name).apply { parentFile?.mkdirs(); writeText("x"); setLastModified(now - ageMs) }
+
+    @Test fun toolSweepDeletesOldOutputsButKeepsFreshAndReferenced() {
+        val cache = tmp.newFolder(); val now = System.currentTimeMillis()
+        val out = File(cache, CaptureSweeper.TOOLS_OUT)
+        val old = file(out, "combined_1.jpg", 2 * day, now)
+        val referenced = file(out, "combined_2.png", 3 * day, now)
+        val fresh = file(out, "combined_3.png", day / 2, now)
+        assertEquals(1, CaptureSweeper.sweepToolCache(cache, now, setOf(referenced.absolutePath)))
+        assertFalse(old.exists()); assertTrue(referenced.exists()); assertTrue(fresh.exists())
+    }
+
+    @Test fun toolSweepDeletesOrphanedCombineFolders() {
+        val cache = tmp.newFolder(); val now = System.currentTimeMillis()
+        val root = File(cache, CaptureSweeper.TOOLS_COMBINE)
+        val orphan = dir(root, "a1", 2, now)
+        val live = File(root, "b2").apply { mkdirs(); File(this, "f.png").writeText("x") }
+        assertEquals(1, CaptureSweeper.sweepToolCache(cache, now, emptySet()))
+        assertFalse(orphan.exists()); assertTrue(live.exists())
+    }
+
+    @Test fun toolSweepToleratesMissingFolders() {
+        assertEquals(0, CaptureSweeper.sweepToolCache(tmp.newFolder(), System.currentTimeMillis(), emptySet()))
+    }
 }

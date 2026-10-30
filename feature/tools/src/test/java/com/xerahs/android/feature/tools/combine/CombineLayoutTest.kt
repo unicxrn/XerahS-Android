@@ -73,15 +73,64 @@ class CombineLayoutTest {
             CombineOptions(vertical = true, matchSize = true, spacingPx = 100),
         )
         // Unscaled: 4000 x (12000 + 300) = 12300 tall, so scale is 8000 / 12300.
-        assertEquals(8000, r.height)
         val s = 8000.0 / 12300.0
-        assertEquals(Math.round(4000 * s).toInt(), r.width)
-        assertEquals(Rect4(0, 0, Math.round(4000 * s).toInt(), Math.round(3000 * s).toInt()), r.rects[0])
-        assertEquals(Math.round(3100 * s).toInt(), r.rects[1].top)
+        assertTrue(r.height <= 8000)
+        assertTrue(r.height >= 8000 - 8)
+        assertEquals((4000 * s).toInt(), r.width)
         r.rects.forEach {
+            assertEquals((4000 * s).toInt(), it.width)
+            assertEquals((3000 * s).toInt(), it.height)
             assertTrue(it.right <= r.width)
             assertTrue(it.bottom <= r.height)
         }
+        assertEquals(r.height, r.rects.last().bottom)
+    }
+
+    @Test
+    fun scaledRectsTouchWithoutSpacing() {
+        val r = layout(List(7) { 3001 to 1999 }, CombineOptions(vertical = true, matchSize = true), maxEdge = 5000)
+        r.rects.zipWithNext().forEach { (a, b) -> assertEquals(a.bottom, b.top) }
+        assertEquals(0, r.rects.first().top)
+        assertEquals(r.height, r.rects.last().bottom)
+    }
+
+    @Test
+    fun scaledRectsAreEvenlySpaced() {
+        val r = layout(List(9) { 1777 to 1333 }, CombineOptions(vertical = false, matchSize = true, spacingPx = 37), maxEdge = 4000)
+        val gaps = r.rects.zipWithNext().map { (a, b) -> b.left - a.right }.toSet()
+        assertEquals(1, gaps.size)
+        assertTrue(gaps.single() in 1 until 37)
+    }
+
+    @Test
+    fun hugeTotalsDoNotOverflow() {
+        // 20 x 200000 px tall is 4e6, fine; matchSize to a 100000 px wide image pushes the sum past Int.MAX_VALUE.
+        val sizes = listOf(100_000 to 10) + List(19) { 10 to 1_000_000 }
+        val r = layout(sizes, CombineOptions(vertical = true, matchSize = true))
+        assertTrue(r.width in 1..8000)
+        assertTrue(r.height in 1..8000)
+        r.rects.forEach {
+            assertTrue(it.top >= 0 && it.bottom <= r.height)
+            assertTrue(it.left >= 0 && it.right <= r.width)
+        }
+        r.rects.zipWithNext().forEach { (a, b) -> assertTrue(b.top >= a.bottom) }
+    }
+
+    @Test
+    fun maxPixelsScalesAreaDown() {
+        // 8000 x 8000 = 64 MP, capped at 16 MP: scale is sqrt(16/64) = 0.5.
+        val r = layout(listOf(4000 to 8000, 4000 to 8000), CombineOptions(vertical = false), maxPixels = 16_000_000L)
+        assertEquals(4000, r.width)
+        assertEquals(4000, r.height)
+        assertEquals(Rect4(2000, 0, 4000, 4000), r.rects[1])
+        assertTrue(r.width.toLong() * r.height <= 16_000_000L)
+    }
+
+    @Test
+    fun maxPixelsLeavesSmallResultsAlone() {
+        val r = layout(listOf(100 to 50, 100 to 50), CombineOptions(), maxPixels = 1_000_000L)
+        assertEquals(100, r.width)
+        assertEquals(100, r.height)
     }
 
     @Test

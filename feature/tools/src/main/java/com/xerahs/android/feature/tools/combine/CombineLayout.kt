@@ -1,7 +1,10 @@
 package com.xerahs.android.feature.tools.combine
 
+import kotlin.math.floor
 import kotlin.math.max
-import kotlin.math.roundToInt
+import kotlin.math.min
+import kotlin.math.roundToLong
+import kotlin.math.sqrt
 
 enum class Align { START, CENTER, END }
 
@@ -26,46 +29,57 @@ const val MAX_INPUT_PIXELS: Long = 64_000_000L
 /**
  * Places [sizes] (width to height) in a row or column. With matchSize every image is scaled to the
  * widest width (vertical) or tallest height (horizontal). Spacing goes between images only. If the
- * long edge would pass [maxEdge], the whole canvas and every rect scale down to fit.
+ * long edge would pass [maxEdge], or the area would pass [maxPixels], everything scales down to
+ * fit. Scaled images are laid out again with whole-pixel sizes, so neighbours still touch and gaps
+ * stay equal. Sums are done in Long so huge inputs can't overflow.
  */
-fun layout(sizes: List<Pair<Int, Int>>, o: CombineOptions, maxEdge: Int = 8000): CombineResult {
+fun layout(
+    sizes: List<Pair<Int, Int>>,
+    o: CombineOptions,
+    maxEdge: Int = 8000,
+    maxPixels: Long = Long.MAX_VALUE,
+): CombineResult {
     if (sizes.isEmpty()) return CombineResult(0, 0, emptyList())
-    val spacing = o.spacingPx.coerceAtLeast(0)
+    var spacing = o.spacingPx.coerceAtLeast(0).toLong()
 
     // Each image's size along the stacking axis (main) and across it (cross), unscaled.
-    val cross = if (o.vertical) sizes.maxOf { it.first } else sizes.maxOf { it.second }
-    val placed = sizes.map { (w, h) ->
-        val (main, across) = if (o.vertical) h to w else w to h
-        if (o.matchSize && across > 0) Math.round(main.toDouble() * cross / across).toInt() to cross
-        else main to across
+    var cross = (if (o.vertical) sizes.maxOf { it.first } else sizes.maxOf { it.second }).toLong().coerceAtLeast(1)
+    var placed: List<Pair<Long, Long>> = sizes.map { (w, h) ->
+        val (main, across) = if (o.vertical) h.toLong() to w.toLong() else w.toLong() to h.toLong()
+        if (o.matchSize && across > 0) (main.toDouble() * cross / across).roundToLong().coerceAtLeast(1) to cross
+        else main.coerceAtLeast(1) to across.coerceAtLeast(1)
     }
     val total = placed.sumOf { it.first } + spacing * (placed.size - 1)
 
-    var cursor = 0
-    val raw = placed.map { (main, across) ->
+    val longEdge = max(total, cross)
+    val area = total.toDouble() * cross.toDouble()
+    val s = min(
+        min(1.0, maxEdge.toDouble() / longEdge),
+        if (area > maxPixels) sqrt(maxPixels.toDouble() / area) else 1.0
+    )
+    if (s < 1.0) {
+        fun sc(v: Long) = floor(v * s).toLong().coerceAtLeast(1)
+        cross = sc(cross)
+        spacing = floor(spacing * s).toLong()
+        placed = placed.map { (main, across) -> sc(main) to min(sc(across), cross) }
+    }
+
+    var cursor = 0L
+    val rects = placed.map { (main, across) ->
         val offset = when (o.align) {
-            Align.START -> 0
+            Align.START -> 0L
             Align.CENTER -> (cross - across) / 2
             Align.END -> cross - across
         }
-        val r = if (o.vertical) Rect4(offset, cursor, offset + across, cursor + main)
-        else Rect4(cursor, offset, cursor + main, offset + across)
+        val r = if (o.vertical) Rect4(offset.toInt(), cursor.toInt(), (offset + across).toInt(), (cursor + main).toInt())
+        else Rect4(cursor.toInt(), offset.toInt(), (cursor + main).toInt(), (offset + across).toInt())
         cursor += main + spacing
         r
     }
-    val width = if (o.vertical) cross else total
-    val height = if (o.vertical) total else cross
-
-    val longEdge = max(width, height)
-    if (longEdge <= maxEdge) return CombineResult(width, height, raw)
-
-    val s = maxEdge.toDouble() / longEdge
-    fun sc(v: Int) = (v * s).roundToInt()
-    return CombineResult(
-        width = sc(width).coerceIn(1, maxEdge),
-        height = sc(height).coerceIn(1, maxEdge),
-        rects = raw.map { Rect4(sc(it.left), sc(it.top), sc(it.right), sc(it.bottom)) }
-    )
+    val length = cursor - spacing
+    val width = if (o.vertical) cross else length
+    val height = if (o.vertical) length else cross
+    return CombineResult(width.toInt(), height.toInt(), rects)
 }
 
 /**

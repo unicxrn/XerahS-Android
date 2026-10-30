@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,8 @@ import com.xerahs.android.core.ui.lumen.SegmentOption
 import com.xerahs.android.core.ui.lumen.SegmentedTiles
 import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.tools.ToolOutput
+import com.xerahs.android.feature.tools.rememberPicturesWriteAccess
+import kotlinx.coroutines.launch
 
 private val backgrounds = listOf(
     0xFF000000.toInt() to "Black",
@@ -104,6 +107,12 @@ fun CombineScreen(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = CombineViewModel.MAX_IMAGES)
     ) { picked -> viewModel.add(picked) }
     val pick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val scope = rememberCoroutineScope()
+    // Android 9 and older need storage access to write to Pictures.
+    val save = rememberPicturesWriteAccess { granted ->
+        if (granted) viewModel.run(CombineAction.SAVE)
+        else scope.launch { snackbar.showSnackbar("Saving to Pictures needs storage access") }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { e ->
@@ -143,6 +152,7 @@ fun CombineScreen(
                     importing = importing,
                     busy = busy,
                     onPick = pick,
+                    onSave = save,
                     viewModel = viewModel,
                 )
             }
@@ -160,6 +170,7 @@ private fun CombineEditor(
     importing: Boolean,
     busy: CombineAction?,
     onPick: () -> Unit,
+    onSave: () -> Unit,
     viewModel: CombineViewModel,
 ) {
     val pick = onPick
@@ -264,7 +275,7 @@ private fun CombineEditor(
             modifier = Modifier.weight(1f)
         ) { Text(if (busy == CombineAction.SHARE) "Preparing..." else "Share") }
         OutlinedButton(
-            onClick = { viewModel.run(CombineAction.SAVE) },
+            onClick = onSave,
             enabled = ready && busy == null,
             shape = CircleShape,
             modifier = Modifier.weight(1f)

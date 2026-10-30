@@ -2,6 +2,7 @@ package com.xerahs.android.feature.tools.combine
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -29,6 +30,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 sealed interface CombineEvent {
@@ -40,8 +43,9 @@ sealed interface CombineEvent {
 enum class CombineAction { UPLOAD, SHARE, SAVE }
 
 /**
- * Picked images are copied into cacheDir on pick (the picker's grant can lapse), and the copies'
- * paths plus the options live in [SavedStateHandle] so they survive rotation and process death.
+ * Picked images are copied into this ViewModel's own cacheDir/tools_combine/<id> folder on pick
+ * (the picker's grant can lapse). The folder name, the copies' paths and the options live in
+ * [SavedStateHandle] so they survive rotation and process death.
  */
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -79,13 +83,27 @@ class CombineViewModel @Inject constructor(
     private val _events = Channel<CombineEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    private val inputDir = File(context.cacheDir, "tools_combine")
+    private val inputDir: File = File(
+        File(context.cacheDir, INPUT_ROOT),
+        savedState.get<String>(KEY_DIR) ?: UUID.randomUUID().toString().also { savedState[KEY_DIR] = it }
+    )
+
+    // Preview and full renders share one lock so two big bitmaps are never built at once.
+    private val renderLock = Mutex()
 
     // Last full-size render, reused while the images and options are unchanged.
     private var exported: Pair<Pair<List<String>, CombineOptions>, File>? = null
 
     init {
-        viewModelScope.launch(Dispatchers.IO) { dropStaleCopies() }
+        viewModelScope.launch {
+            val dropped = withContext(Dispatchers.IO) { restoreCopies() }
+            if (dropped > 0) {
+                _events.send(CombineEvent.Message(
+                    if (dropped == 1) "One image was cleared from the cache, so it was removed"
+                    else "$dropped images were cleared from the cache, so they were removed"
+                ))
+            }
+        }
         viewModelScope.launch {
             combine(paths, options) { p, o -> p to o }.debounce(150).collectLatest { (p, o) ->
                 loadThumbs(p)
@@ -166,12 +184,19 @@ class CombineViewModel @Inject constructor(
     private suspend fun fullRender(p: List<String>, o: CombineOptions): File {
         val key = p to o
         exported?.let { (k, f) -> if (k == key && f.exists()) return f }
-        val file = withContext(Dispatchers.Default) {
-            val bmp = CombineRenderer.render(context, p.map(::File), o, CombineRenderer.FULL_EDGE)
-            try {
-                ToolOutput.writeToCache(context, bmp, "combined")
-            } finally {
-                bmp.recycle()
+        val file = renderLock.withLock {
+            withContext(Dispatchers.Default) {
+                val bmp = CombineRenderer.render(context, p.map(::File), o, CombineRenderer.fullEdge(context))
+                try {
+                    // Opaque output compresses far better as JPEG; keep PNG when the background is see-through.
+                    if (Color.alpha(o.background) == 255) {
+                        ToolOutput.writeToCache(context, bmp, "combined", Bitmap.CompressFormat.JPEG, 92)
+                    } else {
+                        ToolOutput.writeToCache(context, bmp, "combined")
+                    }
+                } finally {
+                    bmp.recycle()
+                }
             }
         }
         exported = key to file
@@ -185,9 +210,12 @@ class CombineViewModel @Inject constructor(
         }
         _rendering.value = true
         try {
-            _preview.value = withContext(Dispatchers.Default) {
-                CombineRenderer.render(context, p.map(::File), o, CombineRenderer.PREVIEW_EDGE)
+            val bmp = renderLock.withLock {
+                withContext(Dispatchers.Default) {
+                    CombineRenderer.render(context, p.map(::File), o, CombineRenderer.PREVIEW_EDGE)
+                }
             }
+            _preview.value = bmp
         } catch (e: CancellationException) {
             throw e
         } catch (e: OutOfMemoryError) {
@@ -223,14 +251,20 @@ class CombineViewModel @Inject constructor(
         } else out
     }.getOrNull()
 
-    private fun dropStaleCopies() {
-        val keep = paths.value.toSet()
+    // Drops saved paths whose copies are gone (the system can clear cacheDir while the app is in the
+    // background) and stray files in our own folder. Returns how many saved paths were dropped.
+    private fun restoreCopies(): Int {
+        val saved = paths.value
+        val present = saved.filter { File(it).isFile }
+        if (present.size != saved.size) savedState[KEY_PATHS] = ArrayList(present)
+        val keep = present.toSet()
         inputDir.listFiles()?.forEach { if (it.absolutePath !in keep) it.delete() }
+        return saved.size - present.size
     }
 
     override fun onCleared() {
-        // Leaving the tool: the copies are no longer needed. The exported render stays in
-        // cacheDir/tools_out because Upload may still be reading it.
+        // Leaving the tool: only this ViewModel's copies go. Other folders under tools_combine and
+        // the exported render in cacheDir/tools_out are left to the app's cache sweep.
         val dir = inputDir
         Thread { dir.deleteRecursively() }.start()
     }
@@ -240,6 +274,8 @@ class CombineViewModel @Inject constructor(
         const val MAX_IMAGES = 20
         const val MAX_SPACING = 100
         private const val TOO_BIG = "That's too big to combine on this phone. Try fewer or smaller images."
+        const val INPUT_ROOT = "tools_combine"
+        private const val KEY_DIR = "combine_dir"
         private const val KEY_PATHS = "combine_paths"
         private const val KEY_VERTICAL = "combine_vertical"
         private const val KEY_SPACING = "combine_spacing"
