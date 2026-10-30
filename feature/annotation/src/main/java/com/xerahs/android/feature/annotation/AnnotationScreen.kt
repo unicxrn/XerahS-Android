@@ -2,11 +2,11 @@ package com.xerahs.android.feature.annotation
 
 import android.content.Intent
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -78,6 +78,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,6 +89,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -97,10 +100,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -172,8 +173,17 @@ fun AnnotationScreen(
     var currentDragAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var freehandPoints by remember { mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
 
-    // Crop state
-    var cropRect by remember(bitmap) { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
+    // System back leaves crop mode instead of the editor, and waits while an edit is running.
+    BackHandler(enabled = uiState.isCropMode || uiState.isTransforming) {
+        if (!uiState.isTransforming) viewModel.setCropMode(false)
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.editError) {
+        val message = uiState.editError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.dismissEditError()
+    }
 
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) coroutineScope.launch {
@@ -412,20 +422,25 @@ fun AnnotationScreen(
                     .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val preview = remember(displayBitmap) { displayBitmap.asImageBitmap() }
                 Box(Modifier.aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())) {
-                    Image(
-                        bitmap = preview,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillBounds,
+                    // Read-only preview with the marks, so the user sees what gets baked in. The
+                    // overlay above takes every touch, so the canvas never receives a gesture.
+                    AnnotationCanvas(
+                        bitmap = displayBitmap,
+                        annotations = uiState.annotations,
+                        currentAnnotation = null,
+                        onDragStart = {},
+                        onDragEnd = {},
+                        onDrag = {},
                         modifier = Modifier.fillMaxSize()
                     )
-                    CropOverlay(
-                        imageWidth = bitmap.width,
-                        imageHeight = bitmap.height,
-                        onCropRectChanged = { cropRect = it },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    key(bitmap) {
+                        CropOverlay(
+                            frame = uiState.cropFrame,
+                            onFrameChange = viewModel::setCropFrame,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 if (uiState.isTransforming) CircularProgressIndicator()
             }
@@ -549,7 +564,8 @@ fun AnnotationScreen(
             CircleIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() }
+                onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() },
+                enabled = !uiState.isTransforming
             )
             if (showFilename) {
                 Text(
@@ -564,15 +580,7 @@ fun AnnotationScreen(
                 Spacer(modifier = Modifier.weight(1f, fill = true))
             }
 
-            if (uiState.isCropMode) {
-                Button(
-                    onClick = { viewModel.applyCrop(cropRect) },
-                    enabled = !uiState.isTransforming,
-                    shape = CircleShape
-                ) {
-                    Text("Apply Crop")
-                }
-            } else {
+            if (!uiState.isCropMode) {
                 Row(
                     modifier = Modifier
                         .height(48.dp)
@@ -635,7 +643,7 @@ fun AnnotationScreen(
 
         // Crop mode: rotate and flip. Each bakes the annotations in first, like crop does.
         if (uiState.isCropMode) {
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -645,6 +653,10 @@ fun AnnotationScreen(
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 12.dp)
                     .padding(bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -674,6 +686,14 @@ fun AnnotationScreen(
                     enabled = enabled,
                     modifier = Modifier.rotate(90f)
                 )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            PillCta(
+                text = "Apply crop",
+                onClick = viewModel::applyCrop,
+                enabled = !uiState.isTransforming,
+                loading = uiState.isTransforming
+            )
             }
         }
 
@@ -781,6 +801,13 @@ fun AnnotationScreen(
                 )
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = bottomControlsHeight + 8.dp)
+        )
     }
 }
 

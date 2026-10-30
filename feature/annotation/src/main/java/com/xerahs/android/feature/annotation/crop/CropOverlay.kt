@@ -3,9 +3,11 @@ package com.xerahs.android.feature.annotation.crop
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -17,71 +19,108 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private enum class DragHandle { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, BODY, NONE }
 
+/** The crop frame as fractions (0..1) of the image, so it holds across rotation and resizes. */
+data class CropFrame(val left: Float = 0f, val top: Float = 0f, val right: Float = 1f, val bottom: Float = 1f) {
+    val isFull: Boolean get() = left <= 0f && top <= 0f && right >= 1f && bottom >= 1f
+
+    /** The frame in pixels of a [width] x [height] image. */
+    fun toRect(width: Int, height: Int): android.graphics.Rect = android.graphics.Rect(
+        (left * width).roundToInt().coerceIn(0, width),
+        (top * height).roundToInt().coerceIn(0, height),
+        (right * width).roundToInt().coerceIn(0, width),
+        (bottom * height).roundToInt().coerceIn(0, height),
+    )
+}
+
+/**
+ * Stateless crop frame. It must be laid out over exactly the image's bounds; [frame] is the single
+ * source of truth and every drag reports a new one through [onFrameChange].
+ */
 @Composable
 fun CropOverlay(
-    imageWidth: Int,
-    imageHeight: Int,
-    onCropRectChanged: (android.graphics.Rect) -> Unit,
+    frame: CropFrame,
+    onFrameChange: (CropFrame) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var cropLeft by remember { mutableFloatStateOf(0.1f) }
-    var cropTop by remember { mutableFloatStateOf(0.1f) }
-    var cropRight by remember { mutableFloatStateOf(0.9f) }
-    var cropBottom by remember { mutableFloatStateOf(0.9f) }
-    var activeHandle by remember { mutableFloatStateOf(-1f) }
+    val currentFrame by rememberUpdatedState(frame)
+    val currentOnChange by rememberUpdatedState(onFrameChange)
+    var activeHandle by remember { mutableStateOf(DragHandle.NONE) }
+    val cropLeft = frame.left
+    val cropTop = frame.top
+    val cropRight = frame.right
+    val cropBottom = frame.bottom
+
+    val handleZone = with(LocalDensity.current) { 48.dp.toPx() }
+    fun cornerZone(fx: Float, fy: Float): (LayoutCoordinates) -> Rect = { c ->
+        val x = fx * c.size.width
+        val y = fy * c.size.height
+        Rect(x - handleZone / 2, y - handleZone / 2, x + handleZone / 2, y + handleZone / 2)
+    }
 
     Canvas(
         modifier = modifier
             .fillMaxSize()
+            // Corners often sit on the screen edge, where the system back gesture would take the drag.
+            .systemGestureExclusion(cornerZone(cropLeft, cropTop))
+            .systemGestureExclusion(cornerZone(cropRight, cropTop))
+            .systemGestureExclusion(cornerZone(cropLeft, cropBottom))
+            .systemGestureExclusion(cornerZone(cropRight, cropBottom))
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
-                        val w = size.width.toFloat()
-                        val h = size.height.toFloat()
-                        val nx = offset.x / w
-                        val ny = offset.y / h
+                        val f = currentFrame
+                        val nx = offset.x / size.width.toFloat()
+                        val ny = offset.y / size.height.toFloat()
                         val threshold = 0.05f
-
+                        fun near(a: Float, b: Float) = abs(a - b) < threshold
                         activeHandle = when {
-                            kotlin.math.abs(nx - cropLeft) < threshold && kotlin.math.abs(ny - cropTop) < threshold -> 0f
-                            kotlin.math.abs(nx - cropRight) < threshold && kotlin.math.abs(ny - cropTop) < threshold -> 1f
-                            kotlin.math.abs(nx - cropLeft) < threshold && kotlin.math.abs(ny - cropBottom) < threshold -> 2f
-                            kotlin.math.abs(nx - cropRight) < threshold && kotlin.math.abs(ny - cropBottom) < threshold -> 3f
-                            nx in cropLeft..cropRight && ny in cropTop..cropBottom -> 4f
-                            else -> -1f
+                            near(nx, f.left) && near(ny, f.top) -> DragHandle.TOP_LEFT
+                            near(nx, f.right) && near(ny, f.top) -> DragHandle.TOP_RIGHT
+                            near(nx, f.left) && near(ny, f.bottom) -> DragHandle.BOTTOM_LEFT
+                            near(nx, f.right) && near(ny, f.bottom) -> DragHandle.BOTTOM_RIGHT
+                            nx in f.left..f.right && ny in f.top..f.bottom -> DragHandle.BODY
+                            else -> DragHandle.NONE
                         }
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         val dx = dragAmount.x / size.width.toFloat()
                         val dy = dragAmount.y / size.height.toFloat()
-
-                        when (activeHandle.toInt()) {
-                            0 -> { cropLeft = (cropLeft + dx).coerceIn(0f, cropRight - 0.05f); cropTop = (cropTop + dy).coerceIn(0f, cropBottom - 0.05f) }
-                            1 -> { cropRight = (cropRight + dx).coerceIn(cropLeft + 0.05f, 1f); cropTop = (cropTop + dy).coerceIn(0f, cropBottom - 0.05f) }
-                            2 -> { cropLeft = (cropLeft + dx).coerceIn(0f, cropRight - 0.05f); cropBottom = (cropBottom + dy).coerceIn(cropTop + 0.05f, 1f) }
-                            3 -> { cropRight = (cropRight + dx).coerceIn(cropLeft + 0.05f, 1f); cropBottom = (cropBottom + dy).coerceIn(cropTop + 0.05f, 1f) }
-                            4 -> {
-                                val w = cropRight - cropLeft
-                                val h = cropBottom - cropTop
-                                val newLeft = (cropLeft + dx).coerceIn(0f, 1f - w)
-                                val newTop = (cropTop + dy).coerceIn(0f, 1f - h)
-                                cropLeft = newLeft; cropRight = newLeft + w
-                                cropTop = newTop; cropBottom = newTop + h
+                        val f = currentFrame
+                        val next = when (activeHandle) {
+                            DragHandle.TOP_LEFT -> f.copy(
+                                left = (f.left + dx).coerceIn(0f, f.right - MIN_SPAN),
+                                top = (f.top + dy).coerceIn(0f, f.bottom - MIN_SPAN))
+                            DragHandle.TOP_RIGHT -> f.copy(
+                                right = (f.right + dx).coerceIn(f.left + MIN_SPAN, 1f),
+                                top = (f.top + dy).coerceIn(0f, f.bottom - MIN_SPAN))
+                            DragHandle.BOTTOM_LEFT -> f.copy(
+                                left = (f.left + dx).coerceIn(0f, f.right - MIN_SPAN),
+                                bottom = (f.bottom + dy).coerceIn(f.top + MIN_SPAN, 1f))
+                            DragHandle.BOTTOM_RIGHT -> f.copy(
+                                right = (f.right + dx).coerceIn(f.left + MIN_SPAN, 1f),
+                                bottom = (f.bottom + dy).coerceIn(f.top + MIN_SPAN, 1f))
+                            DragHandle.BODY -> {
+                                val w = f.right - f.left
+                                val h = f.bottom - f.top
+                                val l = (f.left + dx).coerceIn(0f, 1f - w)
+                                val t = (f.top + dy).coerceIn(0f, 1f - h)
+                                CropFrame(l, t, l + w, t + h)
                             }
+                            DragHandle.NONE -> f
                         }
-
-                        onCropRectChanged(android.graphics.Rect(
-                            (cropLeft * imageWidth).toInt(),
-                            (cropTop * imageHeight).toInt(),
-                            (cropRight * imageWidth).toInt(),
-                            (cropBottom * imageHeight).toInt()
-                        ))
+                        if (next != f) currentOnChange(next)
                     },
-                    onDragEnd = { activeHandle = -1f }
+                    onDragEnd = { activeHandle = DragHandle.NONE },
+                    onDragCancel = { activeHandle = DragHandle.NONE }
                 )
             }
     ) {
@@ -133,3 +172,5 @@ fun CropOverlay(
         }
     }
 }
+
+private const val MIN_SPAN = 0.05f
