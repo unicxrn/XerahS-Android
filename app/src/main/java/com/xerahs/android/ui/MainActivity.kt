@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +85,7 @@ import com.xerahs.android.ui.theme.XerahSTheme
 import com.xerahs.android.util.BiometricHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -106,6 +108,9 @@ class MainActivity : FragmentActivity() {
     /** Set by the "Upload clipboard" shortcut; the clipboard is read once the window has focus. */
     private var pendingClipboard = false
 
+    /** Intake message shown as an in-app pill; a toast would sit on top of the floating nav. */
+    private val intakeNotice = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -118,7 +123,16 @@ class MainActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                mainViewModel.intakeMessages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() }
+                mainViewModel.intakeMessages.collect { message ->
+                    // A direct share may be closing the app; only a toast outlives it.
+                    if (isFinishing) {
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+                    } else {
+                        intakeNotice.value = message
+                        delay(2500)
+                        intakeNotice.value = null
+                    }
+                }
             }
         }
         lifecycleScope.launch {
@@ -240,7 +254,8 @@ class MainActivity : FragmentActivity() {
                                 onDeepLinkHandled = { mainViewModel.clearDeepLink() },
                                 setupRoute = pendingSetupRoute,
                                 onSetupRouteHandled = { mainViewModel.clearSetupRoute() },
-                                onUploadClipboard = ::uploadClipboard
+                                onUploadClipboard = ::uploadClipboard,
+                                notice = intakeNotice.value
                             )
                         }
                     }
@@ -426,7 +441,8 @@ fun MainScreen(
     onDeepLinkHandled: () -> Unit = {},
     setupRoute: String? = null,
     onSetupRouteHandled: () -> Unit = {},
-    onUploadClipboard: () -> Unit = {}
+    onUploadClipboard: () -> Unit = {},
+    notice: String? = null
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
@@ -538,6 +554,27 @@ fun MainScreen(
                     Spacer(Modifier.width(10.dp))
                     Text("Copying file", style = MaterialTheme.typography.labelLarge)
                 }
+            }
+        }
+        AnimatedVisibility(
+            visible = notice != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            // Where a snackbar goes, just above the floating nav.
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 96.dp, start = 24.dp, end = 24.dp)
+        ) {
+            // Keep the last text while fading out.
+            var shown by remember { mutableStateOf("") }
+            if (notice != null) shown = notice
+            LumenCard(radius = 999.dp, elevation = 8.dp) {
+                Text(
+                    shown,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
         }
         AnimatedVisibility(
