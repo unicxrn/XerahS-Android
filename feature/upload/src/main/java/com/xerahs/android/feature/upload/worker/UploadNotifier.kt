@@ -69,7 +69,7 @@ object UploadNotifier {
             .setContentText(first)
             .setContentIntent(open(context, target, id))
             .setAutoCancel(true)
-            .addAction(0, "Copy URL", PendingIntent.getBroadcast(context, id, copy, FLAGS))
+            .addAction(0, "Copy link", PendingIntent.getBroadcast(context, id, copy, FLAGS))
         if (AfterUploadAction.SHARE_SHEET in actions && first.isNotEmpty()) {
             val share = Intent.createChooser(
                 Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null

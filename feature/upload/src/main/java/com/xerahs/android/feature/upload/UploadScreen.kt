@@ -697,7 +697,7 @@ private fun UrlResultCard(url: String, onCopy: () -> Unit) {
             ) {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Copy URL",
+                    contentDescription = "Copy link",
                     tint = Lumen.tokens.ink,
                     modifier = Modifier.size(18.dp)
                 )
