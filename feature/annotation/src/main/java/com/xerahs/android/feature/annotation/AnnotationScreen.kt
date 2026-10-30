@@ -1,5 +1,8 @@
 package com.xerahs.android.feature.annotation
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.selection.selectable
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
@@ -1035,30 +1038,31 @@ private fun ColorSwatchRow(
         )
     }
 
+    // Fixed marker colours: the theme's primary, secondary and tertiary are all shades of the accent.
     val colors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.error,
-        MaterialTheme.colorScheme.inversePrimary,
-        MaterialTheme.colorScheme.outline,
-        Color.White,
-        Color.Black
+        "Red" to Color.Red,
+        "Orange" to Color(0xFFFF9800),
+        "Yellow" to Color(0xFFFFEB3B),
+        "Blue" to Color(0xFF2196F3),
+        "Accent" to MaterialTheme.colorScheme.primary,
+        "White" to Color.White,
+        "Black" to Color.Black
     )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        colors.forEach { color ->
+        colors.forEach { (name, color) ->
             val selected = color.toArgb() == strokeColor
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clickable(onClick = { onColorSelected(color.toArgb()) }, role = Role.Button),
+                    .size(44.dp)
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = { onColorSelected(color.toArgb()) })
+                    .semantics { contentDescription = name },
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {
@@ -1079,13 +1083,16 @@ private fun ColorSwatchRow(
         }
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                 .clickable(onClick = { showColorPicker = true }, role = Role.Button),
             contentAlignment = Alignment.Center
         ) {
+            Box(
+                Modifier.size(36.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            )
             Icon(
                 Icons.Default.Add,
                 contentDescription = "Custom color",
