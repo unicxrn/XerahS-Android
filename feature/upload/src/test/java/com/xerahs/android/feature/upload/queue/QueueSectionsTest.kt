@@ -5,6 +5,7 @@ import androidx.work.WorkInfo
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
 import com.xerahs.android.feature.upload.worker.UploadEnqueuer
+import com.xerahs.android.feature.upload.worker.UploadNotifier
 import com.xerahs.android.feature.upload.worker.UploadSpec
 import com.xerahs.android.feature.upload.worker.UploadWorker
 import org.junit.Assert.assertEquals
@@ -190,6 +191,12 @@ class QueueDuplicateRetryTest {
         assertEquals("retry-$old", UploadEnqueuer.retryName(old))
         val data = UploadEnqueuer.inputData(spec.copy(background = true))
         assertTrue(UploadSpec.from(data)!!.background)
+    }
+
+    @Test fun partialBatchFailureSaysHowManyMadeIt() {
+        assertEquals("2 of 5 uploaded. Timeout", UploadNotifier.failureText("Timeout", 2, 5))
+        assertEquals("Timeout", UploadNotifier.failureText("Timeout", 0, 5))
+        assertEquals("Timeout", UploadNotifier.failureText("Timeout", 1, 1))
     }
 
     @Test fun nameTrimDoesNotSplitSurrogatePairs() {

@@ -83,21 +83,42 @@ object UploadNotifier {
         post(context, id, builder.build())
     }
 
-    /** Posts a final failure. With [canRetry] and a [retry] spec, adds a Retry action that re-enqueues it. */
-    fun failure(context: Context, workId: UUID, message: String, canRetry: Boolean, retry: UploadSpec? = null) {
+    /**
+     * Posts a final failure. With [canRetry] and a [retry] spec, adds a Retry action that re-enqueues it.
+     * When part of a batch of [total] files made it, [uploadedUrls] (one per line) are named in the text
+     * and offered through a Copy action.
+     */
+    fun failure(
+        context: Context,
+        workId: UUID,
+        message: String,
+        canRetry: Boolean,
+        retry: UploadSpec? = null,
+        uploadedUrls: List<String> = emptyList(),
+        total: Int = 0,
+    ) {
         val id = notificationIdFor(workId)
+        val text = failureText(message, uploadedUrls.size, total)
         val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
             .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
             .setContentTitle("Upload failed")
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open(context, queueUri(), id))
             .setAutoCancel(true)
         if (canRetry && retry != null) {
             builder.addAction(0, "Retry", PendingIntent.getBroadcast(context, id, enqueueIntent(context, workId, "retry", id, retry), FLAGS))
         }
+        if (uploadedUrls.isNotEmpty()) {
+            val copy = CopyUrlReceiver.intent(context, uploadedUrls.joinToString("\n")).setData(actionUri(workId, "copy"))
+            builder.addAction(0, "Copy links", PendingIntent.getBroadcast(context, id + 1, copy, FLAGS))
+        }
         post(context, id, builder.build())
     }
+
+    /** "2 of 5 uploaded. <message>" when part of a batch made it, otherwise just [message]. */
+    fun failureText(message: String, uploaded: Int, total: Int): String =
+        if (uploaded > 0 && total > 1) "$uploaded of $total uploaded. $message" else message
 
     /**
      * A background upload (a direct share) stopped at a file that is already in history. Offers the

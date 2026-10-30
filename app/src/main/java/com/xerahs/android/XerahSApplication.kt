@@ -21,6 +21,8 @@ import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.feature.upload.screenshots.ScreenshotNotifier
 import com.xerahs.android.feature.upload.screenshots.ScreenshotWatchWorker
+import com.xerahs.android.feature.upload.worker.RetryFiles
+import com.xerahs.android.feature.upload.worker.StoppedUploadStore
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
 import com.xerahs.android.shortcuts.ProfileShortcutPublisher
 import com.xerahs.android.worker.UpdateCheckWorker
@@ -86,18 +88,20 @@ class XerahSApplication : Application(), Configuration.Provider {
 
     /**
      * Deletes week-old pick/share copies and editor exports, and day-old tool output. WorkManager does not expose a work's input data, so
-     * while any upload is queued, running or blocked the sweep is skipped; files that history
-     * points to are always kept.
+     * while any upload is queued, running or blocked the sweep is skipped. Files that history
+     * points to are always kept, and so are files a failed or stopped upload from the last week could retry.
      */
     private fun sweepOldCopies() {
         appScope.launch {
             runCatching {
-                val active = WorkManager.getInstance(this@XerahSApplication)
+                val infos = WorkManager.getInstance(this@XerahSApplication)
                     .getWorkInfosByTagFlow(UPLOAD_WORK_TAG).first()
+                val active = infos
                     .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
                 if (active) return@launch
-                val referenced = historyRepository.getAllHistory().first().map { it.filePath }.toSet()
                 val now = System.currentTimeMillis()
+                val retryable = RetryFiles.referencedPaths(infos, StoppedUploadStore.forCache(cacheDir).all().values, now)
+                val referenced = historyRepository.getAllHistory().first().map { it.filePath }.toSet() + retryable
                 CaptureSweeper.sweep(File(filesDir, "captures"), now, referenced)
                 // Tool renders (tools_out), copy folders a closed tool left behind (tools_combine,
                 // tools_beautify), and week-old editor exports (filesDir/exports).

@@ -85,8 +85,12 @@ class UploadWorker @AssistedInject constructor(
                     // Android stops dataSync services after a daily limit on API 35: tell the user why.
                     WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> withContext(NonCancellable) {
                         val remaining = remainingSpec()
+                        val total = UploadSpec.from(inputData)?.paths?.size ?: 0
                         val message = STOPPED_MESSAGE
-                        UploadNotifier.failure(appContext, id, message, canRetry = remaining != null, retry = remaining)
+                        UploadNotifier.failure(
+                            appContext, id, message, canRetry = remaining != null, retry = remaining,
+                            uploadedUrls = progress.urls(id), total = total,
+                        )
                         // WorkManager ignores a result after a stop and may drop progress set now, so the
                         // retry payload goes to a file. The queue shows this cancelled work under Failed with Retry.
                         runCatching { StoppedUploadStore.forCache(appContext.cacheDir).save(id, remaining, message, System.currentTimeMillis()) }
@@ -119,6 +123,15 @@ class UploadWorker @AssistedInject constructor(
     private suspend fun runBatch(): Result {
         val spec = UploadSpec.from(inputData) ?: return Result.failure()
         val paths = spec.paths
+
+        // The profile was deleted after this was queued: don't quietly fall back to the global settings.
+        if (spec.profileId != null && profileRepository.getProfile(spec.profileId) == null) {
+            return fail(
+                UploadResult(success = false, errorMessage = PROFILE_DELETED_MESSAGE, destination = spec.destination, permanent = true),
+                spec.destination,
+                retryable = false,
+            )
+        }
 
         // Files a previous attempt of this work already uploaded: skip them, and keep their hashes
         // out of duplicate detection (they are in history now, because we put them there).
@@ -214,16 +227,25 @@ class UploadWorker @AssistedInject constructor(
         return Result.success(outputData)
     }
 
-    /** Retries while attempts are left and the error can pass; otherwise posts the final failure. */
-    private suspend fun fail(result: UploadResult, destination: UploadDestination): Result {
+    /**
+     * Retries while attempts are left and the error can pass; otherwise posts the final failure.
+     * Without [retryable], no Retry is offered (it could only fail the same way).
+     */
+    private suspend fun fail(result: UploadResult, destination: UploadDestination, retryable: Boolean = true): Result {
         val message = result.errorMessage ?: "Upload failed"
         val kind = UploadErrorPolicy.classify(result.httpCode, result.error, result.permanent)
         if (kind == FailureKind.RETRY && runAttemptCount + 1 < MAX_ATTEMPTS) return Result.retry()
 
         // Final: hand back what's left so Retry (notification or queue) picks up where this stopped.
-        val remaining = remainingSpec()
+        val remaining = if (retryable) remainingSpec() else null
+        val total = UploadSpec.from(inputData)?.paths?.size ?: 0
+        // Links of the files that did make it, so a failed batch doesn't lose them.
+        val uploadedUrls = progress.urls(id)
         progress.clear(id)
-        UploadNotifier.failure(appContext, id, message, canRetry = remaining != null, retry = remaining)
+        UploadNotifier.failure(
+            appContext, id, message, canRetry = remaining != null, retry = remaining,
+            uploadedUrls = uploadedUrls, total = total,
+        )
         val output = Data.Builder()
             .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
             .putString(KEY_DESTINATION, destination.name)
@@ -554,6 +576,7 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_PROGRESS_TOTAL = "progress_total"
 
         const val STOPPED_MESSAGE = "Android stopped the upload. Tap Retry to continue."
+        const val PROFILE_DELETED_MESSAGE = "This profile was deleted"
 
         /** Total runs of one work, the first included. [runAttemptCount] starts at 0. */
         private const val MAX_ATTEMPTS = 3
