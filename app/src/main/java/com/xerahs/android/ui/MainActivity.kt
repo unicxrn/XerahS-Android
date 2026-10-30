@@ -1,6 +1,11 @@
 package com.xerahs.android.ui
 
 import android.content.ActivityNotFoundException
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
+import com.xerahs.android.core.ui.lumen.LumenCard
 import androidx.core.content.pm.ShortcutManagerCompat
 import com.xerahs.android.shortcuts.ProfileShortcuts
 import android.content.Intent
@@ -356,7 +361,7 @@ class MainActivity : FragmentActivity() {
             }
             Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-                val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
                 if (uri == null && text == null) return
                 if (uri != null && !IntakeUriPolicy.isAllowed(uri, ownAuthorities)) {
                     toastUnreadable()
@@ -499,6 +504,27 @@ fun MainScreen(
             onUploadFromLink = { linkIntakeViewModel.openEntry() }
         )
         LinkIntakeSheet(linkIntakeViewModel)
+        val intakeBusy by mainViewModel.intakeBusy.collectAsStateWithLifecycle()
+        AnimatedVisibility(
+            visible = intakeBusy,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 16.dp)
+        ) {
+            LumenCard(radius = 999.dp, elevation = 8.dp) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Copying file", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
         AnimatedVisibility(
             visible = showBottomBar,
             enter = fadeIn() + slideInVertically { it },

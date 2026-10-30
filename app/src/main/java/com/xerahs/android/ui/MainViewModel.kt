@@ -122,7 +122,7 @@ class MainViewModel @Inject constructor(
                 if (uris.isNotEmpty()) intake(uris) else handleSend(null, text)
                 return@launch
             }
-            val paths: List<String> = if (uris.isNotEmpty()) {
+            val paths: List<String> = if (uris.isNotEmpty()) busy {
                 var copied: List<String> = emptyList()
                 IntakeCopier<Uri>(::copyShared).intake(
                     uris,
@@ -147,7 +147,11 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private suspend fun intake(uris: List<Uri>) {
+    private val _intakeBusy = MutableStateFlow(false)
+    /** True while a shared or clipboard file is being copied into app storage. */
+    val intakeBusy: StateFlow<Boolean> = _intakeBusy.asStateFlow()
+
+    private suspend fun intake(uris: List<Uri>) = busy {
         IntakeCopier<Uri>(::copyShared).intake(
             uris,
             onReady = { files, failed ->
@@ -160,6 +164,15 @@ class MainViewModel @Inject constructor(
                 )
             }
         )
+    }
+
+    private suspend fun <T> busy(block: suspend () -> T): T {
+        _intakeBusy.value = true
+        return try {
+            block()
+        } finally {
+            _intakeBusy.value = false
+        }
     }
 
     private suspend fun copyShared(uri: Uri): File {
