@@ -72,26 +72,28 @@ fun FtpConfigScreen(
     val savedHostKeys by viewModel.savedHostKeys.collectAsState()
 
     // FTP fields
-    var ftpHost by remember { mutableStateOf("") }
-    var ftpPort by remember { mutableStateOf("21") }
-    var ftpUsername by remember { mutableStateOf("") }
-    var ftpPassword by remember { mutableStateOf("") }
-    var ftpRemotePath by remember { mutableStateOf("/") }
-    var ftpUseFtps by remember { mutableStateOf(false) }
-    var ftpUsePassive by remember { mutableStateOf(true) }
-    var ftpHttpUrl by remember { mutableStateOf("") }
+    var ftpHost by remember { viewModel.form.field("ftpHost", "") }
+    var ftpPort by remember { viewModel.form.field("ftpPort", "21") }
+    var ftpUsername by remember { viewModel.form.field("ftpUsername", "") }
+    var ftpPassword by remember { viewModel.form.field("ftpPassword", "") }
+    var ftpRemotePath by remember { viewModel.form.field("ftpRemotePath", "/") }
+    var ftpUseFtps by remember { viewModel.form.field("ftpUseFtps", false) }
+    var ftpUsePassive by remember { viewModel.form.field("ftpUsePassive", true) }
+    var ftpHttpUrl by remember { viewModel.form.field("ftpHttpUrl", "") }
 
     // SFTP fields
-    var sftpHost by remember { mutableStateOf("") }
-    var sftpPort by remember { mutableStateOf("22") }
-    var sftpUsername by remember { mutableStateOf("") }
-    var sftpPassword by remember { mutableStateOf("") }
-    var sftpKeyPath by remember { mutableStateOf("") }
-    var sftpKeyPassphrase by remember { mutableStateOf("") }
-    var sftpRemotePath by remember { mutableStateOf("/") }
-    var sftpHttpUrl by remember { mutableStateOf("") }
+    var sftpHost by remember { viewModel.form.field("sftpHost", "") }
+    var sftpPort by remember { viewModel.form.field("sftpPort", "22") }
+    var sftpUsername by remember { viewModel.form.field("sftpUsername", "") }
+    var sftpPassword by remember { viewModel.form.field("sftpPassword", "") }
+    var sftpKeyPath by remember { viewModel.form.field("sftpKeyPath", "") }
+    var sftpKeyPassphrase by remember { viewModel.form.field("sftpKeyPassphrase", "") }
+    var sftpRemotePath by remember { viewModel.form.field("sftpRemotePath", "/") }
+    var sftpHttpUrl by remember { viewModel.form.field("sftpHttpUrl", "") }
 
     LaunchedEffect(Unit) {
+        // Load once per ViewModel, so a rotation keeps what was typed.
+        if (viewModel.form.loaded) return@LaunchedEffect
         val ftpConfig = viewModel.loadFtpConfig()
         ftpHost = ftpConfig.host
         ftpPort = ftpConfig.port.toString()
@@ -111,6 +113,7 @@ fun FtpConfigScreen(
         sftpKeyPassphrase = sftpConfig.keyPassphrase ?: ""
         sftpRemotePath = sftpConfig.remotePath
         sftpHttpUrl = sftpConfig.httpUrl
+        viewModel.form.loaded = true
     }
 
     Scaffold(

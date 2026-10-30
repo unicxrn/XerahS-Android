@@ -26,6 +26,8 @@ class FtpConfigViewModel @Inject constructor(
     private val hostKeyStore: HostKeyStore,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
+    /** Unsaved edits; survives rotation with the ViewModel. */
+    val form = FormStore()
 
     /** 1 when opened with ?tab=sftp, otherwise 0. */
     val initialTab: Int = if (savedStateHandle.get<String>("tab") == "sftp") 1 else 0

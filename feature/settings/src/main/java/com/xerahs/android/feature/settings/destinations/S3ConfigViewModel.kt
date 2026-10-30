@@ -17,6 +17,8 @@ import javax.inject.Inject
 class S3ConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+    /** Unsaved edits; survives rotation with the ViewModel. */
+    val form = FormStore()
 
     suspend fun loadConfig(): UploadConfig.S3Config =
         settingsRepository.getS3Config()
