@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,7 +70,10 @@ fun LinkIntakeSheet(viewModel: LinkIntakeViewModel) {
         onDismissRequest = viewModel::dismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
-        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp)
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        // The default insets pad the whole sheet window, leaving the screen below showing through
+        // under the nav bar. Draw to the edges; the content pads itself for the nav bar.
+        windowInsets = WindowInsets(0)
     ) {
         Column(
             modifier = Modifier
