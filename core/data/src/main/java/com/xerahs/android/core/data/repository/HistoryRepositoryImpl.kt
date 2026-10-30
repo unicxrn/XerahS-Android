@@ -4,6 +4,7 @@ import android.content.Context
 import com.xerahs.android.core.common.file.LocalUploads
 import com.xerahs.android.core.data.local.db.HistoryDao
 import com.xerahs.android.core.data.local.db.HistoryEntity
+import com.xerahs.android.core.domain.UploadCompletedHook
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadStatistics
@@ -20,7 +21,8 @@ import javax.inject.Singleton
 @Singleton
 class HistoryRepositoryImpl @Inject constructor(
     private val historyDao: HistoryDao,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val uploadCompletedHook: UploadCompletedHook
 ) : HistoryRepository {
 
     override fun getAllHistory(): Flow<List<HistoryItem>> =
@@ -47,11 +49,13 @@ class HistoryRepositoryImpl @Inject constructor(
         if (item?.uploadDestination == UploadDestination.LOCAL.name && LocalUploads.isKept(context.filesDir, item.url)) {
             withContext(Dispatchers.IO) { runCatching { File(item.url!!).delete() } }
         }
+        runCatching { uploadCompletedHook.onUploadCompleted() }
     }
 
     override suspend fun clearHistory() {
         historyDao.clearHistory()
         withContext(Dispatchers.IO) { runCatching { LocalUploads.dir(context.filesDir).deleteRecursively() } }
+        runCatching { uploadCompletedHook.onUploadCompleted() }
     }
 
     override fun searchHistory(query: String): Flow<List<HistoryItem>> =

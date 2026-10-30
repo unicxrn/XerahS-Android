@@ -4,4 +4,9 @@
     <string name="tile_new_share">New share</string>
     <string name="shortcut_new_share_short">New share</string>
     <string name="shortcut_new_share_long">Pick an image to share</string>
+    <string name="widget_label">Latest upload</string>
+    <string name="widget_description">Your newest upload, with copy and upload buttons.</string>
+    <string name="widget_upload">Upload</string>
+    <string name="widget_preview_link">xerahs.app/a8Kd2</string>
+    <string name="widget_preview_host">xerahs.app</string>
 </resources>

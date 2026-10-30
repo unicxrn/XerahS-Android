@@ -127,6 +127,9 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.compose.foundation)
 
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)

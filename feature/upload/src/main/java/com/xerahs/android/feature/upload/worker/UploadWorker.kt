@@ -30,6 +30,7 @@ import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
+import com.xerahs.android.core.domain.UploadCompletedHook
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
@@ -68,7 +69,8 @@ class UploadWorker @AssistedInject constructor(
     private val immichUploader: ImmichUploader,
     private val gistUploader: GistUploader,
     private val profileRepository: UploadProfileRepository,
-    private val urlShortener: UrlShortenerRepository
+    private val urlShortener: UrlShortenerRepository,
+    private val uploadCompletedHook: UploadCompletedHook
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val progress by lazy { BatchProgressStore.forCache(appContext.cacheDir) }
@@ -314,6 +316,7 @@ class UploadWorker @AssistedInject constructor(
                     },
                     addTags = { spec.tagIds.forEach { tagRepository.addTagToHistory(itemId, it) } },
                 )
+                runCatching { uploadCompletedHook.onUploadCompleted() }
                 FileOutcome.Uploaded(finalUrl, itemId)
             }
         } finally {

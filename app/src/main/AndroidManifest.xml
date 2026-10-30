@@ -119,6 +119,18 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <receiver
+            android:name=".widget.LatestUploadWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/latest_upload_widget_info" />
+        </receiver>
+
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="ocr" />

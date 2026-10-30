@@ -20,6 +20,8 @@ import com.xerahs.android.core.domain.repository.TagRepository
 import com.xerahs.android.core.domain.repository.UploadProfileRepository
 import com.xerahs.android.core.domain.repository.UploaderImportRepository
 import com.xerahs.android.core.domain.repository.UrlShortenerRepository
+import com.xerahs.android.core.domain.UploadCompletedHook
+import com.xerahs.android.widget.WidgetUploadCompletedHook
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -69,4 +71,8 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindHostKeyStore(impl: DataStoreHostKeyStore): HostKeyStore
+
+    @Binds
+    @Singleton
+    abstract fun bindUploadCompletedHook(impl: WidgetUploadCompletedHook): UploadCompletedHook
 }
