@@ -25,7 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,7 +81,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String
 @Composable
 private fun QueueRow(item: QueueItem, vm: QueueViewModel) {
     val active = item.isActive
-    var confirming by remember { mutableStateOf(false) }
+    var confirming by rememberSaveable { mutableStateOf(false) }
     val dup = item.duplicate
     if (confirming && dup != null) {
         AlertDialog(
@@ -93,11 +93,12 @@ private fun QueueRow(item: QueueItem, vm: QueueViewModel) {
                         (dup.url?.let { ". Existing link: $it" } ?: ".")
                 )
             },
+            // Three actions do not fit on one line in every language and font size, so stack them.
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { confirming = false }) { Text("Cancel") }
-                    TextButton(onClick = { confirming = false; vm.skipFile(item) }) { Text("Skip this file") }
+                Column(horizontalAlignment = Alignment.End) {
                     TextButton(onClick = { confirming = false; vm.uploadAnyway(item) }) { Text("Upload anyway") }
+                    TextButton(onClick = { confirming = false; vm.skipFile(item) }) { Text("Skip this file") }
+                    TextButton(onClick = { confirming = false }) { Text("Cancel") }
                 }
             }
         )
