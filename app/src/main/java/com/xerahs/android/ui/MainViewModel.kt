@@ -60,6 +60,8 @@ class MainViewModel @Inject constructor(
     val pendingDeepLink: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_DEEP_LINK, null)
 
     fun clearSharedPaths() { savedStateHandle[KEY_PATHS] = null }
+    /** Routes files that are already in app storage (a downloaded link, a text file) like a share. */
+    fun offerSharedPaths(paths: List<String>) { savedStateHandle[KEY_PATHS] = ArrayList(paths) }
     fun clearImportUri() { savedStateHandle[KEY_IMPORT] = null }
     fun clearLaunchCapture() { savedStateHandle[KEY_CAPTURE] = false }
     fun setImportUri(uri: String) { savedStateHandle[KEY_IMPORT] = uri }
@@ -97,6 +99,8 @@ class MainViewModel @Inject constructor(
     private val _intakeMessages = Channel<String>(Channel.BUFFERED)
     /** Messages about shares that could not be read; shown as a toast by the activity. */
     val intakeMessages: Flow<String> = _intakeMessages.receiveAsFlow()
+
+    fun showIntakeMessage(text: String) { _intakeMessages.trySend(text) }
 
     private suspend fun intake(uris: List<Uri>) {
         IntakeCopier<Uri>(::copyShared).intake(

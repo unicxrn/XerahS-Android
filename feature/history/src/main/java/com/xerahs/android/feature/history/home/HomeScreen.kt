@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -106,6 +109,8 @@ fun HomeScreen(
     onStats: () -> Unit = {},
     onHistory: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
+    onUploadClipboard: () -> Unit = {},
+    onUploadFromLink: () -> Unit = {},
     activeUploads: Int = 0,
     onSetUp: (UploadDestination) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
@@ -218,15 +223,42 @@ fun HomeScreen(
                         .height(158.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    var uploadMenu by rememberSaveable { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
                             .weight(1.15f)
                             .fillMaxSize()
                             .clip(RoundedCornerShape(26.dp))
                             .background(MaterialTheme.colorScheme.primary)
-                            .clickable(role = Role.Button, onClick = onCreate)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onLongClickLabel = "More ways to upload",
+                                onLongClick = { uploadMenu = true },
+                                onClick = onCreate
+                            )
                             .padding(16.dp)
                     ) {
+                        Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-8).dp)) {
+                            IconButton(onClick = { uploadMenu = true }) {
+                                Icon(
+                                    Icons.Filled.MoreVert,
+                                    contentDescription = "More ways to upload",
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                            DropdownMenu(expanded = uploadMenu, onDismissRequest = { uploadMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Upload clipboard") },
+                                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, contentDescription = null) },
+                                    onClick = { uploadMenu = false; onUploadClipboard() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Upload from link") },
+                                    leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+                                    onClick = { uploadMenu = false; onUploadFromLink() }
+                                )
+                            }
+                        }
                         Column(modifier = Modifier.fillMaxSize()) {
                             Box(
                                 modifier = Modifier

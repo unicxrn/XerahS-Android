@@ -156,7 +156,9 @@ sealed class Screen(val route: String) {
 fun XerahSNavGraph(
     navController: NavHostController,
     startDestination: String = Screen.Capture.route,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onUploadClipboard: () -> Unit = {},
+    onUploadFromLink: () -> Unit = {}
 ) {
     val reduce = rememberReduceMotion()
     val appContext = LocalContext.current.applicationContext
@@ -196,6 +198,8 @@ fun XerahSNavGraph(
                 onStats = { navController.navigate(Screen.Statistics.route) },
                 onHistory = { navController.navigate(Screen.History.route) },
                 onOpenQueue = { navController.navigate(Screen.Queue.route) },
+                onUploadClipboard = onUploadClipboard,
+                onUploadFromLink = onUploadFromLink,
                 activeUploads = activeUploads,
                 onSetUp = { dest -> setupRouteFor(dest)?.let { navController.navigate(it) } }
             )

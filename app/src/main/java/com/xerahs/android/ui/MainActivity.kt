@@ -72,6 +72,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.xerahs.android.core.domain.model.BiometricLockMode
 import com.xerahs.android.ui.intake.IntakeUriPolicy
+import com.xerahs.android.ui.intake.ClipAction
+import com.xerahs.android.ui.intake.ClipboardIntake
+import com.xerahs.android.feature.upload.intake.LinkIntakeSheet
+import com.xerahs.android.feature.upload.intake.LinkIntakeViewModel
+import com.xerahs.android.feature.upload.intake.singleUrlOrNull
+import android.content.ClipboardManager
+import androidx.compose.ui.platform.LocalContext
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -83,6 +90,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private val mainViewModel: MainViewModel by viewModels()
+    private val linkIntakeViewModel: LinkIntakeViewModel by viewModels()
     private var promptShowing = false
     private var lastPromptEndedAt = 0L
     private val ownAuthorities by lazy { setOf("$packageName.fileprovider") }
@@ -310,7 +318,9 @@ class MainActivity : FragmentActivity() {
                     toastUnreadable()
                     return
                 }
-                mainViewModel.handleSend(uri, text)
+                // A shared link alone opens the link sheet; other text uploads as a text file.
+                val link = if (uri == null && text != null) singleUrlOrNull(text) else null
+                if (link != null) linkIntakeViewModel.open(link) else mainViewModel.handleSend(uri, text)
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
@@ -346,7 +356,33 @@ fun MainScreen(
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
+    // Activity-scoped (MainScreen sits outside the NavHost), shared with MainActivity's intake.
+    val linkIntakeViewModel: LinkIntakeViewModel = hiltViewModel()
     val s3Configured by mainViewModel.s3Configured.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val linkReadyPath by linkIntakeViewModel.readyPath.collectAsStateWithLifecycle()
+    LaunchedEffect(linkReadyPath) {
+        val path = linkReadyPath ?: return@LaunchedEffect
+        // Same routing as any shared file (editor for editable images, else Upload).
+        mainViewModel.offerSharedPaths(listOf(path))
+        linkIntakeViewModel.consumeReady()
+    }
+
+    val uploadClipboard: () -> Unit = {
+        val item = context.getSystemService(ClipboardManager::class.java)?.primaryClip
+            ?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+        val uri = item?.uri
+        val ownAuthorities = setOf("${context.packageName}.fileprovider")
+        val text = item?.text?.toString()
+        when (val action = ClipboardIntake.decide(uri?.let { IntakeUriPolicy.isAllowed(it, ownAuthorities) }, text)) {
+            ClipAction.CopyUri -> mainViewModel.handleSend(uri, null)
+            is ClipAction.Link -> linkIntakeViewModel.open(action.url)
+            is ClipAction.Text -> mainViewModel.handleSend(null, action.text)
+            ClipAction.Unreadable -> mainViewModel.showIntakeMessage("Couldn't read that file")
+            ClipAction.Empty -> mainViewModel.showIntakeMessage("Your clipboard is empty")
+        }
+    }
 
     LaunchedEffect(sharedPaths) {
         val paths = sharedPaths ?: return@LaunchedEffect
@@ -409,8 +445,11 @@ fun MainScreen(
         XerahSNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            onUploadClipboard = uploadClipboard,
+            onUploadFromLink = { linkIntakeViewModel.openEntry() }
         )
+        LinkIntakeSheet(linkIntakeViewModel)
         AnimatedVisibility(
             visible = showBottomBar,
             enter = fadeIn() + slideInVertically { it },
