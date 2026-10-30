@@ -70,6 +70,15 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- "Copy last link" shortcut: no UI, its own task so the app's task is left alone. -->
+        <activity
+            android:name=".shortcuts.CopyLastLinkActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.XerahS.Invisible" />
+
         <service
             android:name=".ui.tile.CaptureTileService"
             android:exported="true"

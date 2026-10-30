@@ -29,6 +29,7 @@ import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
 import com.xerahs.android.worker.UpdateCheckWorker
+import com.xerahs.android.shortcuts.ProfileShortcutPublisher
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -51,6 +52,9 @@ class XerahSApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var profileShortcuts: ProfileShortcutPublisher
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -60,6 +64,7 @@ class XerahSApplication : Application(), Configuration.Provider {
         configureCoil()
         sweepOldCopies()
         watchScreenshotSetting()
+        profileShortcuts.start(appScope)
     }
 
     /** Keeps the screenshot watcher scheduled while the setting is on, and cancels it when it is off. */

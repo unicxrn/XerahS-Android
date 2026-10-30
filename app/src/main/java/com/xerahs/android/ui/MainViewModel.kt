@@ -11,6 +11,10 @@ import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.feature.upload.worker.UploadEnqueuer
+import com.xerahs.android.feature.upload.worker.UploadSpec
+import android.widget.Toast
 import com.xerahs.android.core.common.file.InsufficientStorageException
 import com.xerahs.android.core.common.file.IntakeCopier
 import com.xerahs.android.core.common.file.copyToCache
@@ -37,6 +41,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
+    private val profileRepository: UploadProfileRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -101,6 +106,46 @@ class MainViewModel @Inject constructor(
     val intakeMessages: Flow<String> = _intakeMessages.receiveAsFlow()
 
     fun showIntakeMessage(text: String) { _intakeMessages.trySend(text) }
+
+    private val _finishRequests = Channel<Unit>(Channel.BUFFERED)
+    /** Emits when a direct share is queued and the activity was opened only for it. */
+    val finishRequests: Flow<Unit> = _finishRequests.receiveAsFlow()
+
+    /**
+     * A share sent through a profile's sharing shortcut: copy right away, then queue the upload to
+     * that profile without asking. A deleted profile falls back to the normal share flow.
+     */
+    fun uploadToProfile(profileId: String, uris: List<Uri>, text: String?, finishAfter: Boolean) {
+        viewModelScope.launch {
+            val profile = profileRepository.getProfile(profileId)
+            if (profile == null) {
+                if (uris.isNotEmpty()) intake(uris) else handleSend(null, text)
+                return@launch
+            }
+            val paths: List<String> = if (uris.isNotEmpty()) {
+                var copied: List<String> = emptyList()
+                IntakeCopier<Uri>(::copyShared).intake(
+                    uris,
+                    onReady = { files, failed ->
+                        copied = files.map(File::getAbsolutePath)
+                        if (failed > 0) _intakeMessages.trySend(if (failed == 1) "1 file couldn't be read" else "$failed files couldn't be read")
+                    },
+                    onFailed = { e ->
+                        _intakeMessages.trySend(
+                            if (e is InsufficientStorageException) e.message ?: "Couldn't read that file" else "Couldn't read that file"
+                        )
+                    }
+                )
+                copied
+            } else {
+                listOfNotNull(text?.let { withContext(Dispatchers.IO) { writeSharedText(it) } })
+            }
+            if (paths.isEmpty()) return@launch
+            UploadEnqueuer.enqueue(context, UploadSpec(paths = paths, destination = profile.destination, profileId = profile.id))
+            Toast.makeText(context, "Uploading to ${profile.name.ifBlank { profile.destination.displayName }}", Toast.LENGTH_SHORT).show()
+            if (finishAfter) _finishRequests.trySend(Unit)
+        }
+    }
 
     private suspend fun intake(uris: List<Uri>) {
         IntakeCopier<Uri>(::copyShared).intake(

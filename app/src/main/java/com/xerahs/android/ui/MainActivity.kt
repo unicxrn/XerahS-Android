@@ -1,6 +1,8 @@
 package com.xerahs.android.ui
 
 import android.content.ActivityNotFoundException
+import androidx.core.content.pm.ShortcutManagerCompat
+import com.xerahs.android.shortcuts.ProfileShortcuts
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -78,13 +80,14 @@ import com.xerahs.android.feature.upload.intake.LinkIntakeSheet
 import com.xerahs.android.feature.upload.intake.LinkIntakeViewModel
 import com.xerahs.android.feature.upload.intake.singleUrlOrNull
 import android.content.ClipboardManager
-import androidx.compose.ui.platform.LocalContext
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.xerahs.android.action.CAPTURE"
+        const val ACTION_UPLOAD_CLIPBOARD = "com.xerahs.android.action.UPLOAD_CLIPBOARD"
+        private const val KEY_PENDING_CLIPBOARD = "pendingClipboard"
         private const val PROMPT_RETRY_GUARD_MS = 1500L
         private const val DEEP_LINK_SCHEME = "xerahs"
     }
@@ -94,18 +97,28 @@ class MainActivity : FragmentActivity() {
     private var promptShowing = false
     private var lastPromptEndedAt = 0L
     private val ownAuthorities by lazy { setOf("$packageName.fileprovider") }
+    /** Set by the "Upload clipboard" shortcut; the clipboard is read once the window has focus. */
+    private var pendingClipboard = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         if (savedInstanceState == null) {
-            handleIncomingIntent(intent)
+            handleIncomingIntent(intent, fresh = true)
+        } else {
+            pendingClipboard = savedInstanceState.getBoolean(KEY_PENDING_CLIPBOARD)
         }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 mainViewModel.intakeMessages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // A share sent straight to a profile is queued; go back to the app it came from.
+                mainViewModel.finishRequests.collect { finish() }
             }
         }
 
@@ -220,7 +233,8 @@ class MainActivity : FragmentActivity() {
                                 deepLink = pendingDeepLink,
                                 onDeepLinkHandled = { mainViewModel.clearDeepLink() },
                                 setupRoute = pendingSetupRoute,
-                                onSetupRouteHandled = { mainViewModel.clearSetupRoute() }
+                                onSetupRouteHandled = { mainViewModel.clearSetupRoute() },
+                                onUploadClipboard = ::uploadClipboard
                             )
                         }
                     }
@@ -243,6 +257,35 @@ class MainActivity : FragmentActivity() {
         if (LockPolicy.shouldPrompt(mode, wasUnlocked, elapsed, mainViewModel.autoLockTimeout.value)) {
             mainViewModel.setUnlocked(false)
             promptBiometric(auto = true)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_PENDING_CLIPBOARD, pendingClipboard)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Android 10+ only lets the focused app read the clipboard, so wait for focus.
+        if (hasFocus && pendingClipboard) {
+            pendingClipboard = false
+            uploadClipboard()
+        }
+    }
+
+    /** Same flow as Home's "Upload clipboard": a file copies, a link opens the link sheet, text uploads. */
+    private fun uploadClipboard() {
+        val item = getSystemService(ClipboardManager::class.java)?.primaryClip
+            ?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+        val uri = item?.uri
+        val text = item?.text?.toString()
+        when (val action = ClipboardIntake.decide(uri?.let { IntakeUriPolicy.isAllowed(it, ownAuthorities) }, text)) {
+            ClipAction.CopyUri -> mainViewModel.handleSend(uri, null)
+            is ClipAction.Link -> linkIntakeViewModel.open(action.url)
+            is ClipAction.Text -> mainViewModel.handleSend(null, action.text)
+            ClipAction.Unreadable -> mainViewModel.showIntakeMessage("Couldn't read that file")
+            ClipAction.Empty -> mainViewModel.showIntakeMessage("Your clipboard is empty")
         }
     }
 
@@ -291,10 +334,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIncomingIntent(intent)
+        handleIncomingIntent(intent, fresh = false)
     }
 
-    private fun handleIncomingIntent(intent: Intent) {
+    /** [fresh] is true when this activity was started for [intent], so it may finish after a direct share. */
+    private fun handleIncomingIntent(intent: Intent, fresh: Boolean) {
         if (intent.action == Intent.ACTION_VIEW && intent.data?.scheme == DEEP_LINK_SCHEME) {
             mainViewModel.setDeepLink(intent.data.toString())
             // Navigate once, from MainScreen (after onboarding and the app lock), not again when
@@ -320,7 +364,12 @@ class MainActivity : FragmentActivity() {
                 }
                 // A shared link alone opens the link sheet; other text uploads as a text file.
                 val link = if (uri == null && text != null) singleUrlOrNull(text) else null
-                if (link != null) linkIntakeViewModel.open(link) else mainViewModel.handleSend(uri, text)
+                val profileId = shortcutProfileId(intent)
+                when {
+                    link != null -> linkIntakeViewModel.open(link)
+                    profileId != null -> mainViewModel.uploadToProfile(profileId, listOfNotNull(uri), text, finishAfter = fresh)
+                    else -> mainViewModel.handleSend(uri, text)
+                }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
@@ -330,11 +379,26 @@ class MainActivity : FragmentActivity() {
                     toastUnreadable()
                     return
                 }
-                mainViewModel.handleSendMultiple(allowed)
+                val profileId = shortcutProfileId(intent)
+                if (profileId != null) {
+                    mainViewModel.uploadToProfile(profileId, allowed, null, finishAfter = fresh)
+                } else {
+                    mainViewModel.handleSendMultiple(allowed)
+                }
             }
             ACTION_CAPTURE -> mainViewModel.requestLaunchCapture()
+            ACTION_UPLOAD_CLIPBOARD -> {
+                pendingClipboard = true
+                if (hasWindowFocus()) {
+                    pendingClipboard = false
+                    uploadClipboard()
+                }
+            }
         }
     }
+
+    private fun shortcutProfileId(intent: Intent): String? =
+        ProfileShortcuts.profileIdOf(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID))
 
     private fun toastUnreadable() {
         Toast.makeText(this, "Couldn't read that file", Toast.LENGTH_SHORT).show()
@@ -352,14 +416,14 @@ fun MainScreen(
     deepLink: String? = null,
     onDeepLinkHandled: () -> Unit = {},
     setupRoute: String? = null,
-    onSetupRouteHandled: () -> Unit = {}
+    onSetupRouteHandled: () -> Unit = {},
+    onUploadClipboard: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
     // Activity-scoped (MainScreen sits outside the NavHost), shared with MainActivity's intake.
     val linkIntakeViewModel: LinkIntakeViewModel = hiltViewModel()
     val s3Configured by mainViewModel.s3Configured.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     val linkReadyPath by linkIntakeViewModel.readyPath.collectAsStateWithLifecycle()
     LaunchedEffect(linkReadyPath) {
@@ -367,21 +431,6 @@ fun MainScreen(
         // Same routing as any shared file (editor for editable images, else Upload).
         mainViewModel.offerSharedPaths(listOf(path))
         linkIntakeViewModel.consumeReady()
-    }
-
-    val uploadClipboard: () -> Unit = {
-        val item = context.getSystemService(ClipboardManager::class.java)?.primaryClip
-            ?.takeIf { it.itemCount > 0 }?.getItemAt(0)
-        val uri = item?.uri
-        val ownAuthorities = setOf("${context.packageName}.fileprovider")
-        val text = item?.text?.toString()
-        when (val action = ClipboardIntake.decide(uri?.let { IntakeUriPolicy.isAllowed(it, ownAuthorities) }, text)) {
-            ClipAction.CopyUri -> mainViewModel.handleSend(uri, null)
-            is ClipAction.Link -> linkIntakeViewModel.open(action.url)
-            is ClipAction.Text -> mainViewModel.handleSend(null, action.text)
-            ClipAction.Unreadable -> mainViewModel.showIntakeMessage("Couldn't read that file")
-            ClipAction.Empty -> mainViewModel.showIntakeMessage("Your clipboard is empty")
-        }
     }
 
     LaunchedEffect(sharedPaths) {
@@ -446,7 +495,7 @@ fun MainScreen(
             navController = navController,
             startDestination = Screen.Home.route,
             modifier = Modifier.fillMaxSize(),
-            onUploadClipboard = uploadClipboard,
+            onUploadClipboard = onUploadClipboard,
             onUploadFromLink = { linkIntakeViewModel.openEntry() }
         )
         LinkIntakeSheet(linkIntakeViewModel)
