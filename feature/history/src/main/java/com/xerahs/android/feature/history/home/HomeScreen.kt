@@ -68,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -139,6 +140,7 @@ fun HomeScreen(
     }
 
     var searching by rememberSaveable { mutableStateOf(uiState.query.isNotEmpty()) }
+    val wide = LocalConfiguration.current.screenWidthDp >= 600
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AccentGlow(
@@ -204,17 +206,10 @@ fun HomeScreen(
                 }
             }
 
-            item(key = "hero") {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Eyebrow("● ${uiState.todayCount} ${if (uiState.todayCount == 1) "upload" else "uploads"} today")
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        buildAnnotatedString {
-                            append("Capture. Upload.\n")
-                            withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("Share in a tap.") }
-                        },
-                        style = MaterialTheme.typography.displaySmall
-                    )
+            // Landscape and wide screens put the headline beside the tiles, so the floating nav stays clear of them.
+            if (!wide) {
+                item(key = "hero") {
+                    HomeHero(uiState.todayCount, Modifier.padding(horizontal = 20.dp))
                 }
             }
 
@@ -226,6 +221,9 @@ fun HomeScreen(
                         .height(158.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (wide) {
+                        HomeHero(uiState.todayCount, Modifier.weight(1.3f).align(Alignment.CenterVertically))
+                    }
                     var uploadMenu by rememberSaveable { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
@@ -599,6 +597,21 @@ private fun TimelineRow(
             },
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun HomeHero(todayCount: Int, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Eyebrow("● $todayCount ${if (todayCount == 1) "upload" else "uploads"} today")
+        Spacer(Modifier.size(8.dp))
+        Text(
+            buildAnnotatedString {
+                append("Capture. Upload.\n")
+                withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("Share in a tap.") }
+            },
+            style = MaterialTheme.typography.displaySmall
         )
     }
 }
