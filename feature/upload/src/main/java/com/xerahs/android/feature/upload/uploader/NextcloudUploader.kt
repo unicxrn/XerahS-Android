@@ -37,16 +37,16 @@ class NextcloudUploader @Inject constructor(
             put = okHttpClient.send(Request.Builder().url(fileUrl).header("Authorization", auth).put(body).build())
         }
         when {
-            !put.ok -> failure(hostError("Nextcloud", put))
+            !put.ok -> failure(hostError("Nextcloud", put), put.code)
             !config.publicShare -> success(fileUrl.toString(), remoteKey)
-            else -> share(base, auth, "/$remoteKey", remoteKey)
+            else -> share(base, auth, "/$remoteKey", remoteKey, fileUrl.toString())
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: IOException) {
-        failure("Nextcloud network error: ${e.message ?: e.javaClass.simpleName}")
+        failure("Nextcloud network error: ${e.message ?: e.javaClass.simpleName}", error = e)
     } catch (e: IllegalArgumentException) {
-        failure("Nextcloud request is invalid (check the server URL and app password)")
+        failure("Nextcloud request is invalid (check the server URL and app password)", error = e)
     }
 
     private fun davUrl(base: HttpUrl, user: String, segments: List<String>): HttpUrl =
@@ -61,7 +61,7 @@ class NextcloudUploader @Inject constructor(
         }
     }
 
-    private suspend fun share(base: HttpUrl, auth: String, path: String, remoteKey: String): UploadResult {
+    private suspend fun share(base: HttpUrl, auth: String, path: String, remoteKey: String, plainUrl: String): UploadResult {
         val url = base.newBuilder().addPathSegments("ocs/v2.php/apps/files_sharing/api/v1/shares")
             .addQueryParameter("format", "json").build()
         val reply = okHttpClient.send(
@@ -71,15 +71,17 @@ class NextcloudUploader @Inject constructor(
                 .post(FormBody.Builder().add("path", path).add("shareType", "3").build())
                 .build()
         )
-        if (!reply.ok) return failure("Uploaded, but sharing failed: " + hostError("Nextcloud", reply))
+        // The file is on the server already: fall back to its plain link instead of failing (and re-uploading on retry).
+        if (!reply.ok) return success(plainUrl, remoteKey)
         val link = runCatching {
             JsonParser.parseString(reply.body).asJsonObject
                 .getAsJsonObject("ocs").getAsJsonObject("data").get("url").asString
         }.getOrNull()
-        return if (link.isNullOrBlank()) failure("Uploaded, but Nextcloud returned no share link") else success(link, remoteKey)
+        return success(link?.takeIf { it.isNotBlank() } ?: plainUrl, remoteKey)
     }
 
     private fun success(url: String, remoteKey: String? = null) =
         UploadResult(success = true, url = url, destination = UploadDestination.NEXTCLOUD, remoteKey = remoteKey)
-    private fun failure(message: String) = UploadResult(success = false, errorMessage = message, destination = UploadDestination.NEXTCLOUD)
+    private fun failure(message: String, httpCode: Int? = null, error: Throwable? = null) =
+        UploadResult(success = false, errorMessage = message, destination = UploadDestination.NEXTCLOUD, httpCode = httpCode, error = error)
 }

@@ -10,6 +10,8 @@ import javax.inject.Inject
 class ImgurConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+    /** Unsaved edits; survives rotation with the ViewModel. */
+    val form = FormStore()
 
     suspend fun loadConfig(): UploadConfig.ImgurConfig =
         settingsRepository.getImgurConfig()

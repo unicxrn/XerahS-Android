@@ -1,34 +1,39 @@
 package com.xerahs.android.feature.upload.worker
 
 import android.annotation.SuppressLint
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.xerahs.android.core.common.FileHasher
 import com.xerahs.android.core.common.FileNamePattern
 import com.xerahs.android.core.common.HeicConverter
 import com.xerahs.android.core.common.ThumbnailGenerator
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.common.image.calculateInSampleSize
+import com.xerahs.android.core.common.file.LocalUploads
 import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
+import com.xerahs.android.core.domain.UploadCompletedHook
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
@@ -45,6 +50,8 @@ import com.xerahs.android.feature.upload.uploader.SftpUploader
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.FileOutputStream
@@ -65,137 +72,320 @@ class UploadWorker @AssistedInject constructor(
     private val immichUploader: ImmichUploader,
     private val gistUploader: GistUploader,
     private val profileRepository: UploadProfileRepository,
-    private val urlShortener: UrlShortenerRepository
+    private val urlShortener: UrlShortenerRepository,
+    private val uploadCompletedHook: UploadCompletedHook
 ) : CoroutineWorker(appContext, workerParams) {
 
+    private val progress by lazy { BatchProgressStore.forCache(appContext.cacheDir) }
+
     override suspend fun doWork(): Result {
-        val destinationName = inputData.getString(KEY_DESTINATION) ?: return Result.failure()
-        val destination = try {
-            UploadDestination.valueOf(destinationName)
-        } catch (e: IllegalArgumentException) {
-            return Result.failure()
+        try {
+            return runBatch()
+        } catch (e: CancellationException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                when (stopReason) {
+                    // Android stops dataSync services after a daily limit on API 35: tell the user why.
+                    WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> withContext(NonCancellable) {
+                        val remaining = remainingSpec()
+                        val total = UploadSpec.from(inputData)?.paths?.size ?: 0
+                        val message = STOPPED_MESSAGE
+                        UploadNotifier.failure(
+                            appContext, id, message, canRetry = remaining != null, retry = remaining,
+                            uploadedUrls = progress.urls(id), total = total,
+                        )
+                        // WorkManager ignores a result after a stop and may drop progress set now, so the
+                        // retry payload goes to a file. The queue shows this cancelled work under Failed with Retry.
+                        runCatching { StoppedUploadStore.forCache(appContext.cacheDir).save(id, remaining, message, System.currentTimeMillis()) }
+                        progress.clear(id)
+                        // Cancel so WorkManager does not reschedule the stopped batch.
+                        WorkManager.getInstance(applicationContext).cancelWorkById(id)
+                    }
+                    WorkInfo.STOP_REASON_CANCELLED_BY_APP -> progress.clear(id)
+                }
+            }
+            throw e
         }
-        val albumId = inputData.getString(KEY_ALBUM_ID)
-        val tagIds = inputData.getString(KEY_TAG_IDS)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
-        val profileId = inputData.getString(KEY_PROFILE_ID)
-        val inputValues = decodeInputValues(inputData.getString(KEY_INPUT_VALUES))
+    }
 
-        // Batch or single mode
-        val batchPaths = inputData.getString(KEY_FILE_PATHS)?.split("|")?.filter { it.isNotBlank() }
-        val singlePath = inputData.getString(KEY_FILE_PATH)
-        val paths = batchPaths ?: listOfNotNull(singlePath)
-        if (paths.isEmpty()) return Result.failure()
+    override suspend fun getForegroundInfo(): ForegroundInfo = createForegroundInfo("Uploading...", 0, 0)
 
-        // Show foreground notification
-        setForeground(createForegroundInfo("Uploading...", 0, paths.size))
+    /** The input minus the files this work already finished, or null if nothing is left. */
+    private fun remainingSpec(): UploadSpec? {
+        val spec = UploadSpec.from(inputData) ?: return null
+        val done = progress.completed(id)
+        return spec.copy(paths = spec.paths.filterNot { it in done }).takeIf { it.paths.isNotEmpty() }
+    }
 
-        val skipDuplicateCheck = inputData.getBoolean(KEY_SKIP_DUPLICATE_CHECK, false)
-        val actions = settingsRepository.resolveAfterUploadActions(profileId)
+    private sealed interface FileOutcome {
+        data class Uploaded(val url: String?, val historyId: String, val fileName: String, val isImage: Boolean) : FileOutcome
+        data class Duplicate(val output: Data) : FileOutcome
+        data class Failed(val result: UploadResult) : FileOutcome
+    }
 
-        val urls = mutableListOf<String>()
+    private suspend fun runBatch(): Result {
+        val spec = UploadSpec.from(inputData) ?: return Result.failure()
+        val paths = spec.paths
+
+        // The profile was deleted after this was queued: don't quietly fall back to the global settings.
+        if (spec.profileId != null && profileRepository.getProfile(spec.profileId) == null) {
+            return fail(
+                UploadResult(success = false, errorMessage = PROFILE_DELETED_MESSAGE, destination = spec.destination, permanent = true),
+                spec.destination,
+                retryable = false,
+            )
+        }
+
+        // Files a previous attempt of this work already uploaded: skip them, and keep their hashes
+        // out of duplicate detection (they are in history now, because we put them there).
+        val done = progress.completed(id)
+        val doneHashes = progress.hashes(id)
+        var finished = paths.count { it in done }
+
+        trySetForeground("Uploading...", 0, paths.size)
+        reportProgress(finished, paths.size)
+
+        val actions = settingsRepository.resolveAfterUploadActions(spec.profileId)
+        val urls = progress.urls(id).toMutableList()
+        var lastHistoryId: String? = null
+        var lastUploaded: FileOutcome.Uploaded? = null
         for ((index, path) in paths.withIndex()) {
-            setForeground(createForegroundInfo("Uploading ${index + 1}/${paths.size}...", index, paths.size))
+            if (path in done) continue
+            trySetForeground("Uploading ${index + 1}/${paths.size}...", index, paths.size)
 
-            val originalFile = File(path)
-            if (!originalFile.exists()) continue
+            val outcome = try {
+                uploadOne(path, spec, actions, doneHashes)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Hashing, HEIC conversion, thumbnail, history or tags failed: same path as an upload error.
+                FileOutcome.Failed(
+                    UploadResult(
+                        success = false,
+                        errorMessage = "Upload error: ${e.message ?: e.javaClass.simpleName}",
+                        destination = spec.destination,
+                        error = e
+                    )
+                )
+            }
+            when (outcome) {
+                is FileOutcome.Uploaded -> {
+                    outcome.url?.let { urls.add(it) }
+                    lastHistoryId = outcome.historyId
+                    lastUploaded = outcome
+                    reportProgress(++finished, paths.size)
+                }
+                is FileOutcome.Duplicate -> {
+                    // Carry the whole remaining spec (this file included) so the queue can retry or skip it.
+                    val remaining = remainingSpec()
+                    progress.clear(id)
+                    // No screen shows the duplicate dialog for a direct share, so say it here.
+                    if (spec.background) {
+                        UploadNotifier.duplicate(
+                            appContext, id,
+                            fileName = outcome.output.getString(KEY_DUPLICATE_FILE_NAME),
+                            url = outcome.output.getString(KEY_DUPLICATE_URL),
+                            remaining = remaining,
+                        )
+                    }
+                    return Result.failure(
+                        Data.Builder()
+                            .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
+                            .putAll(outcome.output)
+                            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
+                            .build()
+                    )
+                }
+                is FileOutcome.Failed -> return fail(outcome.result, spec.destination)
+            }
+        }
 
-            // Compute file hash for duplicate detection
-            val fileHash = FileHasher.computeSha256(originalFile)
+        progress.clear(id)
+        val combinedUrl = urls.joinToString("\n")
+        // Name and type of a single upload, for the "Copy link as" format. Batches use the URLs.
+        val single = lastUploaded.takeIf { paths.size == 1 }
+        if (urls.isNotEmpty()) {
+            UploadNotifier.success(
+                appContext, id,
+                historyId = lastHistoryId.takeIf { paths.size == 1 },
+                url = combinedUrl,
+                count = urls.size,
+                actions = actions,
+                fileName = single?.fileName,
+                isImage = single?.isImage,
+            )
+        }
 
-            // Check for duplicate unless skipped
-            if (!skipDuplicateCheck) {
-                val existing = historyRepository.getHistoryByHash(fileHash)
-                if (existing != null) {
-                    val outputData = Data.Builder()
+        val outputData = Data.Builder()
+            .putString(KEY_RESULT_URL, combinedUrl)
+            .apply {
+                if (single != null) {
+                    putString(KEY_RESULT_FILE_NAME, single.fileName)
+                    putBoolean(KEY_RESULT_IS_IMAGE, single.isImage)
+                }
+            }
+            .putString(KEY_ACTIONS, AfterUploadAction.encode(actions))
+            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
+            .build()
+        return Result.success(outputData)
+    }
+
+    /**
+     * Retries while attempts are left and the error can pass; otherwise posts the final failure.
+     * Without [retryable], no Retry is offered (it could only fail the same way).
+     */
+    private suspend fun fail(result: UploadResult, destination: UploadDestination, retryable: Boolean = true): Result {
+        val message = result.errorMessage ?: "Upload failed"
+        val kind = UploadErrorPolicy.classify(result.httpCode, result.error, result.permanent)
+        if (kind == FailureKind.RETRY && runAttemptCount + 1 < MAX_ATTEMPTS) return Result.retry()
+
+        // Final: hand back what's left so Retry (notification or queue) picks up where this stopped.
+        val remaining = if (retryable) remainingSpec() else null
+        val total = UploadSpec.from(inputData)?.paths?.size ?: 0
+        // Links of the files that did make it, so a failed batch doesn't lose them.
+        val uploadedUrls = progress.urls(id)
+        progress.clear(id)
+        UploadNotifier.failure(
+            appContext, id, message, canRetry = remaining != null, retry = remaining,
+            uploadedUrls = uploadedUrls, total = total,
+        )
+        val output = Data.Builder()
+            .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
+            .putString(KEY_DESTINATION, destination.name)
+            .putString(KEY_ERROR_MESSAGE, message)
+            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
+        remaining?.let { output.putString(KEY_FILE_PATHS, it.paths.joinToString("|")) }
+        return Result.failure(output.build())
+    }
+
+    private suspend fun uploadOne(
+        path: String,
+        spec: UploadSpec,
+        actions: Set<AfterUploadAction>,
+        doneHashes: Set<String>,
+    ): FileOutcome {
+        val destination = spec.destination
+        val originalFile = File(path)
+        if (!originalFile.exists()) {
+            return FileOutcome.Failed(
+                UploadResult(
+                    success = false,
+                    errorMessage = "File not found: ${originalFile.name}",
+                    destination = destination,
+                    permanent = true
+                )
+            )
+        }
+
+        val fileHash = FileHasher.computeSha256(originalFile)
+        if (!spec.skipDuplicateCheck && fileHash !in doneHashes) {
+            val existing = historyRepository.getHistoryByHash(fileHash)
+            if (existing != null) {
+                return FileOutcome.Duplicate(
+                    Data.Builder()
                         .putBoolean(KEY_DUPLICATE_FOUND, true)
                         .putString(KEY_DUPLICATE_URL, existing.url)
                         .putString(KEY_DUPLICATE_FILE_NAME, existing.fileName)
                         .putLong(KEY_DUPLICATE_TIMESTAMP, existing.timestamp)
                         .putString(KEY_FILE_PATH, path)
-                        .putString(KEY_DESTINATION, destinationName)
+                        .putString(KEY_DESTINATION, destination.name)
                         .build()
-                    return Result.failure(outputData)
-                }
-            }
-
-            val originalMime = MimeTypes.fromFileName(originalFile.name)
-            val heicPng = if (MimeTypes.isHeic(originalMime) && settingsRepository.getConvertHeicToPng().first()) {
-                HeicConverter.toPng(appContext, originalFile)
-            } else null
-            val source = heicPng ?: originalFile
-            val mimeType = if (heicPng != null) "image/png" else originalMime
-
-            val pattern = settingsRepository.getFileNamingPattern().first()
-            val resolvedName = FileNamePattern.resolve(pattern, source.name)
-            var file = source
-            val uploadResult = try {
-                val result = try {
-                    file = if (isProcessableImage(mimeType)) prepareFile(source) else source
-                    val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
-                        source.readText()
-                    } else ""
-                    performUpload(file, destination, resolvedName, profileId, inputValues, textInput)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    UploadResult(
-                        success = false,
-                        errorMessage = "Upload error: ${e.message ?: e.javaClass.simpleName}",
-                        destination = destination
-                    )
-                }
-
-                if (result.success) {
-                    val thumbnailPath = if (MimeTypes.isRasterImage(mimeType)) {
-                        ThumbnailGenerator.generate(appContext, source)
-                    } else null
-                    val itemId = generateId()
-                    val finalUrl = maybeShorten(result.url, actions) { urlShortener.shorten(it) }
-                    val historyItem = HistoryItem(
-                        id = itemId,
-                        filePath = path,
-                        thumbnailPath = thumbnailPath,
-                        url = finalUrl,
-                        deleteUrl = result.deleteUrl,
-                        uploadDestination = destination,
-                        timestamp = generateTimestamp(),
-                        fileName = resolvedName,
-                        fileSize = originalFile.length(),
-                        albumId = albumId,
-                        fileHash = fileHash,
-                        mimeType = mimeType,
-                        remoteKey = result.remoteKey,
-                        profileId = profileId
-                    )
-                    historyRepository.insertHistoryItem(historyItem)
-                    for (tagId in tagIds) {
-                        tagRepository.addTagToHistory(itemId, tagId)
-                    }
-                    finalUrl?.let { urls.add(it) }
-                }
-                result
-            } finally {
-                // Clean up temp files (after the thumbnail, which may read the converted HEIC)
-                if (file != source) file.delete()
-                heicPng?.parentFile?.deleteRecursively()
-            }
-
-            if (!uploadResult.success) {
-                val message = uploadResult.errorMessage ?: "Upload failed"
-                postFailureNotification(message)
-                return if (runAttemptCount < 3) Result.retry()
-                else Result.failure(Data.Builder().putString(KEY_ERROR_MESSAGE, message).build())
+                )
             }
         }
 
-        val combinedUrl = urls.joinToString("\n")
-        postSuccessNotification(combinedUrl, urls.size, actions)
+        val originalMime = MimeTypes.fromFileName(originalFile.name)
+        val heicPng = if (MimeTypes.isHeic(originalMime) && settingsRepository.getConvertHeicToPng().first()) {
+            HeicConverter.toPng(appContext, originalFile)
+        } else null
+        val source = heicPng ?: originalFile
+        val mimeType = if (heicPng != null) "image/png" else originalMime
 
-        val outputData = Data.Builder()
-            .putString(KEY_RESULT_URL, combinedUrl)
-            .putString(KEY_ACTIONS, AfterUploadAction.encode(actions))
-            .build()
-        return Result.success(outputData)
+        val pattern = settingsRepository.getFileNamingPattern().first()
+        val resolvedName = FileNamePattern.resolve(pattern, source.name)
+        var file = source
+        try {
+            val result = try {
+                file = if (isProcessableImage(mimeType)) prepareFile(source, mimeType) else source
+                val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
+                    source.readText()
+                } else ""
+                performUpload(file, destination, resolvedName, spec.profileId, spec.inputValues, textInput)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                UploadResult(
+                    success = false,
+                    errorMessage = if (e is LocationStripException) e.message
+                    else "Upload error: ${e.message ?: e.javaClass.simpleName}",
+                    destination = destination,
+                    error = e
+                )
+            }
+            if (!result.success) return FileOutcome.Failed(result)
+
+            // The file is on the server: finish the bookkeeping even if the work is cancelled now.
+            return withContext(NonCancellable) {
+                val thumbnailPath = if (MimeTypes.isRasterImage(mimeType)) {
+                    ThumbnailGenerator.generate(appContext, source)
+                } else null
+                val itemId = generateId()
+                val finalUrl = maybeShorten(result.url, actions) { urlShortener.shorten(it) }
+                recordSuccess(
+                    markDone = { progress.markDone(id, path, finalUrl, fileHash) },
+                    insertHistory = {
+                        historyRepository.insertHistoryItem(
+                            HistoryItem(
+                                id = itemId,
+                                filePath = path,
+                                thumbnailPath = thumbnailPath,
+                                url = finalUrl,
+                                deleteUrl = result.deleteUrl,
+                                uploadDestination = destination,
+                                timestamp = generateTimestamp(),
+                                fileName = resolvedName,
+                                fileSize = originalFile.length(),
+                                albumId = spec.albumId,
+                                fileHash = fileHash,
+                                mimeType = mimeType,
+                                remoteKey = result.remoteKey,
+                                profileId = spec.profileId
+                            )
+                        )
+                    },
+                    addTags = { spec.tagIds.forEach { tagRepository.addTagToHistory(itemId, it) } },
+                )
+                try {
+                    uploadCompletedHook.onUploadCompleted()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                }
+                FileOutcome.Uploaded(finalUrl, itemId, resolvedName, LinkFormatter.isImageMime(mimeType))
+            }
+        } finally {
+            // Clean up temp files (after the thumbnail, which may read the converted HEIC)
+            if (file != source) file.delete()
+            heicPng?.parentFile?.deleteRecursively()
+        }
+    }
+
+    /** The foreground notification is best effort: without it the upload still runs. */
+    private suspend fun trySetForeground(text: String, current: Int, total: Int) {
+        try {
+            setForeground(createForegroundInfo(text, current, total))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
+    private suspend fun reportProgress(done: Int, total: Int) {
+        try {
+            setProgress(workDataOf(KEY_PROGRESS_DONE to done, KEY_PROGRESS_TOTAL to total))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     private suspend fun performUpload(
@@ -238,9 +428,11 @@ class UploadWorker @AssistedInject constructor(
                 customHttpUploader.upload(file, config, resolvedName, input = textInput, inputValues = inputValues)
             }
             UploadDestination.LOCAL -> {
+                // Keep a copy: [file] may be a temp file that is deleted right after the upload.
+                val kept = LocalUploads.keep(appContext.filesDir, file, generateId(), resolvedName)
                 UploadResult(
                     success = true,
-                    url = file.absolutePath,
+                    url = kept.absolutePath,
                     destination = UploadDestination.LOCAL
                 )
             }
@@ -266,7 +458,7 @@ class UploadWorker @AssistedInject constructor(
     private fun isProcessableImage(mimeType: String): Boolean =
         MimeTypes.isRasterImage(mimeType) && !MimeTypes.isHeic(mimeType) && mimeType != "image/gif"
 
-    private suspend fun prepareFile(file: File): File {
+    private suspend fun prepareFile(file: File, sourceMime: String?): File {
         val quality = settingsRepository.getImageQuality().first()
         val maxDimension = settingsRepository.getMaxImageDimension().first()
         val uploadFormat = settingsRepository.getUploadFormat().first()
@@ -275,7 +467,15 @@ class UploadWorker @AssistedInject constructor(
         val needsProcessing = quality < 100 || maxDimension > 0 || uploadFormat != ImageFormat.ORIGINAL
         if (!needsProcessing && !stripExif) return file
 
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return file
+        // Sample on decode so a 100 MP photo never lands in memory at full size.
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_DECODE_EDGE)
+        }
+        // Can't decode it, so can't strip it either: don't send it out with its location.
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
+            ?: if (stripExif) throw LocationStripException() else return file
 
         val processedBitmap = if (maxDimension > 0 && (bitmap.width > maxDimension || bitmap.height > maxDimension)) {
             val scale = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
@@ -288,33 +488,36 @@ class UploadWorker @AssistedInject constructor(
             bitmap
         }
 
-        val compressFormat: Bitmap.CompressFormat
-        val extension: String
-        when (uploadFormat) {
-            ImageFormat.WEBP -> {
-                compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Bitmap.CompressFormat.WEBP_LOSSY
-                } else {
-                    @Suppress("DEPRECATION")
-                    Bitmap.CompressFormat.WEBP
+        val format = ReencodeFormat.choose(uploadFormat, sourceMime, processedBitmap.hasAlpha())
+        val compressFormat = when (format) {
+            ReencodeFormat.PNG -> Bitmap.CompressFormat.PNG
+            ReencodeFormat.JPEG -> Bitmap.CompressFormat.JPEG
+            ReencodeFormat.WEBP -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSY
+            } else {
+                @Suppress("DEPRECATION")
+                Bitmap.CompressFormat.WEBP
+            }
+        }
+        val extension = format.extension
+        // An explicit JPEG choice has no alpha: see-through areas go white, never black.
+        val output = if (format == ReencodeFormat.JPEG && processedBitmap.hasAlpha()) {
+            Bitmap.createBitmap(processedBitmap.width, processedBitmap.height, Bitmap.Config.ARGB_8888).also { flat ->
+                Canvas(flat).apply {
+                    drawColor(Color.WHITE)
+                    drawBitmap(processedBitmap, 0f, 0f, null)
                 }
-                extension = "webp"
+                processedBitmap.recycle()
             }
-            ImageFormat.JPEG -> {
-                compressFormat = Bitmap.CompressFormat.JPEG
-                extension = "jpg"
-            }
-            ImageFormat.ORIGINAL -> {
-                compressFormat = Bitmap.CompressFormat.JPEG
-                extension = "jpg"
-            }
+        } else {
+            processedBitmap
         }
 
         val tempFile = File(appContext.cacheDir, "upload_${System.currentTimeMillis()}.$extension")
         FileOutputStream(tempFile).use { out ->
-            processedBitmap.compress(compressFormat, quality, out)
+            output.compress(compressFormat, quality, out)
         }
-        processedBitmap.recycle()
+        output.recycle()
 
         if (stripExif) {
             try {
@@ -332,7 +535,10 @@ class UploadWorker @AssistedInject constructor(
                     exif.setAttribute(tag, null)
                 }
                 exif.saveAttributes()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                tempFile.delete()
+                throw LocationStripException(e)
+            }
         }
 
         return tempFile
@@ -341,61 +547,13 @@ class UploadWorker @AssistedInject constructor(
     // dataSync is declared for SystemForegroundService in the app manifest; lint can't see it from this module.
     @SuppressLint("SpecifyForegroundServiceType")
     private fun createForegroundInfo(text: String, current: Int, total: Int): ForegroundInfo {
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD)
-            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
-            .setContentTitle("XerahS Upload")
-            .setContentText(text)
-            .setProgress(total, current, current == 0)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+        val notification = UploadNotifier.progress(appContext, id, text, current, total)
+        val notificationId = UploadNotifier.progressIdFor(id)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(
-                NOTIFICATION_ID_PROGRESS,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
+            ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(NOTIFICATION_ID_PROGRESS, notification)
+            ForegroundInfo(notificationId, notification)
         }
-    }
-
-    private fun postSuccessNotification(url: String, count: Int, actions: Set<AfterUploadAction>) {
-        val first = url.lines().firstOrNull().orEmpty()
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val copyIntent = Intent(appContext, CopyUrlReceiver::class.java).apply { putExtra("url", url) }
-
-        val title = if (count > 1) "$count uploads complete" else "Upload complete"
-        val builder = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
-            .setSmallIcon(com.xerahs.android.core.ui.R.drawable.ic_stat_xerahs)
-            .setContentTitle(title)
-            .setContentText(first)
-            .setAutoCancel(true)
-            .addAction(0, "Copy URL", PendingIntent.getBroadcast(appContext, 0, copyIntent, flags))
-        if (AfterUploadAction.SHARE_SHEET in actions && first.isNotEmpty()) {
-            val share = Intent.createChooser(
-                Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, first), null
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            builder.addAction(0, "Share", PendingIntent.getActivity(appContext, 1, share, flags))
-        }
-        if (AfterUploadAction.OPEN_URL in actions && first.startsWith("http", ignoreCase = true)) {
-            val open = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(first)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            builder.addAction(0, "Open", PendingIntent.getActivity(appContext, 2, open, flags))
-        }
-        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_COMPLETE, builder.build())
-    }
-
-    private fun postFailureNotification(errorMessage: String) {
-        val notification = NotificationCompat.Builder(appContext, CHANNEL_UPLOAD_COMPLETE)
-            .setSmallIcon(android.R.drawable.ic_menu_close_clear_cancel)
-            .setContentTitle("Upload failed")
-            .setContentText(errorMessage)
-            .setAutoCancel(true)
-            .build()
-
-        val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_COMPLETE, notification)
     }
 
     companion object {
@@ -409,6 +567,8 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_TAG_IDS = "tag_ids"
         const val KEY_PROFILE_ID = "profile_id"
         const val KEY_RESULT_URL = "result_url"
+        const val KEY_RESULT_FILE_NAME = "result_file_name"
+        const val KEY_RESULT_IS_IMAGE = "result_is_image"
         const val KEY_SKIP_DUPLICATE_CHECK = "skip_duplicate_check"
         const val KEY_DUPLICATE_FOUND = "duplicate_found"
         const val KEY_DUPLICATE_URL = "duplicate_url"
@@ -416,11 +576,16 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_DUPLICATE_TIMESTAMP = "duplicate_timestamp"
         const val KEY_INPUT_VALUES = "input_values"
         const val KEY_ACTIONS = "after_upload_actions"
+        const val KEY_FINISHED_AT = "finished_at"
+        const val KEY_PROGRESS_DONE = "progress_done"
+        const val KEY_PROGRESS_TOTAL = "progress_total"
 
-        private const val CHANNEL_UPLOAD = "upload_channel"
-        private const val CHANNEL_UPLOAD_COMPLETE = "upload_complete_channel"
-        private const val NOTIFICATION_ID_PROGRESS = 2001
-        private const val NOTIFICATION_ID_COMPLETE = 2002
+        const val STOPPED_MESSAGE = "Android stopped the upload. Tap Retry to continue."
+        const val PROFILE_DELETED_MESSAGE = "This profile was deleted"
+
+        /** Total runs of one work, the first included. [runAttemptCount] starts at 0. */
+        private const val MAX_ATTEMPTS = 3
+        private const val MAX_DECODE_EDGE = 4096
 
         private const val RECORD_SEP = '\u001E'
         private const val UNIT_SEP = '\u001F'

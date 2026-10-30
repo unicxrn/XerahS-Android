@@ -50,19 +50,22 @@ fun ImgurConfigScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    var clientId by remember { mutableStateOf("") }
-    var clientSecret by remember { mutableStateOf("") }
-    var useAnonymous by remember { mutableStateOf(true) }
+    var clientId by remember { viewModel.form.field("clientId", "") }
+    var clientSecret by remember { viewModel.form.field("clientSecret", "") }
+    var useAnonymous by remember { viewModel.form.field("useAnonymous", true) }
 
     LaunchedEffect(Unit) {
+        // Load once per ViewModel, so a rotation keeps what was typed.
+        if (viewModel.form.loaded) return@LaunchedEffect
         val config = viewModel.loadConfig()
         clientId = config.clientId
         clientSecret = config.clientSecret
         useAnonymous = config.useAnonymous
+        viewModel.form.loaded = true
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Imgur Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "Imgur", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(

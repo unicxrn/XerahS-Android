@@ -6,7 +6,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,7 +40,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
     val context = LocalContext.current
@@ -68,10 +69,11 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                     Text("Choose images")
                 }
             }
-            if (uris.isNotEmpty()) Text("${uris.size} images selected")
+            if (uris.isNotEmpty()) Text(if (uris.size == 1) "1 image selected" else "${uris.size} images selected")
 
             Text("Max size", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wraps on narrow screens and large fonts instead of squeezing the last chip.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0 to "Original", 3840 to "3840", 1920 to "1920", 1280 to "1280", 1080 to "1080").forEach { (dim, label) ->
                     FilterChip(
                         selected = options.maxDimension == dim,
@@ -82,7 +84,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
             }
 
             Text("Format", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutputFormat.entries.forEach { fmt ->
                     FilterChip(
                         selected = options.format == fmt,
@@ -112,7 +114,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            val processOnClick: () -> Unit = {
+            val process: (Boolean) -> Unit = { canSave ->
                 scope.launch {
                     busy = true
                     val outDir = File(context.cacheDir, "tools_batch_${System.currentTimeMillis()}")
@@ -122,7 +124,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                             ensureActive()
                             runCatching {
                                 val f = BatchImageProcessor.process(context, uri, options, outDir, i)
-                                val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
+                                val gallerySaved = canSave && ToolOutput.saveToPictures(context, f)
                                 f to gallerySaved
                             }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
                                 .onFailure { failed++ }
@@ -136,6 +138,9 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                     }
                 }
             }
+
+            // On Android 9 and older saving to Pictures needs a permission; ask, then process either way.
+            val processOnClick = rememberPicturesWriteAccess(process)
 
             if (results.isNotEmpty()) {
                 // Upload is the one accent CTA once results exist; Process drops to an outline.

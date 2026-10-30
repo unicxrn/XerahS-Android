@@ -12,11 +12,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.xerahs.android.core.common.image.ColorFormat
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
+import com.xerahs.android.core.domain.model.FileKind
 import com.xerahs.android.core.domain.model.ImageFormat
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadDestination
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +39,12 @@ class SettingsDataStore @Inject constructor(
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val COLOR_THEME = stringPreferencesKey("color_theme")
         val OLED_BLACK = booleanPreferencesKey("oled_black")
+        val SCREENSHOT_WATCH_ENABLED = booleanPreferencesKey("screenshot_watch_enabled")
+        val SCREENSHOT_AUTO_UPLOAD = booleanPreferencesKey("screenshot_auto_upload")
+        val LAST_SCREENSHOT_CHECK = longPreferencesKey("last_screenshot_check")
+        val SCREENSHOT_SEEN_IDS = stringPreferencesKey("screenshot_seen_ids")
+        val SCREENSHOT_PERMISSION_LOST = booleanPreferencesKey("screenshot_permission_lost")
+        val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val IMAGE_QUALITY = intPreferencesKey("image_quality")
         val MAX_IMAGE_DIMENSION = intPreferencesKey("max_image_dimension")
         val AUTO_COPY_URL = booleanPreferencesKey("auto_copy_url")
@@ -48,6 +57,47 @@ class SettingsDataStore @Inject constructor(
         val CONVERT_HEIC = booleanPreferencesKey("convert_heic_to_png")
         val DEFAULT_AFTER_UPLOAD_ACTIONS = stringPreferencesKey("after_upload_actions")
         val RECENT_COLORS = stringPreferencesKey("recent_colors")
+        val PINNED_HOST_KEYS = stringPreferencesKey("pinned_host_keys")
+        val LINK_FORMAT = stringPreferencesKey("link_format")
+    }
+
+    // SSH host-key pins, one `host:port=SHA256:...` per line. Fingerprints aren't secrets.
+    suspend fun getPinnedHostKeys(): String? = context.dataStore.data.first()[Keys.PINNED_HOST_KEYS]
+
+    suspend fun updatePinnedHostKeys(transform: (String?) -> String?) {
+        context.dataStore.edit { prefs ->
+            val next = transform(prefs[Keys.PINNED_HOST_KEYS])
+            if (next.isNullOrEmpty()) prefs.remove(Keys.PINNED_HOST_KEYS) else prefs[Keys.PINNED_HOST_KEYS] = next
+        }
+    }
+
+    private fun routeKey(kind: FileKind) = stringPreferencesKey(
+        when (kind) {
+            FileKind.IMAGE -> "route_image"
+            FileKind.TEXT -> "route_text"
+            FileKind.OTHER -> "route_other"
+        }
+    )
+
+    fun getRouteProfileId(kind: FileKind): Flow<String?> = context.dataStore.data.map { it[routeKey(kind)] }
+
+    suspend fun setRouteProfileId(kind: FileKind, profileId: String?) {
+        context.dataStore.edit { prefs ->
+            if (profileId == null) prefs.remove(routeKey(kind)) else prefs[routeKey(kind)] = profileId
+        }
+    }
+
+    /** Drops every route that points at [profileId], so those files go to Default again. */
+    suspend fun clearRoutesTo(profileId: String) {
+        context.dataStore.edit { prefs ->
+            FileKind.entries.map(::routeKey).filter { prefs[it] == profileId }.forEach { prefs.remove(it) }
+        }
+    }
+
+    fun getLinkFormat(): Flow<LinkFormat> = context.dataStore.data.map { LinkFormat.fromName(it[Keys.LINK_FORMAT]) }
+
+    suspend fun setLinkFormat(format: LinkFormat) {
+        context.dataStore.edit { it[Keys.LINK_FORMAT] = format.name }
     }
 
     private fun profileActionsKey(profileId: String) = stringPreferencesKey("after_upload_actions_$profileId")
@@ -274,5 +324,52 @@ class SettingsDataStore @Inject constructor(
             prefs[Keys.RECENT_COLORS] = (listOf(ColorFormat.hex(color)) + current)
                 .distinct().take(10).joinToString(",")
         }
+    }
+
+    fun getScreenshotWatchEnabled(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_WATCH_ENABLED] ?: false }
+
+    /** Turning it on also resets the check time to now, so older screenshots are ignored. */
+    suspend fun setScreenshotWatchEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.SCREENSHOT_WATCH_ENABLED] = enabled
+            if (enabled) {
+                prefs[Keys.LAST_SCREENSHOT_CHECK] = System.currentTimeMillis() / 1000
+                prefs[Keys.SCREENSHOT_PERMISSION_LOST] = false
+            }
+        }
+    }
+
+    fun getScreenshotAutoUpload(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_AUTO_UPLOAD] ?: false }
+
+    suspend fun setScreenshotAutoUpload(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_AUTO_UPLOAD] = enabled }
+    }
+
+    /** Seconds since the epoch, as in MediaStore DATE_ADDED. */
+    suspend fun getLastScreenshotCheck(): Long = context.dataStore.data.first()[Keys.LAST_SCREENSHOT_CHECK] ?: 0L
+
+    suspend fun setLastScreenshotCheck(seconds: Long) {
+        context.dataStore.edit { it[Keys.LAST_SCREENSHOT_CHECK] = seconds }
+    }
+
+    /** Comma separated MediaStore ids the watcher has already handled (newest last). */
+    suspend fun getScreenshotSeenIds(): String = context.dataStore.data.first()[Keys.SCREENSHOT_SEEN_IDS] ?: ""
+
+    suspend fun setScreenshotSeenIds(csv: String) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_SEEN_IDS] = csv }
+    }
+
+    /** True when the watcher turned itself off because photo access was revoked. */
+    fun getScreenshotPermissionLost(): Flow<Boolean> = context.dataStore.data.map { it[Keys.SCREENSHOT_PERMISSION_LOST] ?: false }
+
+    suspend fun setScreenshotPermissionLost(lost: Boolean) {
+        context.dataStore.edit { it[Keys.SCREENSHOT_PERMISSION_LOST] = lost }
+    }
+
+    fun getNotificationPermissionAsked(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.NOTIFICATION_PERMISSION_ASKED] ?: false }
+
+    suspend fun setNotificationPermissionAsked() {
+        context.dataStore.edit { it[Keys.NOTIFICATION_PERMISSION_ASKED] = true }
     }
 }

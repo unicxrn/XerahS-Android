@@ -2,10 +2,12 @@ package com.xerahs.android.feature.history.home
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +40,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -60,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -72,7 +81,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.FileTypeTile
@@ -86,6 +97,8 @@ import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.HostChip
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.outlined.History
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.core.ui.lumen.relativeTime
@@ -98,10 +111,24 @@ fun HomeScreen(
     onOpen: (String) -> Unit,
     onSettings: () -> Unit,
     onStats: () -> Unit = {},
+    onHistory: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
+    onUploadClipboard: () -> Unit = {},
+    onUploadFromLink: () -> Unit = {},
+    activeUploads: Int = 0,
+    onSetUp: (UploadDestination) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshSetup()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val clipboard = LocalClipboardManager.current
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
@@ -113,6 +140,7 @@ fun HomeScreen(
     }
 
     var searching by rememberSaveable { mutableStateOf(uiState.query.isNotEmpty()) }
+    val wide = LocalConfiguration.current.screenWidthDp >= 600
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AccentGlow(
@@ -131,27 +159,57 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BrandMark()
                     Spacer(Modifier.weight(1f))
+                    Box {
+                        CircleIconButton(
+                            Icons.Outlined.CloudUpload,
+                            if (activeUploads > 0) "Uploads, $activeUploads running" else "Uploads",
+                            onOpenQueue
+                        )
+                        if (activeUploads > 0) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(10.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.size(8.dp))
+                    CircleIconButton(Icons.Outlined.History, "All uploads", onHistory)
+                    Spacer(Modifier.size(8.dp))
                     CircleIconButton(Icons.Outlined.Settings, "Settings", onSettings)
                 }
             }
 
-            item(key = "hero") {
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Eyebrow("● ${uiState.todayCount} ${if (uiState.todayCount == 1) "upload" else "uploads"} today")
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        buildAnnotatedString {
-                            append("Capture. Upload.\n")
-                            withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("Share in a tap.") }
-                        },
-                        style = MaterialTheme.typography.displaySmall
-                    )
+            uiState.setupNeeded?.let { dest ->
+                item(key = "setup") {
+                    LumenCard(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                        radius = 22.dp
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Finish setting up ${dest.displayName}", style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                "Uploads to ${dest.displayName} will not work until it is set up.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.size(12.dp))
+                            OutlinedButton(shape = CircleShape, onClick = { onSetUp(dest) }) { Text("Set up") }
+                        }
+                    }
+                }
+            }
+
+            // Landscape and wide screens put the headline beside the tiles, so the floating nav stays clear of them.
+            if (!wide) {
+                item(key = "hero") {
+                    HomeHero(uiState.todayCount, Modifier.padding(horizontal = 20.dp))
                 }
             }
 
@@ -163,15 +221,45 @@ fun HomeScreen(
                         .height(158.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (wide) {
+                        HomeHero(uiState.todayCount, Modifier.weight(1.3f).align(Alignment.CenterVertically))
+                    }
+                    var uploadMenu by rememberSaveable { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
                             .weight(1.15f)
                             .fillMaxSize()
                             .clip(RoundedCornerShape(26.dp))
                             .background(MaterialTheme.colorScheme.primary)
-                            .clickable(role = Role.Button, onClick = onCreate)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onLongClickLabel = "More ways to upload",
+                                onLongClick = { uploadMenu = true },
+                                onClick = onCreate
+                            )
                             .padding(16.dp)
                     ) {
+                        Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-8).dp)) {
+                            IconButton(onClick = { uploadMenu = true }) {
+                                Icon(
+                                    Icons.Filled.MoreVert,
+                                    contentDescription = "More ways to upload",
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                            DropdownMenu(expanded = uploadMenu, onDismissRequest = { uploadMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Upload clipboard") },
+                                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, contentDescription = null) },
+                                    onClick = { uploadMenu = false; onUploadClipboard() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Upload from link") },
+                                    leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+                                    onClick = { uploadMenu = false; onUploadFromLink() }
+                                )
+                            }
+                        }
                         Column(modifier = Modifier.fillMaxSize()) {
                             Box(
                                 modifier = Modifier
@@ -333,8 +421,11 @@ fun HomeScreen(
                                             .clip(CircleShape)
                                             .background(Lumen.tokens.tint)
                                             .clickable(role = Role.Button) {
-                                                clipboard.setText(AnnotatedString(latestUrl))
-                                                Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                                clipboard.setText(AnnotatedString(LinkFormatter.forItem(latest, uiState.linkFormat, latestUrl)))
+                                                // Android 13 and later confirm copies on their own.
+                                                if (Build.VERSION.SDK_INT < 33) {
+                                                    Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                                }
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -390,6 +481,7 @@ fun HomeScreen(
                             Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                                 TimelineRow(
                                     item = item,
+                                    linkFormat = uiState.linkFormat,
                                     onOpen = { onOpen(id) },
                                     canDeleteFromHost = viewModel.canDeleteFromHost(item),
                                     onDeleteFromHost = { viewModel.deleteFromHost(item) }
@@ -406,6 +498,7 @@ fun HomeScreen(
 @Composable
 private fun TimelineRow(
     item: HistoryItem,
+    linkFormat: LinkFormat,
     onOpen: () -> Unit,
     canDeleteFromHost: Boolean = false,
     onDeleteFromHost: () -> Unit = {}
@@ -468,7 +561,7 @@ private fun TimelineRow(
                 DropdownMenuItem(
                     text = { Text("Copy link") },
                     onClick = {
-                        clipboard.setText(AnnotatedString(item.url ?: item.filePath))
+                        clipboard.setText(AnnotatedString(LinkFormatter.forItem(item, linkFormat)))
                         menuOpen = false
                     },
                     leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
@@ -504,6 +597,21 @@ private fun TimelineRow(
             },
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteFromHost() }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun HomeHero(todayCount: Int, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Eyebrow("● $todayCount ${if (todayCount == 1) "upload" else "uploads"} today")
+        Spacer(Modifier.size(8.dp))
+        Text(
+            buildAnnotatedString {
+                append("Capture. Upload.\n")
+                withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("Share in a tap.") }
+            },
+            style = MaterialTheme.typography.displaySmall
         )
     }
 }

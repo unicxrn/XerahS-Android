@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 
 interface HistoryRepository {
     fun getAllHistory(): Flow<List<HistoryItem>>
+    fun latest(): Flow<HistoryItem?>
+    /** Newest upload time per profile id, for ordering profile shortcuts. */
+    fun lastUsedByProfile(): Flow<Map<String, Long>>
     fun getHistoryByDestination(destination: UploadDestination): Flow<List<HistoryItem>>
     suspend fun getHistoryItem(id: String): HistoryItem?
     suspend fun insertHistoryItem(item: HistoryItem)

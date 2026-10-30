@@ -32,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -58,16 +57,16 @@ fun CustomHttpConfigScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
-    var sxcu by rememberSaveable { mutableStateOf("") }
-    var loaded by rememberSaveable { mutableStateOf(false) }
+    // Held by the ViewModel, not saved state: the definition can carry auth headers.
+    var sxcu by remember { viewModel.form.field("sxcu", "") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var testing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (!loaded) {
+        if (!viewModel.form.loaded) {
             sxcu = viewModel.loadSxcu()
-            loaded = true
+            viewModel.form.loaded = true
         }
     }
 
@@ -78,7 +77,7 @@ fun CustomHttpConfigScreen(
         } else {
             sxcu = normalized
             error = null
-            scope.launch { snackbarHostState.showSnackbar("Loaded — review and tap Save") }
+            scope.launch { snackbarHostState.showSnackbar("Loaded. Check it, then tap Save") }
         }
     }
 
@@ -120,7 +119,7 @@ fun CustomHttpConfigScreen(
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     shape = RoundedCornerShape(18.dp),
                     isError = error != null,
-                    supportingText = { Text(error ?: "ShareX .sxcu JSON — supports {json:}, {regex:}, {xml:}, {inputbox:} …") },
+                    supportingText = { Text(error ?: "ShareX .sxcu JSON. Supports {json:}, {regex:}, {xml:}, {inputbox:} and more") },
                     minLines = 14,
                     modifier = Modifier
                         .fillMaxWidth()

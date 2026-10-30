@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.xerahs.android.core.domain.model.LinkFormat
+import com.xerahs.android.core.domain.repository.SettingsRepository
 
 data class ShareUiState(
     val item: HistoryItem? = null,
@@ -26,7 +28,9 @@ data class ShareUiState(
     val isShortening: Boolean = false,
     val error: String? = null,
     val canDeleteFromHost: Boolean = false,
-    val isDeleting: Boolean = false
+    val isDeleting: Boolean = false,
+    val isLoading: Boolean = true,
+    val linkFormat: LinkFormat = LinkFormat.PLAIN
 )
 
 sealed interface ShareEvent {
@@ -39,7 +43,8 @@ class ShareViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val historyRepository: HistoryRepository,
     private val urlShortener: UrlShortenerRepository,
-    private val remoteDelete: RemoteDeleteRepository
+    private val remoteDelete: RemoteDeleteRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val historyId: String = savedStateHandle["historyId"] ?: ""
@@ -52,10 +57,16 @@ class ShareViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val item = historyRepository.getHistoryItem(historyId)
+            settingsRepository.getLinkFormat().collect { format -> _uiState.update { it.copy(linkFormat = format) } }
+        }
+        viewModelScope.launch {
+            val item = runCatching { historyRepository.getHistoryItem(historyId) }
+                .onFailure { if (it is CancellationException) throw it }
+                .getOrNull()
             _uiState.update {
                 it.copy(
                     item = item,
+                    isLoading = false,
                     canDeleteFromHost = item?.let(remoteDelete::canDelete) ?: false
                 )
             }

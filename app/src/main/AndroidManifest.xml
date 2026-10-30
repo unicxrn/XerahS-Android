@@ -7,12 +7,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".XerahSApplication"
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
@@ -22,7 +29,8 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.XerahS">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -53,8 +61,20 @@
                 <data android:mimeType="application/json" />
             </intent-filter>
 
+            <!-- xerahs://share/{historyId} and xerahs://queue need no filter: notifications, the
+                 widget and the shortcut send them in explicit intents to this activity. -->
+
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- "Copy last link" shortcut: no UI, its own task so the app's task is left alone. -->
+        <activity
+            android:name=".shortcuts.CopyLastLinkActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.XerahS.Invisible" />
 
         <service
             android:name=".ui.tile.CaptureTileService"
@@ -69,6 +89,14 @@
 
         <receiver
             android:name="com.xerahs.android.feature.upload.worker.CopyUrlReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.xerahs.android.feature.upload.worker.RetryUploadReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.xerahs.android.feature.upload.screenshots.ScreenshotActionReceiver"
             android:exported="false" />
 
         <service
@@ -97,5 +125,21 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <receiver
+            android:name=".widget.LatestUploadWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/latest_upload_widget_info" />
+        </receiver>
+
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
     </application>
 </manifest>

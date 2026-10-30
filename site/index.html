@@ -14,7 +14,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="assets/fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -27,7 +27,8 @@
     <nav class="nav__links" aria-label="Sections">
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
-      <a href="#themes">Themes</a>
+      <a href="guides.html">Guides</a>
+      <a href="faq.html">FAQ</a>
       <a href="#changelog">Changelog</a>
     </nav>
     <a class="nav__cta" href="#download">Download</a>
@@ -39,7 +40,9 @@
   <div class="menu" data-menu hidden>
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
-    <a href="#themes">Themes</a>
+    <a href="#new">New in 0.8</a>
+    <a href="guides.html">Guides</a>
+    <a href="faq.html">FAQ</a>
     <a href="#changelog">Changelog</a>
     <a href="#download">Download</a>
   </div>
@@ -141,12 +144,12 @@
             <li class="step is-active" data-step="0">
               <span class="step__num">01</span>
               <h3>Pick anything</h3>
-              <p>Images, PDFs, videos, whatever is on your phone. Share a file into XerahS from another app, tap the Quick Settings tile, or open the app and choose from your gallery.</p>
+              <p>Images, PDFs, videos, whatever is on your phone. Share a file, a link or some text into XerahS from another app, tap the Quick Settings tile or the home-screen widget, or open the app and choose from your gallery.</p>
             </li>
             <li class="step" data-step="1">
               <span class="step__num">02</span>
               <h3>Mark it up</h3>
-              <p>Twelve tools: boxes, arrows, numbered steps, text, a magnifier, and blur or pixelate for the parts nobody else needs to see. Crop it, add a border or shadow, or pull the text out with on-device OCR.</p>
+              <p>Twelve tools: boxes, arrows, numbered steps, text, a magnifier, and blur or pixelate for the parts nobody else needs to see. Crop, rotate or flip it, add a border or shadow, or pull the text out with on-device OCR.</p>
             </li>
             <li class="step" data-step="2">
               <span class="step__num">03</span>
@@ -232,6 +235,51 @@
                 <p>Resize or convert a stack of images at once and add a watermark on the way. Read a QR code from a picture, check a file's hash, or grab a color.</p>
               </div>
               <div class="card__shot card__shot--crop"><img src="assets/shots/tools_dark.webp" alt="The Tools screen" width="720" height="1600" decoding="async"></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="new" id="new">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <span class="eyebrow">New in 0.8</span>
+          <h2>Less tapping<br>between you and the link.</h2>
+        </div>
+
+        <div class="bento bento--new">
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>A queue you can see</h3>
+              <p>Every upload shows up in the queue with its progress. Cancel one that's waiting, retry one that failed, and clear out the finished ones. If the network drops halfway through a batch, the retry picks up where it stopped instead of sending everything again.</p>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>Start from wherever you are</h3>
+              <p>A home-screen widget shows your latest link and copies it with a tap. Long-press the app icon to upload what you copied or grab the last link. Your upload profiles show up in Android's share sheet, and new screenshots can come with an Upload button in the notification.</p>
+              <ul class="chips" aria-label="Ways to start an upload">
+                <li>Widget</li><li>Shortcuts</li><li>Direct share</li><li>Screenshots</li><li>Clipboard</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>Links in the format you paste</h3>
+              <p>Copy links as plain URLs, Markdown, HTML or BBCode, with image versions for pictures. Send images, text and other files to different profiles automatically. Share a link into XerahS and you can shorten it, upload the file it points to, or upload it as text.</p>
+            </div>
+          </article>
+
+          <article class="card" data-reveal>
+            <div class="card__core">
+              <h3>Two new tools</h3>
+              <p>The beautifier puts a screenshot on a gradient with padding, rounded corners and a shadow. The combiner stitches up to 20 images into one, side by side or stacked. The editor can now rotate and flip too.</p>
+              <ul class="chips" aria-label="New editing tools">
+                <li>Beautifier</li><li>Combiner</li><li>Rotate and flip</li>
+              </ul>
             </div>
           </article>
         </div>
@@ -332,6 +380,9 @@
         <span>XerahS for Android</span>
       </div>
       <nav class="footer__links" aria-label="Project links">
+        <a href="guides.html">Guides</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Privacy</a>
         <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a>
         <a href="https://github.com/unicxrn/XerahS-Android/releases">Releases</a>
         <a href="https://github.com/unicxrn/XerahS-Android/issues">Issues</a>
@@ -341,6 +392,6 @@
     </div>
   </footer>
 
-  <script src="js/main.js?v=3" defer></script>
+  <script src="js/main.js?v=4" defer></script>
 </body>
 </html>

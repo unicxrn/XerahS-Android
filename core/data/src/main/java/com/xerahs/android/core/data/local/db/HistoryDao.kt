@@ -13,6 +13,9 @@ interface HistoryDao {
     @Query("SELECT * FROM history ORDER BY timestamp DESC")
     fun getAllHistory(): Flow<List<HistoryEntity>>
 
+    @Query("SELECT * FROM history ORDER BY timestamp DESC LIMIT 1")
+    fun getLatest(): Flow<HistoryEntity?>
+
     @Query("SELECT * FROM history WHERE uploadDestination = :destination ORDER BY timestamp DESC")
     fun getHistoryByDestination(destination: String): Flow<List<HistoryEntity>>
 
@@ -46,6 +49,9 @@ interface HistoryDao {
     @Query("SELECT h.* FROM history h INNER JOIN history_tag_cross_ref ref ON h.id = ref.historyId WHERE ref.tagId IN (:tagIds) GROUP BY h.id HAVING COUNT(DISTINCT ref.tagId) = :tagCount ORDER BY h.timestamp DESC")
     fun getHistoryByTags(tagIds: List<String>, tagCount: Int): Flow<List<HistoryEntity>>
 
+    @Query("SELECT profileId, MAX(timestamp) AS lastUsed FROM history WHERE profileId IS NOT NULL GROUP BY profileId")
+    fun getLastUsedByProfile(): Flow<List<ProfileLastUsed>>
+
     @Query("SELECT * FROM history WHERE fileHash = :hash LIMIT 1")
     suspend fun getHistoryByHash(hash: String): HistoryEntity?
 
@@ -77,6 +83,11 @@ interface HistoryDao {
     @Query("SELECT t.name AS tagName, COUNT(ref.historyId) AS count FROM history_tag_cross_ref ref INNER JOIN tags t ON ref.tagId = t.id GROUP BY ref.tagId ORDER BY count DESC LIMIT :limit")
     suspend fun getTopTags(limit: Int = 10): List<TagCount>
 }
+
+data class ProfileLastUsed(
+    @ColumnInfo(name = "profileId") val profileId: String,
+    @ColumnInfo(name = "lastUsed") val lastUsed: Long
+)
 
 data class DestinationCount(
     @ColumnInfo(name = "destination") val destination: String,

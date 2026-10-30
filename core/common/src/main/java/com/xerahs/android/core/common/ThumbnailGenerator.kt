@@ -32,9 +32,12 @@ object ThumbnailGenerator {
             val thumbDir = File(context.filesDir, "thumbnails")
             if (!thumbDir.exists()) thumbDir.mkdirs()
 
-            val thumbFile = File(thumbDir, "${UUID.randomUUID()}.jpg")
+            // JPEG has no alpha, so transparent areas would turn black; keep those as PNG.
+            val png = thumbnail.hasAlpha()
+            val thumbFile = File(thumbDir, "${UUID.randomUUID()}.${if (png) "png" else "jpg"}")
             FileOutputStream(thumbFile).use { out ->
-                thumbnail.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                if (png) thumbnail.compress(Bitmap.CompressFormat.PNG, 100, out)
+                else thumbnail.compress(Bitmap.CompressFormat.JPEG, 80, out)
             }
 
             if (thumbnail != bitmap) thumbnail.recycle()

@@ -1,46 +1,32 @@
 package com.xerahs.android.feature.upload.uploader
 
 import com.xerahs.android.core.common.PathPattern
+import com.xerahs.android.core.data.remote.transfer.FtpClientFactory
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPSClient
 import java.io.File
 import java.io.FileInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class FtpUploader @Inject constructor() {
+class FtpUploader @Inject constructor(private val ftpClientFactory: FtpClientFactory) {
 
     suspend fun upload(file: File, config: UploadConfig.FtpConfig, remoteFileName: String? = null): UploadResult =
         withContext(Dispatchers.IO) {
-            val client: FTPClient = if (config.useFtps) FTPSClient() else FTPClient()
+            var client: FTPClient? = null
 
             try {
-                client.connect(config.host, config.port)
+                client = ftpClientFactory.connect(
+                    config.host, config.port, config.username, config.password,
+                    config.useFtps, config.usePassiveMode
+                )
 
-                if (!client.login(config.username, config.password)) {
-                    return@withContext UploadResult(
-                        success = false,
-                        errorMessage = "FTP login failed",
-                        destination = UploadDestination.FTP
-                    )
-                }
-
-                if (config.usePassiveMode) {
-                    client.enterLocalPassiveMode()
-                } else {
-                    client.enterLocalActiveMode()
-                }
-
-                client.setFileType(FTP.BINARY_FILE_TYPE)
-
-                // Change to remote directory
+                // Change to remote directory. Resolved once so the link uses the same date folders.
                 val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     if (!client.changeWorkingDirectory(remotePath)) {
@@ -58,11 +44,10 @@ class FtpUploader @Inject constructor() {
                 }
 
                 if (success) {
-                    val url = if (config.httpUrl.isNotEmpty()) {
-                        "${config.httpUrl.trimEnd('/')}/$remoteFileName"
-                    } else {
-                        "ftp://${config.host}$remotePath/$remoteFileName"
-                    }
+                    val url = RemoteLink.build(
+                        config.httpUrl, config.remotePath, remotePath, remoteFileName,
+                        fallbackBase = "ftp://${config.host}"
+                    )
 
                     // The actual directory the file landed in: when remotePath was blank
                     // and no cd happened, this is the login home dir, not "/". If the
@@ -79,18 +64,21 @@ class FtpUploader @Inject constructor() {
                     UploadResult(
                         success = false,
                         errorMessage = "FTP upload failed: ${client.replyString}",
-                        destination = UploadDestination.FTP
+                        destination = UploadDestination.FTP,
+                        // 5xx replies (no permission, disk full, bad name) won't change on retry. Not an HTTP code.
+                        permanent = client.replyCode in 500..599
                     )
                 }
             } catch (e: Exception) {
                 UploadResult(
                     success = false,
                     errorMessage = "FTP error: ${e.message}",
-                    destination = UploadDestination.FTP
+                    destination = UploadDestination.FTP,
+                    error = e
                 )
             } finally {
                 try {
-                    if (client.isConnected) {
+                    if (client?.isConnected == true) {
                         client.logout()
                         client.disconnect()
                     }

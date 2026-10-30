@@ -16,7 +16,20 @@ object MimeTypes {
         "csv" to "text/csv", "html" to "text/html", "json" to "application/json",
         "xml" to "application/xml", "pdf" to "application/pdf", "zip" to "application/zip",
         "apk" to "application/vnd.android.package-archive",
+        "avif" to "image/avif", "tiff" to "image/tiff", "tif" to "image/tiff", "ico" to "image/x-icon",
+        "dng" to "image/x-adobe-dng", "3gp" to "video/3gpp", "3gpp" to "video/3gpp",
+        "flac" to "audio/flac", "aac" to "audio/aac", "opus" to "audio/opus",
+        "doc" to "application/msword",
+        "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" to "application/vnd.ms-excel",
+        "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ppt" to "application/vnd.ms-powerpoint",
+        "pptx" to "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "rtf" to "application/rtf", "7z" to "application/x-7z-compressed",
+        "rar" to "application/vnd.rar", "tar" to "application/x-tar", "gz" to "application/gzip",
     )
+
+    fun isKnownExtension(ext: String): Boolean = byExtension.containsKey(ext.lowercase())
 
     fun fromFileName(name: String): String =
         byExtension[name.substringAfterLast('.', "").lowercase()] ?: OCTET_STREAM
@@ -26,6 +39,10 @@ object MimeTypes {
 
     fun isRasterImage(mimeType: String?): Boolean =
         mimeType != null && mimeType.startsWith("image/") && mimeType != "image/svg+xml"
+
+    /** Whether the annotation editor can open this MIME type. GIFs would lose their animation, so they go to Upload. */
+    fun opensInEditor(mimeType: String?): Boolean =
+        isRasterImage(mimeType) && !isHeic(mimeType) && mimeType != "image/gif"
 
     fun isHeic(mimeType: String?): Boolean = mimeType == "image/heic" || mimeType == "image/heif"
 

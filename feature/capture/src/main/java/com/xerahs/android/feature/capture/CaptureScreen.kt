@@ -3,10 +3,20 @@ package com.xerahs.android.feature.capture
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import kotlinx.coroutines.delay
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.unit.dp
+import com.xerahs.android.core.ui.lumen.PillCta
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -27,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun CaptureScreen(
     onImageCaptured: (String) -> Unit,
     onMultiImageCaptured: (List<String>) -> Unit = {},
+    onFileCaptured: (String) -> Unit = {},
     onCancel: () -> Unit = {},
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
@@ -36,11 +47,17 @@ fun CaptureScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onImagesPicked(uris)
-        } else {
-            onCancel()
-        }
+        if (uris.isNotEmpty()) viewModel.onPicked(uris)
+    }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.onPicked(uris)
+    }
+    val pickMedia = {
+        photoPickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+        )
     }
 
     val launched = rememberSaveable { mutableStateOf(false) }
@@ -48,23 +65,22 @@ fun CaptureScreen(
     LaunchedEffect(Unit) {
         if (!launched.value) {
             launched.value = true
-            photoPickerLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
+            pickMedia()
         }
     }
 
-    LaunchedEffect(uiState.pickedImagePath) {
-        uiState.pickedImagePath?.let { path ->
-            viewModel.onImageHandled()
-            onImageCaptured(path)
-        }
-    }
-
-    LaunchedEffect(uiState.pickedImagePaths) {
-        uiState.pickedImagePaths?.let { paths ->
-            viewModel.onImageHandled()
-            onMultiImageCaptured(paths)
+    // A partial failure still routes the files that did copy; give the snackbar a moment first.
+    LaunchedEffect(uiState.pickedFilePath, uiState.pickedImagePath, uiState.pickedImagePaths) {
+        val file = uiState.pickedFilePath
+        val image = uiState.pickedImagePath
+        val images = uiState.pickedImagePaths
+        if (file == null && image == null && images == null) return@LaunchedEffect
+        if (uiState.errorMessage != null) delay(1500)
+        viewModel.onImageHandled()
+        when {
+            file != null -> onFileCaptured(file)
+            image != null -> onImageCaptured(image)
+            images != null -> onMultiImageCaptured(images)
         }
     }
 
@@ -82,11 +98,24 @@ fun CaptureScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             color = MaterialTheme.colorScheme.background
         ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                if (uiState.isCopying) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                }
+                PillCta(text = "Pick photos or videos", onClick = { pickMedia() }, enabled = !uiState.isCopying)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                    shape = CircleShape,
+                    enabled = !uiState.isCopying
+                ) { Text("Pick a file") }
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onCancel, enabled = !uiState.isCopying) { Text("Cancel") }
             }
         }
     }

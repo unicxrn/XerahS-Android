@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -100,6 +101,7 @@ import coil.compose.AsyncImage
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toDateGroupKey
 import com.xerahs.android.core.common.toShortDate
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DateFilter
 import com.xerahs.android.core.domain.model.HistoryItem
@@ -260,12 +262,12 @@ fun HistoryScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             FilledTonalIconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(url))
-                                scope.launch { snackbarHostState.showSnackbar("URL copied") }
+                                clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(currentItem, uiState.linkFormat, url)))
+                                scope.launch { snackbarHostState.showSnackbar("Link copied") }
                             }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
+                                    contentDescription = "Copy link",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -368,7 +370,7 @@ fun HistoryScreen(
     if (showBulkDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
-            title = { Text("Delete ${uiState.selectedIds.size} items?") },
+            title = { Text(uiState.selectedIds.size.let { if (it == 1) "Delete 1 item?" else "Delete $it items?" }) },
             text = { Text("This will permanently delete the selected items. This cannot be undone.") },
             confirmButton = {
                 TextButton(
@@ -477,6 +479,8 @@ fun HistoryScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Keep the actions above the gesture handle and nav buttons.
+                            .navigationBarsPadding()
                             .padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
@@ -876,8 +880,8 @@ fun HistoryScreen(
                                         onClick = { viewModel.toggleItemSelection(item.id) },
                                         onLongClick = { viewModel.toggleItemSelection(item.id) },
                                         onCopyUrl = { url ->
-                                            clipboardManager.setText(AnnotatedString(url))
-                                            scope.launch { snackbarHostState.showSnackbar("URL copied") }
+                                            clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(item, uiState.linkFormat, url)))
+                                            scope.launch { snackbarHostState.showSnackbar("Link copied") }
                                         },
                                         onShare = { shareHistoryItem(context, item) }
                                     )
@@ -891,9 +895,9 @@ fun HistoryScreen(
                                             viewModel.toggleItemSelection(item.id)
                                         },
                                         onCopyUrl = { url ->
-                                            clipboardManager.setText(AnnotatedString(url))
+                                            clipboardManager.setText(AnnotatedString(LinkFormatter.forItem(item, uiState.linkFormat, url)))
                                             scope.launch {
-                                                snackbarHostState.showSnackbar("URL copied")
+                                                snackbarHostState.showSnackbar("Link copied")
                                             }
                                         },
                                         onShare = { shareHistoryItem(context, item) },
@@ -1126,7 +1130,7 @@ private fun HistoryItemCard(
                             IconButton(onClick = { onCopyUrl(url) }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
-                                    contentDescription = "Copy URL",
+                                    contentDescription = "Copy link",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }

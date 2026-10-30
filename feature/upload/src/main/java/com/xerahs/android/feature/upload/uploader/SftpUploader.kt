@@ -1,9 +1,10 @@
 package com.xerahs.android.feature.upload.uploader
 
 import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.xerahs.android.core.common.PathPattern
+import com.xerahs.android.core.data.remote.transfer.HostKeyChangedException
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadResult
@@ -15,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SftpUploader @Inject constructor() {
+class SftpUploader @Inject constructor(private val sshSessionFactory: SshSessionFactory) {
 
     suspend fun upload(file: File, config: UploadConfig.SftpConfig, remoteFileName: String? = null): UploadResult =
         withContext(Dispatchers.IO) {
@@ -23,34 +24,16 @@ class SftpUploader @Inject constructor() {
             var channel: ChannelSftp? = null
 
             try {
-                val jsch = JSch()
-
-                // Add SSH key if provided
-                if (!config.keyPath.isNullOrEmpty()) {
-                    if (config.keyPassphrase.isNullOrEmpty()) {
-                        jsch.addIdentity(config.keyPath)
-                    } else {
-                        jsch.addIdentity(config.keyPath, config.keyPassphrase)
-                    }
-                }
-
-                session = jsch.getSession(config.username, config.host, config.port)
-
-                if (config.keyPath.isNullOrEmpty()) {
-                    session.setPassword(config.password)
-                }
-
-                // Disable strict host key checking for simplicity
-                val sshConfig = java.util.Properties()
-                sshConfig["StrictHostKeyChecking"] = "no"
-                session.setConfig(sshConfig)
-
-                session.connect(30000)
+                session = sshSessionFactory.open(
+                    config.host, config.port, config.username, config.password,
+                    config.keyPath?.takeIf { it.isNotEmpty() }?.let { File(it).readBytes() },
+                    config.keyPassphrase, timeoutMs = 30000
+                )
 
                 channel = session.openChannel("sftp") as ChannelSftp
                 channel.connect(30000)
 
-                // Navigate to remote directory
+                // Navigate to remote directory. Resolved once so the link uses the same date folders.
                 val remotePath = PathPattern.resolve(config.remotePath).trimEnd('/')
                 if (remotePath.isNotEmpty() && remotePath != "/") {
                     try {
@@ -68,11 +51,10 @@ class SftpUploader @Inject constructor() {
                     channel.put(inputStream, uploadName)
                 }
 
-                val url = if (config.httpUrl.isNotEmpty()) {
-                    "${config.httpUrl.trimEnd('/')}/$uploadName"
-                } else {
-                    "sftp://${config.host}$remotePath/$uploadName"
-                }
+                val url = RemoteLink.build(
+                    config.httpUrl, config.remotePath, remotePath, uploadName,
+                    fallbackBase = "sftp://${config.host}"
+                )
 
                 // The actual directory the file landed in: when remotePath was blank
                 // and no cd happened, this is the login home dir, not "/". If we can't
@@ -89,11 +71,19 @@ class SftpUploader @Inject constructor() {
                     destination = UploadDestination.SFTP,
                     remoteKey = actualDir?.let { it.trimEnd('/') + "/" + uploadName }
                 )
+            } catch (e: HostKeyChangedException) {
+                UploadResult(
+                    success = false,
+                    errorMessage = e.message,
+                    destination = UploadDestination.SFTP,
+                    error = e
+                )
             } catch (e: Exception) {
                 UploadResult(
                     success = false,
                     errorMessage = "SFTP error: ${e.message}",
-                    destination = UploadDestination.SFTP
+                    destination = UploadDestination.SFTP,
+                    error = e
                 )
             } finally {
                 channel?.disconnect()

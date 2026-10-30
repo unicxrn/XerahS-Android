@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.xerahs.android.feature.settings"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
+    implementation(project(":core:data"))
     implementation(project(":core:ui"))
 
     implementation(libs.core.ktx)

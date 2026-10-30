@@ -1,7 +1,9 @@
 package com.xerahs.android.feature.settings.destinations
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
@@ -24,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
@@ -31,13 +35,17 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -48,6 +56,7 @@ import com.xerahs.android.core.ui.StatusBanner
 import com.xerahs.android.core.ui.lumen.LumenSwitch
 import com.xerahs.android.core.ui.lumen.LumenTopBar
 import com.xerahs.android.core.ui.lumen.PillCta
+import com.xerahs.android.core.ui.lumen.monoStyle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,29 +67,33 @@ fun FtpConfigScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(viewModel.initialTab) }
     var isTesting by remember { mutableStateOf(false) }
+    val savedHostKeys by viewModel.savedHostKeys.collectAsState()
 
     // FTP fields
-    var ftpHost by remember { mutableStateOf("") }
-    var ftpPort by remember { mutableStateOf("21") }
-    var ftpUsername by remember { mutableStateOf("") }
-    var ftpPassword by remember { mutableStateOf("") }
-    var ftpRemotePath by remember { mutableStateOf("/") }
-    var ftpUseFtps by remember { mutableStateOf(false) }
-    var ftpUsePassive by remember { mutableStateOf(true) }
-    var ftpHttpUrl by remember { mutableStateOf("") }
+    var ftpHost by remember { viewModel.form.field("ftpHost", "") }
+    var ftpPort by remember { viewModel.form.field("ftpPort", "21") }
+    var ftpUsername by remember { viewModel.form.field("ftpUsername", "") }
+    var ftpPassword by remember { viewModel.form.field("ftpPassword", "") }
+    var ftpRemotePath by remember { viewModel.form.field("ftpRemotePath", "/") }
+    var ftpUseFtps by remember { viewModel.form.field("ftpUseFtps", false) }
+    var ftpUsePassive by remember { viewModel.form.field("ftpUsePassive", true) }
+    var ftpHttpUrl by remember { viewModel.form.field("ftpHttpUrl", "") }
 
     // SFTP fields
-    var sftpHost by remember { mutableStateOf("") }
-    var sftpPort by remember { mutableStateOf("22") }
-    var sftpUsername by remember { mutableStateOf("") }
-    var sftpPassword by remember { mutableStateOf("") }
-    var sftpKeyPath by remember { mutableStateOf("") }
-    var sftpRemotePath by remember { mutableStateOf("/") }
-    var sftpHttpUrl by remember { mutableStateOf("") }
+    var sftpHost by remember { viewModel.form.field("sftpHost", "") }
+    var sftpPort by remember { viewModel.form.field("sftpPort", "22") }
+    var sftpUsername by remember { viewModel.form.field("sftpUsername", "") }
+    var sftpPassword by remember { viewModel.form.field("sftpPassword", "") }
+    var sftpKeyPath by remember { viewModel.form.field("sftpKeyPath", "") }
+    var sftpKeyPassphrase by remember { viewModel.form.field("sftpKeyPassphrase", "") }
+    var sftpRemotePath by remember { viewModel.form.field("sftpRemotePath", "/") }
+    var sftpHttpUrl by remember { viewModel.form.field("sftpHttpUrl", "") }
 
     LaunchedEffect(Unit) {
+        // Load once per ViewModel, so a rotation keeps what was typed.
+        if (viewModel.form.loaded) return@LaunchedEffect
         val ftpConfig = viewModel.loadFtpConfig()
         ftpHost = ftpConfig.host
         ftpPort = ftpConfig.port.toString()
@@ -97,12 +110,14 @@ fun FtpConfigScreen(
         sftpUsername = sftpConfig.username
         sftpPassword = sftpConfig.password
         sftpKeyPath = sftpConfig.keyPath ?: ""
+        sftpKeyPassphrase = sftpConfig.keyPassphrase ?: ""
         sftpRemotePath = sftpConfig.remotePath
         sftpHttpUrl = sftpConfig.httpUrl
+        viewModel.form.loaded = true
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "FTP / SFTP Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "FTP and SFTP", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -204,6 +219,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = ftpHttpUrl, onValueChange = { ftpHttpUrl = it },
                                 label = { Text("HTTP URL (for link generation)") },
+                                supportingText = { Text("Web address of Remote Path up to the first token. Date folders are added to each link.") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
@@ -254,7 +270,7 @@ fun FtpConfigScreen(
                             coroutineScope.launch {
                                 val result = viewModel.testFtpConnection(
                                     ftpHost, ftpPort.toIntOrNull() ?: 21,
-                                    ftpUsername, ftpPassword, ftpUseFtps
+                                    ftpUsername, ftpPassword, ftpUseFtps, ftpUsePassive
                                 )
                                 isTesting = false
                                 snackbarHostState.showSnackbar(result)
@@ -324,6 +340,13 @@ fun FtpConfigScreen(
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
+                            OutlinedTextField(
+                                value = sftpKeyPassphrase, onValueChange = { sftpKeyPassphrase = it },
+                                label = { Text("Key Passphrase (optional)") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                shape = RoundedCornerShape(18.dp),
+                                visualTransformation = PasswordVisualTransformation()
+                            )
                         }
                     }
 
@@ -343,6 +366,7 @@ fun FtpConfigScreen(
                             OutlinedTextField(
                                 value = sftpHttpUrl, onValueChange = { sftpHttpUrl = it },
                                 label = { Text("HTTP URL (for link generation)") },
+                                supportingText = { Text("Web address of Remote Path up to the first token. Date folders are added to each link.") },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 shape = RoundedCornerShape(18.dp)
                             )
@@ -358,6 +382,7 @@ fun FtpConfigScreen(
                                     sftpHost, sftpPort.toIntOrNull() ?: 22,
                                     sftpUsername, sftpPassword,
                                     sftpKeyPath.ifEmpty { null },
+                                    sftpKeyPassphrase.ifEmpty { null },
                                     sftpRemotePath, sftpHttpUrl
                                 )
                                 snackbarHostState.showSnackbar("SFTP settings saved")
@@ -377,10 +402,11 @@ fun FtpConfigScreen(
                                 val result = viewModel.testSftpConnection(
                                     sftpHost, sftpPort.toIntOrNull() ?: 22,
                                     sftpUsername, sftpPassword,
-                                    sftpKeyPath.ifEmpty { null }
+                                    sftpKeyPath.ifEmpty { null },
+                                    sftpKeyPassphrase.ifEmpty { null }
                                 )
                                 isTesting = false
-                                snackbarHostState.showSnackbar(result)
+                                snackbarHostState.showSnackbar(result, duration = SnackbarDuration.Long)
                             }
                         },
                         shape = CircleShape,
@@ -396,9 +422,91 @@ fun FtpConfigScreen(
                         }
                         Text("Test Connection")
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                val had = viewModel.forgetSftpHostKey(sftpHost, sftpPort.toIntOrNull() ?: 22)
+                                snackbarHostState.showSnackbar(
+                                    if (had) "Saved host key forgotten. The next connection will save the new one."
+                                    else "No saved host key for this server"
+                                )
+                            }
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        // A fixed red border would make the disabled button look active.
+                        border = BorderStroke(
+                            1.dp,
+                            if (sftpHost.isNotBlank()) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(48.dp),
+                        enabled = sftpHost.isNotBlank()
+                    ) {
+                        Text("Forget saved host key")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SavedHostKeys(
+                        keys = savedHostKeys,
+                        onForget = { key ->
+                            viewModel.forgetHostKey(key.hostPort)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Forgot the key for ${key.hostPort}. The next connection saves the new one.")
+                            }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+/** Pinned SFTP host keys for every server, including the ones only profiles use. */
+@Composable
+private fun SavedHostKeys(keys: List<SavedHostKey>, onForget: (SavedHostKey) -> Unit) {
+    SectionHeader("Saved host keys")
+    SettingsGroupCard {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (keys.isEmpty()) {
+                Text(
+                    "No saved host keys yet. A server's key is saved the first time you connect to it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            keys.forEach { key ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(key.hostPort, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            key.fingerprint,
+                            style = monoStyle(11),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    OutlinedButton(
+                        onClick = { onForget(key) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Forget")
+                    }
+                }
             }
         }
     }

@@ -1,5 +1,9 @@
 package com.xerahs.android.feature.settings
 
+import kotlinx.coroutines.flow.first
+import com.xerahs.android.core.domain.model.globalConfigFor
+import com.xerahs.android.core.domain.model.isSetupComplete
+import com.xerahs.android.core.domain.model.BiometricLockMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonParser
@@ -7,6 +11,8 @@ import com.xerahs.android.core.common.sxcu.CustomDestinationType
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -34,10 +40,13 @@ data class SettingsUiState(
     val dynamicColor: Boolean = false,
     val colorTheme: ColorTheme = ColorTheme.VIOLET,
     val oledBlack: Boolean = true,
+    val screenshotWatch: Boolean = false,
+    val screenshotAutoUpload: Boolean = false,
+    val screenshotPermissionLost: Boolean = false,
     val imageQuality: Int = 85,
     val maxImageDimension: Int = 0,
     val defaultAfterUploadActions: Set<AfterUploadAction> = emptySet(),
-    val biometricLockMode: String = "OFF",
+    val biometricLockMode: BiometricLockMode = BiometricLockMode.OFF,
     val uploadFormat: ImageFormat = ImageFormat.ORIGINAL,
     val stripExif: Boolean = false,
     val convertHeicToPng: Boolean = true,
@@ -51,6 +60,9 @@ data class SettingsUiState(
     val pendingImportJson: String? = null,
     val shortenerProfileId: String? = null,
     val shortenerProfiles: List<UploadProfile> = emptyList(),
+    val allProfiles: List<UploadProfile> = emptyList(),
+    val routes: Map<FileKind, String?> = emptyMap(),
+    val linkFormat: LinkFormat = LinkFormat.PLAIN,
     val backupPassphraseRequest: BackupPassphraseRequest? = null,
     val pendingBackupPayload: String? = null,
     val passphraseError: String? = null
@@ -109,6 +121,21 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
+                settingsRepository.getScreenshotWatchEnabled().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(screenshotWatch = enabled)
+                }
+            }
+            launch {
+                settingsRepository.getScreenshotPermissionLost().collect { lost ->
+                    _uiState.value = _uiState.value.copy(screenshotPermissionLost = lost)
+                }
+            }
+            launch {
+                settingsRepository.getScreenshotAutoUpload().collect { enabled ->
+                    _uiState.value = _uiState.value.copy(screenshotAutoUpload = enabled)
+                }
+            }
+            launch {
                 settingsRepository.getImageQuality().collect { quality ->
                     _uiState.value = _uiState.value.copy(imageQuality = quality)
                 }
@@ -125,7 +152,7 @@ class SettingsViewModel @Inject constructor(
             }
             launch {
                 settingsRepository.getBiometricLockMode().collect { mode ->
-                    _uiState.value = _uiState.value.copy(biometricLockMode = mode)
+                    _uiState.value = _uiState.value.copy(biometricLockMode = BiometricLockMode.fromName(mode))
                 }
             }
             launch {
@@ -176,6 +203,23 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             launch {
+                profileRepository.getAllProfiles().collect { profiles ->
+                    _uiState.value = _uiState.value.copy(allProfiles = profiles)
+                }
+            }
+            FileKind.entries.forEach { kind ->
+                launch {
+                    settingsRepository.getRouteProfileId(kind).collect { id ->
+                        _uiState.value = _uiState.value.copy(routes = _uiState.value.routes + (kind to id))
+                    }
+                }
+            }
+            launch {
+                settingsRepository.getLinkFormat().collect { format ->
+                    _uiState.value = _uiState.value.copy(linkFormat = format)
+                }
+            }
+            launch {
                 settingsRepository.getShortenerProfileId().collect { id ->
                     _uiState.value = _uiState.value.copy(shortenerProfileId = id)
                 }
@@ -195,19 +239,13 @@ class SettingsViewModel @Inject constructor(
     }
 
     private suspend fun checkDestinationConfigured(destination: UploadDestination): Boolean {
-        return when (destination) {
-            UploadDestination.IMGUR -> settingsRepository.getImgurConfig().clientId.isNotBlank()
-            UploadDestination.S3 -> {
-                val config = settingsRepository.getS3Config()
-                config.accessKeyId.isNotBlank() && config.bucket.isNotBlank()
-            }
-            UploadDestination.FTP -> settingsRepository.getFtpConfig().host.isNotBlank()
-            UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
-            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
-            UploadDestination.LOCAL -> true
-            UploadDestination.NEXTCLOUD -> settingsRepository.getNextcloudConfig().let { it.serverUrl.isNotBlank() && it.username.isNotBlank() && it.appPassword.isNotBlank() }
-            UploadDestination.IMMICH -> settingsRepository.getImmichConfig().let { it.serverUrl.isNotBlank() && it.apiKey.isNotBlank() }
-            UploadDestination.GITHUB_GIST -> settingsRepository.getGistConfig().token.isNotBlank()
+        if (destination == UploadDestination.LOCAL) return true
+        return withContext(Dispatchers.IO) {
+            val profiles = profileRepository.getProfilesForDestination(destination).first()
+            isSetupComplete(
+                settingsRepository.globalConfigFor(destination),
+                profiles.map { profileRepository.getProfileConfig(it.id, destination) }
+            )
         }
     }
 
@@ -253,6 +291,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setScreenshotWatch(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setScreenshotWatchEnabled(enabled) }
+    }
+
+    fun setScreenshotAutoUpload(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setScreenshotAutoUpload(enabled) }
+    }
+
     fun setImageQuality(quality: Int) {
         viewModelScope.launch {
             settingsRepository.setImageQuality(quality)
@@ -272,9 +318,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setBiometricLockMode(mode: String) {
+    fun setBiometricLockMode(mode: BiometricLockMode) {
         viewModelScope.launch {
-            settingsRepository.setBiometricLockMode(mode)
+            settingsRepository.setBiometricLockMode(mode.name)
         }
     }
 
@@ -473,6 +519,14 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(exportImportMessage = null)
+    }
+
+    fun setRouteProfileId(kind: FileKind, profileId: String?) {
+        viewModelScope.launch { settingsRepository.setRouteProfileId(kind, profileId) }
+    }
+
+    fun setLinkFormat(format: LinkFormat) {
+        viewModelScope.launch { settingsRepository.setLinkFormat(format) }
     }
 
     fun setShortenerProfileId(id: String?) {

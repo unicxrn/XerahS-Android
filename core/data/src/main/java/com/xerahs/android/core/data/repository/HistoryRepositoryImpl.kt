@@ -1,25 +1,41 @@
 package com.xerahs.android.core.data.repository
 
+import android.content.Context
+import com.xerahs.android.core.common.file.LocalUploads
 import com.xerahs.android.core.data.local.db.HistoryDao
 import com.xerahs.android.core.data.local.db.HistoryEntity
+import com.xerahs.android.core.domain.UploadCompletedHook
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.model.UploadStatistics
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class HistoryRepositoryImpl @Inject constructor(
-    private val historyDao: HistoryDao
+    private val historyDao: HistoryDao,
+    @ApplicationContext private val context: Context,
+    private val uploadCompletedHook: UploadCompletedHook
 ) : HistoryRepository {
 
     override fun getAllHistory(): Flow<List<HistoryItem>> =
         historyDao.getAllHistory().map { entities ->
             entities.map { it.toDomain() }
         }
+
+    override fun latest(): Flow<HistoryItem?> =
+        historyDao.getLatest().map { it?.toDomain() }
+
+    override fun lastUsedByProfile(): Flow<Map<String, Long>> =
+        historyDao.getLastUsedByProfile().map { rows -> rows.associate { it.profileId to it.lastUsed } }
 
     override fun getHistoryByDestination(destination: UploadDestination): Flow<List<HistoryItem>> =
         historyDao.getHistoryByDestination(destination.name).map { entities ->
@@ -34,11 +50,28 @@ class HistoryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteHistoryItem(id: String) {
+        val item = historyDao.getHistoryItem(id)
         historyDao.deleteHistoryItem(id)
+        // A Local upload's only copy lives in filesDir/uploads; remove it with its history entry.
+        if (item?.uploadDestination == UploadDestination.LOCAL.name && LocalUploads.isKept(context.filesDir, item.url)) {
+            withContext(Dispatchers.IO) { runCatching { File(item.url!!).delete() } }
+        }
+        notifyHistoryChanged()
     }
 
     override suspend fun clearHistory() {
         historyDao.clearHistory()
+        withContext(Dispatchers.IO) { runCatching { LocalUploads.dir(context.filesDir).deleteRecursively() } }
+        notifyHistoryChanged()
+    }
+
+    private suspend fun notifyHistoryChanged() {
+        try {
+            uploadCompletedHook.onUploadCompleted()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     override fun searchHistory(query: String): Flow<List<HistoryItem>> =

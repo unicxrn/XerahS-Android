@@ -6,12 +6,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.work.WorkManager
+import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import android.content.Intent
 import com.xerahs.android.feature.annotation.AnnotationScreen
 import com.xerahs.android.feature.capture.CaptureScreen
@@ -43,12 +48,15 @@ import com.xerahs.android.feature.settings.importer.UploaderImportScreen
 import com.xerahs.android.feature.s3explorer.S3ExplorerScreen
 import com.xerahs.android.feature.s3explorer.S3StatsScreen
 import com.xerahs.android.feature.upload.UploadScreen
+import com.xerahs.android.feature.upload.queue.QueueScreen
 import com.xerahs.android.feature.tools.BatchToolScreen
 import com.xerahs.android.feature.tools.ColorPickerToolScreen
 import com.xerahs.android.feature.tools.HashScreen
 import com.xerahs.android.feature.tools.QrScreen
 import com.xerahs.android.feature.tools.ToolId
 import com.xerahs.android.feature.tools.ToolsScreen
+import com.xerahs.android.feature.tools.beautify.BeautifyScreen
+import com.xerahs.android.feature.tools.combine.CombineScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +70,10 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.LinkOff
+import com.xerahs.android.core.ui.EmptyState
+import com.xerahs.android.core.ui.lumen.PillCta
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
@@ -88,13 +100,18 @@ sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object ShareResult : Screen("share/{historyId}") {
         fun createRoute(id: String) = "share/$id"
+        const val DEEP_LINK = "xerahs://share/{historyId}"
+    }
+    data object Queue : Screen("queue") {
+        const val DEEP_LINK = "xerahs://queue"
     }
     data object Capture : Screen("capture")
     data object Annotation : Screen("annotation/{imagePath}") {
         fun createRoute(imagePath: String) = "annotation/${android.net.Uri.encode(imagePath)}"
     }
-    data object Upload : Screen("upload/{imagePath}") {
-        fun createRoute(imagePath: String) = "upload/${android.net.Uri.encode(imagePath)}"
+    data object Upload : Screen("upload/{imagePath}?profileId={profileId}") {
+        fun createRoute(imagePath: String, profileId: String? = null) =
+            "upload/${android.net.Uri.encode(imagePath)}" + profileQuery(profileId)
     }
     data object History : Screen("history")
     data object S3Explorer : Screen("s3explorer")
@@ -105,15 +122,18 @@ sealed class Screen(val route: String) {
     data object BackupSettings : Screen("settings/backup")
     data object ImgurConfig : Screen("settings/imgur")
     data object S3Config : Screen("settings/s3")
-    data object FtpConfig : Screen("settings/ftp")
+    data object FtpConfig : Screen("settings/ftp?tab={tab}") {
+        fun createRoute(tab: String? = null) = if (tab == null) "settings/ftp" else "settings/ftp?tab=$tab"
+    }
     data object CustomHttpConfig : Screen("settings/custom-http")
     data object NativeDestinationConfig : Screen("settings/destination/{destination}") {
         fun createRoute(destination: UploadDestination) = "settings/destination/${destination.name}"
     }
-    data object UploaderImport : Screen("settings/import-uploader?uri={uri}") {
-        fun createRoute(uri: String? = null) =
-            if (uri == null) "settings/import-uploader"
-            else "settings/import-uploader?uri=${android.net.Uri.encode(uri)}"
+    data object UploaderImport : Screen("settings/import-uploader?path={path}") {
+        /** [path] is a config already copied into the cache, never a content URI. */
+        fun createRoute(path: String? = null) =
+            if (path == null) "settings/import-uploader"
+            else "settings/import-uploader?path=${android.net.Uri.encode(path)}"
     }
     data object StorageSettings : Screen("settings/storage")
     data object SecuritySettings : Screen("settings/security")
@@ -125,24 +145,47 @@ sealed class Screen(val route: String) {
     }
     data object AppUpdate : Screen("settings/updates")
     data object Licenses : Screen("settings/licenses")
-    data object UploadBatch : Screen("upload-batch/{imagePaths}") {
-        fun createRoute(imagePaths: List<String>) =
-            "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
+    data object UploadBatch : Screen("upload-batch/{imagePaths}?profileId={profileId}") {
+        fun createRoute(imagePaths: List<String>, profileId: String? = null) =
+            "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}" + profileQuery(profileId)
     }
     data object Tools : Screen("tools")
     data object ToolsBatch : Screen("tools/batch")
     data object ToolsHash : Screen("tools/hash")
     data object ToolsQr : Screen("tools/qr")
     data object ToolsColor : Screen("tools/color")
+    data object ToolsCombine : Screen("tools/combine")
+    data object ToolsBeautify : Screen("tools/beautify?imagePath={imagePath}") {
+        fun createRoute(imagePath: String? = null) =
+            if (imagePath == null) "tools/beautify" else "tools/beautify?imagePath=${android.net.Uri.encode(imagePath)}"
+    }
+}
+
+/** Optional profile the Upload screen preselects (a direct share that still needs input). */
+private fun profileQuery(profileId: String?): String =
+    if (profileId == null) "" else "?profileId=${android.net.Uri.encode(profileId)}"
+
+private val profileIdArgument = navArgument("profileId") {
+    type = NavType.StringType
+    nullable = true
+    defaultValue = null
 }
 
 @Composable
 fun XerahSNavGraph(
     navController: NavHostController,
     startDestination: String = Screen.Capture.route,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onUploadClipboard: () -> Unit = {},
+    onUploadFromLink: () -> Unit = {}
 ) {
     val reduce = rememberReduceMotion()
+    val appContext = LocalContext.current.applicationContext
+    val activeUploads by remember {
+        WorkManager.getInstance(appContext).getWorkInfosByTagFlow(UPLOAD_WORK_TAG)
+            .map { list -> list.count { !it.state.isFinished } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = 0)
     val globalDuration = if (reduce) 0 else 300
 
     NavHost(
@@ -171,13 +214,20 @@ fun XerahSNavGraph(
                 onCreate = { navController.navigate(Screen.Capture.route) },
                 onOpen = { id -> navController.navigate(Screen.ShareResult.createRoute(id)) },
                 onSettings = { navController.navigate(Screen.Settings.route) },
-                onStats = { navController.navigate(Screen.Statistics.route) }
+                onStats = { navController.navigate(Screen.Statistics.route) },
+                onHistory = { navController.navigate(Screen.History.route) },
+                onOpenQueue = { navController.navigate(Screen.Queue.route) },
+                onUploadClipboard = onUploadClipboard,
+                onUploadFromLink = onUploadFromLink,
+                activeUploads = activeUploads,
+                onSetUp = { dest -> setupRouteFor(dest)?.let { navController.navigate(it) } }
             )
         }
 
         composable(
             route = Screen.ShareResult.route,
             arguments = listOf(navArgument("historyId") { type = NavType.StringType }),
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.ShareResult.DEEP_LINK }),
             enterTransition = {
                 slideInHorizontally(
                     animationSpec = tween(if (reduce) 0 else 320),
@@ -243,20 +293,41 @@ fun XerahSNavGraph(
                                 Intent.createChooser(sendIntent, "Share link")
                             )
                         },
-                        onCopy = {
-                            val link = s.shortUrl ?: item.url ?: item.filePath
-                            clipboard.setText(AnnotatedString(link))
-                        },
+                        // ShareCard passes the link, plain or in the format picked from its menu.
+                        onCopy = { text -> clipboard.setText(AnnotatedString(text)) },
                         onShorten = vm::shorten,
                         shortUrl = s.shortUrl,
                         isShortening = s.isShortening,
                         canDeleteFromHost = s.canDeleteFromHost,
                         isDeleting = s.isDeleting,
                         onDeleteFromHost = vm::deleteFromHost,
+                        linkFormat = s.linkFormat,
                         onDone = { navController.popBackStack() }
                     )
-                } else {
+                } else if (s.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        EmptyState(
+                            icon = Icons.Outlined.LinkOff,
+                            title = "This upload no longer exists"
+                        )
+                        Spacer(Modifier.size(24.dp))
+                        PillCta(
+                            text = "Back",
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
+                            onClick = {
+                                if (!navController.popBackStack()) {
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(navController.graph.id) { inclusive = true }
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -272,6 +343,11 @@ fun XerahSNavGraph(
                 },
                 onMultiImageCaptured = { imagePaths ->
                     navController.navigate(Screen.UploadBatch.createRoute(imagePaths)) {
+                        popUpTo(Screen.Capture.route) { inclusive = true }
+                    }
+                },
+                onFileCaptured = { path ->
+                    navController.navigate(Screen.Upload.createRoute(path)) {
                         popUpTo(Screen.Capture.route) { inclusive = true }
                     }
                 },
@@ -304,13 +380,16 @@ fun XerahSNavGraph(
                 onExportComplete = { exportedPath ->
                     navController.navigate(Screen.Upload.createRoute(exportedPath))
                 },
+                onBeautify = { exportedPath ->
+                    navController.navigate(Screen.ToolsBeautify.createRoute(exportedPath))
+                },
                 onBack = { navController.popBackStack() }
             )
         }
 
         composable(
             route = Screen.Upload.route,
-            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }),
+            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }, profileIdArgument),
             enterTransition = {
                 slideInHorizontally(
                     animationSpec = tween(if (reduce) 0 else 320),
@@ -398,7 +477,7 @@ fun XerahSNavGraph(
             UploadSettingsScreen(
                 onNavigateToImgurConfig = { navController.navigate(Screen.ImgurConfig.route) },
                 onNavigateToS3Config = { navController.navigate(Screen.S3Config.route) },
-                onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.route) },
+                onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.createRoute()) },
                 onNavigateToCustomHttpConfig = { navController.navigate(Screen.CustomHttpConfig.route) },
                 onNavigateToImportUploader = { navController.navigate(Screen.UploaderImport.createRoute()) },
                 onNavigateToProfiles = { navController.navigate(Screen.ProfileManagement.route) },
@@ -444,12 +523,8 @@ fun XerahSNavGraph(
             }
             val viewModel: ProfileManagementViewModel = hiltViewModel(parentEntry)
 
-            androidx.compose.runtime.LaunchedEffect(profileId) {
-                if (profileId == "new") {
-                    viewModel.startNewProfile()
-                } else if (profileId != null) {
-                    viewModel.startEditProfile(profileId)
-                }
+            androidx.compose.runtime.LaunchedEffect(backStackEntry.id, profileId) {
+                viewModel.openEditor(backStackEntry.id, profileId)
             }
 
             ProfileEditorScreen(
@@ -487,7 +562,14 @@ fun XerahSNavGraph(
             }
         }
 
-        composable(Screen.FtpConfig.route) {
+        composable(
+            route = Screen.FtpConfig.route,
+            arguments = listOf(navArgument("tab") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) {
             BiometricGate(navController) {
                 FtpConfigScreen(onBack = { navController.popBackStack() })
             }
@@ -513,7 +595,7 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.UploaderImport.route,
-            arguments = listOf(navArgument("uri") {
+            arguments = listOf(navArgument("path") {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = null
@@ -529,7 +611,7 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.UploadBatch.route,
-            arguments = listOf(navArgument("imagePaths") { type = NavType.StringType })
+            arguments = listOf(navArgument("imagePaths") { type = NavType.StringType }, profileIdArgument)
         ) { backStackEntry ->
             val raw = backStackEntry.arguments?.getString("imagePaths") ?: ""
             val imagePaths = raw.split("|").filter { it.isNotBlank() }
@@ -552,6 +634,8 @@ fun XerahSNavGraph(
                             ToolId.HASH -> Screen.ToolsHash.route
                             ToolId.QR -> Screen.ToolsQr.route
                             ToolId.COLOR -> Screen.ToolsColor.route
+                            ToolId.COMBINE -> Screen.ToolsCombine.route
+                            ToolId.BEAUTIFY -> Screen.ToolsBeautify.createRoute()
                         }
                     )
                 }
@@ -569,12 +653,40 @@ fun XerahSNavGraph(
             HashScreen(onBack = { navController.popBackStack() })
         }
 
+        composable(
+            route = Screen.Queue.route,
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.Queue.DEEP_LINK })
+        ) {
+            QueueScreen(onBack = { navController.popBackStack() })
+        }
+
         composable(Screen.ToolsQr.route) {
             QrScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Screen.ToolsColor.route) {
             ColorPickerToolScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.ToolsCombine.route) {
+            CombineScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { path -> navController.navigate(Screen.Upload.createRoute(path)) }
+            )
+        }
+
+        composable(
+            route = Screen.ToolsBeautify.route,
+            arguments = listOf(navArgument("imagePath") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) {
+            BeautifyScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { path -> navController.navigate(Screen.Upload.createRoute(path)) }
+            )
         }
     }
 }
@@ -584,16 +696,44 @@ private fun BiometricGate(
     navController: NavHostController,
     content: @Composable () -> Unit
 ) {
-    val mainViewModel: MainViewModel = hiltViewModel()
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    // Share the activity's MainViewModel instead of creating one per destination.
+    val mainViewModel: MainViewModel = if (activity != null) {
+        hiltViewModel(viewModelStoreOwner = activity)
+    } else {
+        hiltViewModel()
+    }
     val lockMode by mainViewModel.biometricLockMode.collectAsState()
 
-    if (lockMode != "LOCK_CREDENTIALS") {
+    // Lock mode not loaded yet: show nothing rather than the credentials.
+    if (lockMode == null) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        return
+    }
+    if (lockMode != com.xerahs.android.core.domain.model.BiometricLockMode.LOCK_CREDENTIALS) {
         content()
         return
     }
 
     var authenticated by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    var needsSetup by remember { mutableStateOf(false) }
+
+    fun authenticate() {
+        // Never unlock for free: without a usable screen lock the credentials stay hidden.
+        if (activity == null || !BiometricHelper.canAuthenticate(activity)) {
+            needsSetup = activity != null && BiometricHelper.needsScreenLockSetup(activity)
+            return
+        }
+        needsSetup = false
+        BiometricHelper.showPrompt(
+            activity = activity,
+            title = "Verify Identity",
+            subtitle = "Authenticate to access credentials",
+            onSuccess = { authenticated = true },
+            onFailure = { navController.popBackStack() }
+        )
+    }
 
     if (authenticated) {
         content()
@@ -618,39 +758,38 @@ private fun BiometricGate(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.padding(8.dp))
-                OutlinedButton(shape = CircleShape, onClick = {
-                    val activity = context as? androidx.fragment.app.FragmentActivity
-                    if (activity != null && BiometricHelper.canAuthenticate(activity)) {
-                        BiometricHelper.showPrompt(
-                            activity = activity,
-                            title = "Verify Identity",
-                            subtitle = "Authenticate to access credentials",
-                            onSuccess = { authenticated = true },
-                            onFailure = { navController.popBackStack() }
-                        )
-                    } else {
-                        authenticated = true
+                if (needsSetup) {
+                    Text(
+                        text = "Set up a screen lock to view credentials",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                    Spacer(modifier = Modifier.padding(8.dp))
+                    OutlinedButton(shape = CircleShape, onClick = {
+                        try {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            runCatching {
+                                context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                            }
+                        }
+                    }) {
+                        Text("Open settings")
                     }
-                }) {
-                    Text("Authenticate")
+                } else {
+                    OutlinedButton(shape = CircleShape, onClick = { authenticate() }) {
+                        Text("Authenticate")
+                    }
                 }
             }
         }
 
         // Auto-prompt on first composition
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            val activity = context as? androidx.fragment.app.FragmentActivity
-            if (activity != null && BiometricHelper.canAuthenticate(activity)) {
-                BiometricHelper.showPrompt(
-                    activity = activity,
-                    title = "Verify Identity",
-                    subtitle = "Authenticate to access credentials",
-                    onSuccess = { authenticated = true },
-                    onFailure = { navController.popBackStack() }
-                )
-            } else {
-                authenticated = true
-            }
+        androidx.compose.runtime.LaunchedEffect(Unit) { authenticate() }
+        // Back from the system settings: try again once a screen lock exists.
+        androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+            if (needsSetup) authenticate()
         }
     }
 }

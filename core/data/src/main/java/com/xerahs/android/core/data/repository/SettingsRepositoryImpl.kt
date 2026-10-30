@@ -5,6 +5,8 @@ import com.xerahs.android.core.data.local.datastore.SettingsDataStore
 import com.xerahs.android.core.data.local.db.CustomThemeDao
 import com.xerahs.android.core.data.local.db.CustomThemeEntity
 import com.xerahs.android.core.domain.model.AfterUploadAction
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -12,7 +14,12 @@ import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.model.globalConfigFor
+import com.xerahs.android.core.domain.model.isConfiguredForUpload
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -96,6 +103,11 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun saveGistConfig(config: UploadConfig.GistConfig) =
         secureCredentialStore.saveGistConfig(config)
+
+    override fun isDestinationConfigured(dest: UploadDestination): Flow<Boolean> = flow {
+        val config = globalConfigFor(dest)
+        emit(config?.isConfiguredForUpload() ?: true)
+    }.flowOn(Dispatchers.IO)
 
     override suspend fun getFtpConfig(): UploadConfig.FtpConfig =
         secureCredentialStore.getFtpConfig()
@@ -215,4 +227,24 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction> =
         profileId?.let { settingsDataStore.getProfileAfterUploadActions(it).first() }
             ?: settingsDataStore.getDefaultAfterUploadActions().first()
+
+    override fun getScreenshotWatchEnabled(): Flow<Boolean> = settingsDataStore.getScreenshotWatchEnabled()
+    override suspend fun setScreenshotWatchEnabled(enabled: Boolean) = settingsDataStore.setScreenshotWatchEnabled(enabled)
+    override fun getScreenshotAutoUpload(): Flow<Boolean> = settingsDataStore.getScreenshotAutoUpload()
+    override suspend fun setScreenshotAutoUpload(enabled: Boolean) = settingsDataStore.setScreenshotAutoUpload(enabled)
+    override suspend fun getLastScreenshotCheck(): Long = settingsDataStore.getLastScreenshotCheck()
+    override suspend fun setLastScreenshotCheck(seconds: Long) = settingsDataStore.setLastScreenshotCheck(seconds)
+    override suspend fun getScreenshotSeenIds(): String = settingsDataStore.getScreenshotSeenIds()
+    override suspend fun setScreenshotSeenIds(csv: String) = settingsDataStore.setScreenshotSeenIds(csv)
+    override fun getScreenshotPermissionLost(): Flow<Boolean> = settingsDataStore.getScreenshotPermissionLost()
+    override suspend fun setScreenshotPermissionLost(lost: Boolean) = settingsDataStore.setScreenshotPermissionLost(lost)
+    override fun getNotificationPermissionAsked(): Flow<Boolean> = settingsDataStore.getNotificationPermissionAsked()
+    override suspend fun setNotificationPermissionAsked() = settingsDataStore.setNotificationPermissionAsked()
+
+    override fun getRouteProfileId(kind: FileKind): Flow<String?> = settingsDataStore.getRouteProfileId(kind)
+    override suspend fun setRouteProfileId(kind: FileKind, profileId: String?) =
+        settingsDataStore.setRouteProfileId(kind, profileId)
+
+    override fun getLinkFormat(): Flow<LinkFormat> = settingsDataStore.getLinkFormat()
+    override suspend fun setLinkFormat(format: LinkFormat) = settingsDataStore.setLinkFormat(format)
 }

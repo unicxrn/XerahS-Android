@@ -7,10 +7,12 @@ import com.xerahs.android.core.common.generateTimestamp
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DateFilter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.AlbumRepository
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.SettingsRepository
 import com.xerahs.android.core.domain.repository.TagRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -34,14 +36,17 @@ data class HistoryUiState(
     val filterAlbumId: String? = null,
     val filterTagIds: Set<String> = emptySet(),
     val isSelectionMode: Boolean = false,
-    val selectedIds: Set<String> = emptySet()
+    val selectedIds: Set<String> = emptySet(),
+    /** "Copy link as" from settings, applied to every copied link. */
+    val linkFormat: LinkFormat = LinkFormat.PLAIN
 )
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val historyRepository: HistoryRepository,
     private val albumRepository: AlbumRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistoryUiState())
@@ -52,6 +57,11 @@ class HistoryViewModel @Inject constructor(
 
     init {
         loadHistory()
+        viewModelScope.launch {
+            settingsRepository.getLinkFormat().collect { format ->
+                _uiState.value = _uiState.value.copy(linkFormat = format)
+            }
+        }
         viewModelScope.launch {
             albumRepository.getAllAlbums().collect { albums ->
                 _uiState.value = _uiState.value.copy(albums = albums)

@@ -3,7 +3,23 @@ package com.xerahs.android.feature.settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationManagerCompat
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.xerahs.android.core.common.permission.ScreenshotAccess
+import com.xerahs.android.core.common.permission.screenshotAccess
+import com.xerahs.android.core.common.permission.screenshotPermissions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -13,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +55,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -57,6 +76,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.core.domain.LinkFormatter
+import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
+import com.xerahs.android.core.domain.model.UploadProfile
+import com.xerahs.android.core.ui.lumen.monoStyle
+import androidx.compose.ui.text.style.TextOverflow
 import com.xerahs.android.core.domain.model.ImageFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import androidx.compose.material.icons.filled.CheckCircle
@@ -339,7 +364,7 @@ fun UploadSettingsScreen(
                         }
                     }
                     Text(
-                        text = "Resize images before uploading. 0 = no resize.",
+                        text = "Resize images before uploading.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
@@ -474,10 +499,179 @@ fun UploadSettingsScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = Lumen.tokens.hairline
+                )
+
+                LinkFormatRow(current = uiState.linkFormat, onSelect = viewModel::setLinkFormat)
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SectionHeader("Routing")
+
+            SettingsGroupCard {
+                listOf(
+                    FileKind.IMAGE to "Images go to",
+                    FileKind.TEXT to "Text goes to",
+                    FileKind.OTHER to "Other files go to",
+                ).forEachIndexed { index, (kind, title) ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = Lumen.tokens.hairline
+                        )
+                    }
+                    RouteRow(
+                        title = title,
+                        defaultLabel = "Default (${uiState.defaultDestination.displayName})",
+                        profiles = uiState.allProfiles,
+                        selectedId = uiState.routes[kind],
+                        onSelect = { viewModel.setRouteProfileId(kind, it) },
+                        onAddProfile = onNavigateToProfiles
+                    )
+                }
+                Text(
+                    "Picked for you on the upload screen. You can still change it there.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ScreenshotSettings(
+                watch = uiState.screenshotWatch,
+                auto = uiState.screenshotAutoUpload,
+                permissionLost = uiState.screenshotPermissionLost,
+                onWatchChange = viewModel::setScreenshotWatch,
+                onAutoChange = viewModel::setScreenshotAutoUpload,
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun ScreenshotSettings(
+    watch: Boolean,
+    auto: Boolean,
+    permissionLost: Boolean,
+    onWatchChange: (Boolean) -> Unit,
+    onAutoChange: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    var access by remember { mutableStateOf(context.screenshotAccess()) }
+    var denied by remember { mutableStateOf(false) }
+    var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    val openAppSettings = {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+
+    // Access can change in system settings while we are in the background.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                access = context.screenshotAccess()
+                notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        access = context.screenshotAccess()
+        notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        if (access == ScreenshotAccess.DENIED) {
+            denied = true
+            onWatchChange(false)
+        } else {
+            denied = false
+            onWatchChange(true)
+        }
+    }
+
+    SectionHeader("Screenshots")
+    SettingsGroupCard {
+        ListItem(
+            headlineContent = { Text("Offer to upload new screenshots") },
+            supportingContent = { Text("Get a notification with Upload and Edit when you take one") },
+            trailingContent = {
+                LumenSwitch(
+                    checked = watch,
+                    onCheckedChange = { on ->
+                        if (!on) {
+                            denied = false
+                            onWatchChange(false)
+                        } else if (
+                            context.screenshotAccess() != ScreenshotAccess.DENIED &&
+                            (auto || Build.VERSION.SDK_INT < 33 || notificationsOn)
+                        ) {
+                            access = context.screenshotAccess()
+                            denied = false
+                            onWatchChange(true)
+                        } else {
+                            launcher.launch(screenshotPermissions(notifications = !auto))
+                        }
+                    }
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+
+        if ((denied || permissionLost) && !watch) {
+            Text(
+                "XerahS needs photo access to see new screenshots",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        if (watch && access == ScreenshotAccess.LIMITED) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    "XerahS can only see photos you picked. Allow all photos to catch new screenshots",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { openAppSettings() }, Modifier.offset(x = (-12).dp)) { Text("Open app settings") }
+            }
+        }
+
+        if (watch && !auto && !notificationsOn) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    "Notifications are off, so XerahS can't offer uploads",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { openAppSettings() }, Modifier.offset(x = (-12).dp)) { Text("Open app settings") }
+            }
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = Lumen.tokens.hairline
+        )
+
+        ListItem(
+            headlineContent = { Text("Upload new screenshots without asking") },
+            supportingContent = { Text("Sends them to your default destination") },
+            trailingContent = {
+                LumenSwitch(checked = auto, onCheckedChange = onAutoChange, enabled = watch)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
     }
 }
 
@@ -494,5 +688,87 @@ private fun DestinationItem(
         leadingContent = { IconTile(icon, size = 38.dp) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick)
+    )
+}
+
+/**
+ * Profile picker for one file kind. "Default" names the destination it resolves to, and a
+ * missing (deleted) profile shows as Default. With no profiles, the menu says how to get some.
+ */
+@Composable
+private fun RouteRow(
+    title: String,
+    defaultLabel: String,
+    profiles: List<UploadProfile>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+    onAddProfile: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    val current = profiles.find { it.id == selectedId }
+    val check: @Composable () -> Unit = { Icon(Icons.Default.Check, contentDescription = "Selected") }
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = {
+            Text(current?.let { "${it.name} (${it.destination.displayName})" } ?: defaultLabel)
+        },
+        modifier = Modifier.clickable { menu = true },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        trailingContent = {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(defaultLabel) },
+                    trailingIcon = if (current == null) check else null,
+                    onClick = { onSelect(null); menu = false }
+                )
+                profiles.forEach { p ->
+                    DropdownMenuItem(
+                        text = { Text("${p.name} (${p.destination.displayName})") },
+                        trailingIcon = if (current?.id == p.id) check else null,
+                        onClick = { onSelect(p.id); menu = false }
+                    )
+                }
+                if (profiles.isEmpty()) {
+                    HorizontalDivider(color = Lumen.tokens.hairline)
+                    DropdownMenuItem(
+                        text = { Text("Add a profile to send these somewhere else") },
+                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        onClick = { menu = false; onAddProfile() }
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun LinkFormatRow(current: LinkFormat, onSelect: (LinkFormat) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    ListItem(
+        headlineContent = { Text("Copy link as") },
+        supportingContent = {
+            Column {
+                Text(current.label)
+                Text(
+                    LinkFormatter.format("https://example.com/photo.png", "photo.png", true, current),
+                    style = monoStyle(12),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        modifier = Modifier.clickable { menu = true },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        trailingContent = {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                LinkFormat.entries.forEach { format ->
+                    DropdownMenuItem(
+                        text = { Text(format.label) },
+                        onClick = { onSelect(format); menu = false }
+                    )
+                }
+            }
+        }
     )
 }

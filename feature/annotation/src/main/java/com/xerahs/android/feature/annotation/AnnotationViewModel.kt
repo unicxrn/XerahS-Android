@@ -1,5 +1,9 @@
 package com.xerahs.android.feature.annotation
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
@@ -7,12 +11,22 @@ import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.common.generateId
 import com.xerahs.android.core.common.image.EffectSettings
 import com.xerahs.android.core.domain.model.Annotation
+import com.xerahs.android.core.domain.repository.OcrException
 import com.xerahs.android.core.domain.repository.OcrRepository
+import com.xerahs.android.feature.annotation.crop.CropEngine
+import com.xerahs.android.feature.annotation.crop.CropFrame
+import com.xerahs.android.feature.annotation.engine.AnnotationEngine
+import com.xerahs.android.feature.annotation.engine.Op
+import com.xerahs.android.feature.annotation.engine.transformed
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.xerahs.android.core.common.image.calculateInSampleSize
+import com.xerahs.android.core.common.image.orientationOp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 enum class AnnotationTool {
@@ -45,7 +59,12 @@ data class AnnotationUiState(
     val ocrError: String? = null,
     val balloonText: String = "Note",
     val pendingStickerPath: String? = null,
-    val effects: EffectSettings = EffectSettings()
+    val effects: EffectSettings = EffectSettings(),
+    val bitmap: Bitmap? = null,
+    val isLoading: Boolean = true,
+    val isTransforming: Boolean = false,
+    val cropFrame: CropFrame = CropFrame(),
+    val editError: String? = null
 )
 
 @HiltViewModel
@@ -55,6 +74,102 @@ class AnnotationViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AnnotationUiState())
     val uiState: StateFlow<AnnotationUiState> = _uiState.asStateFlow()
+
+    private var loadedPath: String? = null
+
+    /** Decodes off the main thread, sampled to at most [MAX_EDGE] px. Does nothing if this path is already loaded. */
+    fun loadImage(path: String) {
+        if (loadedPath == path) return
+        loadedPath = path
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(path, bounds)
+                    val opts = BitmapFactory.Options().apply {
+                        inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_EDGE)
+                    }
+                    val decoded = BitmapFactory.decodeFile(path, opts)
+                    if (decoded == null) null else applyExifOrientation(decoded, readOrientation(path))
+                }.getOrNull()
+            }
+            _uiState.value = _uiState.value.copy(bitmap = bmp, isLoading = false)
+            if (bmp == null) loadedPath = null // let a retry decode again
+        }
+    }
+
+    /** Moves the crop frame. Kept here so it survives rotation and is what Apply crops to. */
+    fun setCropFrame(frame: CropFrame) {
+        _uiState.value = _uiState.value.copy(cropFrame = frame)
+    }
+
+    /** Bakes the annotations in, then crops to the current frame and leaves crop mode. A full frame changes nothing. */
+    fun applyCrop() {
+        val state = _uiState.value
+        val bitmap = state.bitmap ?: return
+        if (state.isTransforming) return
+        if (state.cropFrame.isFull) {
+            _uiState.value = state.copy(isCropMode = false)
+            return
+        }
+        val rect = state.cropFrame.toRect(bitmap.width, bitmap.height)
+        editBitmap(leaveCropMode = true) { CropEngine.cropBitmap(it, rect) }
+    }
+
+    /** Bakes the annotations in, then rotates or flips the whole image. */
+    fun transform(op: Op) = editBitmap(leaveCropMode = false) { it.transformed(op) }
+
+    fun dismissEditError() {
+        _uiState.value = _uiState.value.copy(editError = null)
+    }
+
+    /**
+     * The one path that changes the working bitmap: draws the current annotations into it, applies
+     * [edit] off the main thread, then clears the annotations and the undo history, since the
+     * marks are now part of the pixels. The result lives here, so it survives rotation.
+     * The previous bitmap is left to the garbage collector: the screen or an export may still be reading it.
+     */
+    private fun editBitmap(leaveCropMode: Boolean, edit: (Bitmap) -> Bitmap) {
+        val state = _uiState.value
+        val source = state.bitmap ?: return
+        if (state.isTransforming) return
+        _uiState.value = state.copy(isTransforming = true, editError = null)
+        val annotations = state.annotations
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    val flat = if (annotations.isEmpty()) source else AnnotationEngine.renderAnnotations(source, annotations)
+                    val out = edit(flat)
+                    if (flat !== source && flat !== out) flat.recycle()
+                    out
+                }
+            }
+            val current = _uiState.value
+            val out = result.getOrNull()
+            if (out == null || out === source) {
+                _uiState.value = current.copy(
+                    isTransforming = false,
+                    isCropMode = if (leaveCropMode && out != null) false else current.isCropMode,
+                    editError = result.exceptionOrNull()?.let { e ->
+                        if (e is OutOfMemoryError) "Not enough memory to edit this image" else "Couldn't edit this image"
+                    },
+                )
+                return@launch
+            }
+            _uiState.value = current.copy(
+                bitmap = out,
+                isTransforming = false,
+                isCropMode = if (leaveCropMode) false else current.isCropMode,
+                cropFrame = CropFrame(),
+                annotations = emptyList(),
+                undoStack = emptyList(),
+                redoStack = emptyList(),
+                selectedAnnotationId = null,
+                nextStepNumber = 1,
+            )
+        }
+    }
 
     fun selectTool(tool: AnnotationTool) {
         _uiState.value = _uiState.value.copy(selectedTool = tool, selectedAnnotationId = null)
@@ -97,9 +212,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun deleteSelectedAnnotation() {
-        val state = _uiState.value
+        var state = _uiState.value
         val selectedId = state.selectedAnnotationId ?: return
-        pushUndo()
+        state = pushUndo()
         _uiState.value = state.copy(
             annotations = state.annotations.filter { it.id != selectedId },
             selectedAnnotationId = null,
@@ -108,15 +223,20 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun setCropMode(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(isCropMode = enabled)
+        if (_uiState.value.isTransforming) return
+        _uiState.value = _uiState.value.copy(isCropMode = enabled, cropFrame = CropFrame())
     }
 
     fun addAnnotation(startX: Float, startY: Float, endX: Float, endY: Float, sampledColor: Int? = null) {
-        val state = _uiState.value
+        var state = _uiState.value
         // Highlighter pen uses addFreehandAnnotation; a sticker needs a chosen image first.
         if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) return
         if (state.selectedTool == AnnotationTool.STICKER && state.pendingStickerPath == null) return
-        pushUndo()
+        if (state.selectedTool == AnnotationTool.TEXT) {
+            _uiState.value = state.copy(pendingTextPosition = Pair(startX, startY))
+            return
+        }
+        state = pushUndo()
 
         val annotation = when (state.selectedTool) {
             AnnotationTool.RECTANGLE -> Annotation.Rectangle(
@@ -138,10 +258,7 @@ class AnnotationViewModel @Inject constructor(
                 startX = startX, startY = startY,
                 endX = endX, endY = endY
             )
-            AnnotationTool.TEXT -> {
-                _uiState.value = state.copy(pendingTextPosition = Pair(startX, startY))
-                return
-            }
+            AnnotationTool.TEXT -> return
             AnnotationTool.BLUR -> Annotation.Blur(
                 id = generateId(),
                 zIndex = state.annotations.size,
@@ -254,8 +371,7 @@ class AnnotationViewModel @Inject constructor(
 
     fun addFreehandAnnotation(points: List<Pair<Float, Float>>) {
         if (points.size < 2) return
-        val state = _uiState.value
-        pushUndo()
+        val state = pushUndo()
 
         val annotation = if (state.selectedTool == AnnotationTool.HIGHLIGHTER_PEN) {
             Annotation.HighlighterPen(
@@ -283,8 +399,7 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun addNumberedStep(x: Float, y: Float) {
-        val state = _uiState.value
-        pushUndo()
+        val state = pushUndo()
 
         val annotation = Annotation.NumberedStep(
             id = generateId(),
@@ -328,9 +443,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun updateTextAnnotation(text: String) {
-        val state = _uiState.value
+        var state = _uiState.value
         val editId = state.editingAnnotationId ?: return
-        pushUndo()
+        state = pushUndo()
         val updated = state.annotations.map { annotation ->
             if (annotation.id == editId && annotation is Annotation.Text) {
                 annotation.copy(text = text)
@@ -352,9 +467,9 @@ class AnnotationViewModel @Inject constructor(
     }
 
     fun addTextAnnotation(text: String) {
-        val state = _uiState.value
+        var state = _uiState.value
         val position = state.pendingTextPosition ?: return
-        pushUndo()
+        state = pushUndo()
 
         val annotation = Annotation.Text(
             id = generateId(),
@@ -422,7 +537,12 @@ class AnnotationViewModel @Inject constructor(
         viewModelScope.launch {
             ocrRepository.recognizeText(imagePath).fold(
                 onSuccess = { text -> _uiState.value = _uiState.value.copy(ocrText = text, isRecognizing = false) },
-                onFailure = { _uiState.value = _uiState.value.copy(ocrError = "Couldn't read text", isRecognizing = false) },
+                onFailure = { e ->
+                    _uiState.value = _uiState.value.copy(
+                        ocrError = if (e is OcrException) e.message else "Couldn't read text",
+                        isRecognizing = false,
+                    )
+                },
             )
         }
     }
@@ -439,10 +559,29 @@ class AnnotationViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(effects = EffectSettings())
     }
 
-    private fun pushUndo() {
+    /** Records the current annotations for undo and returns the updated state for callers to copy from. */
+    private fun pushUndo(): AnnotationUiState {
         val state = _uiState.value
-        _uiState.value = state.copy(
-            undoStack = state.undoStack + listOf(state.annotations)
-        )
+        val updated = state.copy(undoStack = state.undoStack + listOf(state.annotations))
+        _uiState.value = updated
+        return updated
     }
+}
+
+private const val MAX_EDGE = 4096
+
+private fun readOrientation(path: String): Int = runCatching {
+    ExifInterface(path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+}.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+/** Returns an upright copy for an EXIF-rotated photo (recycling the original), or the bitmap itself. */
+private fun applyExifOrientation(bitmap: Bitmap, exifOrientation: Int): Bitmap {
+    val op = orientationOp(exifOrientation)
+    if (op.isIdentity) return bitmap
+    val m = Matrix()
+    if (op.degrees != 0) m.setRotate(op.degrees.toFloat())
+    if (op.flipHorizontal) m.postScale(-1f, 1f)
+    val out = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+    if (out !== bitmap) bitmap.recycle()
+    return out
 }

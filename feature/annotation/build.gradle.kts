@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.xerahs.android.feature.annotation"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":core:ui"))
 
     implementation(libs.core.ktx)
+    implementation(libs.exifinterface)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
 
@@ -52,4 +53,6 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+
+    testImplementation(libs.junit)
 }

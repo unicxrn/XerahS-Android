@@ -15,6 +15,8 @@ class NativeDestinationConfigViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
+    /** Unsaved edits; survives rotation with the ViewModel. */
+    val form = FormStore()
     val destination: UploadDestination = UploadDestination.valueOf(checkNotNull(savedStateHandle["destination"]))
 
     suspend fun load(): Map<String, String> = withContext(Dispatchers.IO) {

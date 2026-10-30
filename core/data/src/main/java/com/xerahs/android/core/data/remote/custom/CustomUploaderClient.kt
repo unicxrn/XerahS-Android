@@ -25,7 +25,7 @@ data class CustomUploadInput(
 
 sealed interface CustomUploadOutcome {
     data class Success(val url: String, val thumbnailUrl: String?, val deletionUrl: String?) : CustomUploadOutcome
-    data class Failure(val message: String) : CustomUploadOutcome
+    data class Failure(val message: String, val httpCode: Int? = null, val error: Throwable? = null) : CustomUploadOutcome
 }
 
 /** Maximum response body read into memory; prevents a huge/unbounded response from OOMing the device. */
@@ -55,14 +55,14 @@ class CustomUploaderClient @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: SyntaxEvaluationException) {
-            CustomUploadOutcome.Failure(e.message ?: "Custom uploader syntax error")
+            CustomUploadOutcome.Failure(e.message ?: "Custom uploader syntax error", error = e)
         } catch (e: IOException) {
-            CustomUploadOutcome.Failure("Network error: ${e.message ?: e.javaClass.simpleName}")
+            CustomUploadOutcome.Failure("Network error: ${e.message ?: e.javaClass.simpleName}", error = e)
         } catch (e: IllegalArgumentException) {
             // Strip anything after the first ':' — OkHttp's header validation messages echo the
             // offending header name/value there, which could leak secrets (e.g. an auth token) into logs/UI.
             val safe = e.message?.substringBefore(':')?.trim()?.ifBlank { null } ?: "invalid request"
-            CustomUploadOutcome.Failure("Invalid request: $safe")
+            CustomUploadOutcome.Failure("Invalid request: $safe", error = e)
         }
     }
 }

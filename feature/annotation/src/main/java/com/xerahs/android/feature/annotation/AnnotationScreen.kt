@@ -1,8 +1,11 @@
 package com.xerahs.android.feature.annotation
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.selection.selectable
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,12 +17,23 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,10 +49,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.AutoFixOff
 import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -71,8 +89,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -80,6 +104,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -87,6 +112,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -108,10 +134,10 @@ import com.xerahs.android.core.ui.lumen.PillCta
 import com.xerahs.android.core.ui.lumen.monoStyle
 import com.xerahs.android.feature.annotation.canvas.AnnotationCanvas
 import com.xerahs.android.feature.annotation.canvas.SmartEraserSampler
-import com.xerahs.android.feature.annotation.crop.CropEngine
 import com.xerahs.android.feature.annotation.crop.CropOverlay
 import com.xerahs.android.feature.annotation.effects.EffectsSheet
 import com.xerahs.android.feature.annotation.engine.AnnotationEngine
+import com.xerahs.android.feature.annotation.engine.Op
 import com.xerahs.android.feature.annotation.toolbar.ColorPickerDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -119,11 +145,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AnnotationScreen(
     imagePath: String,
     onExportComplete: (String) -> Unit,
+    onBeautify: (String) -> Unit,
     onBack: () -> Unit,
     viewModel: AnnotationViewModel = hiltViewModel()
 ) {
@@ -136,24 +163,43 @@ fun AnnotationScreen(
     // the canvas bezel's bottom inset in sync instead of a hard-coded constant.
     var bottomControlsHeight by remember { mutableStateOf(0.dp) }
 
-    var currentBitmap by remember(imagePath) {
-        mutableStateOf(BitmapFactory.decodeFile(imagePath))
-    }
+    LaunchedEffect(imagePath) { viewModel.loadImage(imagePath) }
 
-    if (currentBitmap == null) {
-        Text("Failed to load image", color = MaterialTheme.colorScheme.error)
+    if (uiState.isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
         return
     }
-
-    val bitmap = currentBitmap!!
+    val bitmap = uiState.bitmap
+    if (bitmap == null) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Couldn't open this image", color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onBack) { Text("Go back") }
+        }
+        return
+    }
 
     // In-progress drag state
     var dragStartPos by remember { mutableStateOf<Offset?>(null) }
     var currentDragAnnotation by remember { mutableStateOf<Annotation?>(null) }
     var freehandPoints by remember { mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
 
-    // Crop state
-    var cropRect by remember { mutableStateOf(android.graphics.Rect(0, 0, bitmap.width, bitmap.height)) }
+    // System back leaves crop mode instead of the editor, and waits while an edit is running.
+    BackHandler(enabled = uiState.isCropMode || uiState.isTransforming) {
+        if (!uiState.isTransforming) viewModel.setCropMode(false)
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.editError) {
+        val message = uiState.editError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.dismissEditError()
+    }
 
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) coroutineScope.launch {
@@ -375,6 +421,59 @@ fun AnnotationScreen(
         )
     }
 
+    // Landscape: the tools and actions move to a side panel so the canvas gets the full height.
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val canvasInsets = if (landscape) {
+        WindowInsets.safeDrawing
+    } else {
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+    }
+    val canvasPadding = if (landscape) {
+        PaddingValues(top = 64.dp, start = 14.dp, end = SidePanelWidth + 26.dp, bottom = 12.dp)
+    } else {
+        PaddingValues(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
+    }
+
+    // Exports the annotated, effected image to filesDir/exports and hands the path on.
+    // Upload and Beautify both take the same file.
+    val exportThen: ((String) -> Unit) -> Unit = { next ->
+        viewModel.setExporting(true)
+        coroutineScope.launch {
+            val exported = withContext(Dispatchers.Default) {
+                val annotatedBitmap = AnnotationEngine.renderAnnotations(
+                    bitmap, uiState.annotations
+                )
+                val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
+                    else ImageEffects.apply(annotatedBitmap, uiState.effects)
+                val exportsDir = File(context.filesDir, "exports")
+                if (!exportsDir.exists()) exportsDir.mkdirs()
+                val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
+                AnnotationEngine.exportToFile(finalBitmap, exportFile)
+                annotatedBitmap.recycle()
+                if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
+                exportFile.absolutePath
+            }
+            viewModel.setExporting(false)
+            next(exported)
+        }
+    }
+    val beautifyButton: @Composable () -> Unit = {
+        // Long-press shows the name; the icon alone is easy to miss.
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text("Beautify") } },
+            state = rememberTooltipState()
+        ) {
+            CircleIconButton(
+                icon = Icons.Default.Wallpaper,
+                contentDescription = "Beautify",
+                onClick = { exportThen(onBeautify) },
+                modifier = Modifier.size(if (landscape) 48.dp else 56.dp),
+                enabled = !uiState.isExporting
+            )
+        }
+    }
+
     // Canvas-first layout: image fills the whole surface, overlays float on top.
     Box(
         modifier = Modifier
@@ -383,12 +482,37 @@ fun AnnotationScreen(
     ) {
         // Full-bleed canvas / crop area
         if (uiState.isCropMode) {
-            CropOverlay(
-                imageWidth = bitmap.width,
-                imageHeight = bitmap.height,
-                onCropRectChanged = { cropRect = it },
-                modifier = Modifier.fillMaxSize()
-            )
+            // The image, fitted to its own aspect ratio, with the crop frame on top so the frame's
+            // fractions map straight onto image pixels.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(canvasInsets)
+                    .padding(canvasPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())) {
+                    // Read-only preview with the marks, so the user sees what gets baked in. The
+                    // overlay above takes every touch, so the canvas never receives a gesture.
+                    AnnotationCanvas(
+                        bitmap = displayBitmap,
+                        annotations = uiState.annotations,
+                        currentAnnotation = null,
+                        onDragStart = {},
+                        onDragEnd = {},
+                        onDrag = {},
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    key(bitmap) {
+                        CropOverlay(
+                            frame = uiState.cropFrame,
+                            onFrameChange = viewModel::setCropFrame,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                if (uiState.isTransforming) CircularProgressIndicator()
+            }
         } else {
             // Bezel frame around the canvas. Insets: 64dp + status bar on top (clears the
             // chrome bar), 14dp on the sides, and the measured height of the floating bottom
@@ -400,8 +524,8 @@ fun AnnotationScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 64.dp, start = 14.dp, end = 14.dp, bottom = bottomControlsHeight + 12.dp)
+                    .windowInsetsPadding(canvasInsets)
+                    .padding(canvasPadding)
                     .clip(RoundedCornerShape(30.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .border(1.dp, Lumen.tokens.hairline, RoundedCornerShape(30.dp))
@@ -501,7 +625,7 @@ fun AnnotationScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -509,7 +633,8 @@ fun AnnotationScreen(
             CircleIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() }
+                onClick = { if (uiState.isCropMode) viewModel.setCropMode(false) else onBack() },
+                enabled = !uiState.isTransforming
             )
             if (showFilename) {
                 Text(
@@ -524,19 +649,7 @@ fun AnnotationScreen(
                 Spacer(modifier = Modifier.weight(1f, fill = true))
             }
 
-            if (uiState.isCropMode) {
-                Button(
-                    onClick = {
-                        val cropped = CropEngine.cropBitmap(bitmap, cropRect)
-                        currentBitmap = cropped
-                        viewModel.setCropMode(false)
-                        viewModel.clearAnnotations()
-                    },
-                    shape = CircleShape
-                ) {
-                    Text("Apply Crop")
-                }
-            } else {
+            if (!uiState.isCropMode) {
                 Row(
                     modifier = Modifier
                         .height(48.dp)
@@ -593,116 +706,196 @@ fun AnnotationScreen(
                         onClick = { viewModel.recognizeText(imagePath) }
                     )
                 }
+                if (landscape) beautifyButton()
             }
         }
         }
 
-        // Bottom controls: floating tool bar + primary action
-        if (!uiState.isCropMode) {
+        // Crop mode: rotate and flip. Each bakes the annotations in first, like crop does.
+        if (uiState.isCropMode) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    // Measured before the paddings so the height includes the nav-bar inset.
-                    .onSizeChanged { size ->
-                        bottomControlsHeight = with(density) { size.height.toDp() }
-                    }
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
+                modifier = controlsModifier(landscape) { height -> bottomControlsHeight = with(density) { height.toDp() } },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = if (landscape) Arrangement.Bottom else Arrangement.Top
+            ) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val enabled = !uiState.isTransforming
+                CircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.RotateLeft,
+                    contentDescription = "Rotate left",
+                    onClick = { viewModel.transform(Op.ROTATE_LEFT) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.RotateRight,
+                    contentDescription = "Rotate right",
+                    onClick = { viewModel.transform(Op.ROTATE_RIGHT) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.Default.Flip,
+                    contentDescription = "Flip horizontally",
+                    onClick = { viewModel.transform(Op.FLIP_HORIZONTAL) },
+                    enabled = enabled
+                )
+                CircleIconButton(
+                    icon = Icons.Default.Flip,
+                    contentDescription = "Flip vertically",
+                    onClick = { viewModel.transform(Op.FLIP_VERTICAL) },
+                    enabled = enabled,
+                    modifier = Modifier.rotate(90f)
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            PillCta(
+                text = "Apply crop",
+                onClick = viewModel::applyCrop,
+                enabled = !uiState.isTransforming,
+                loading = uiState.isTransforming
+            )
+            }
+        }
+
+        // Tool bar + primary action: floating at the bottom in portrait, a side panel in landscape.
+        if (!uiState.isCropMode) {
+            val toolItems: @Composable () -> Unit = {
+                ToolButtons.forEach { (icon, label, tool) ->
+                    CompactToolButton(
+                        icon = icon,
+                        label = label,
+                        selected = uiState.selectedTool == tool,
+                        onClick = {
+                            if (uiState.selectedTool == tool) {
+                                showToolOptions = true
+                            } else {
+                                viewModel.selectTool(tool)
+                            }
+                            if (tool == AnnotationTool.STICKER && uiState.pendingStickerPath == null) {
+                                pickSticker()
+                            }
+                        }
+                    )
+                }
+
+                // Options affordance for the currently selected tool
+                CompactIconButton(
+                    icon = Icons.Default.Tune,
+                    contentDescription = "Tool options",
+                    onClick = { showToolOptions = true }
+                )
+
+                if (uiState.selectedAnnotationId != null) {
+                    CompactIconButton(
+                        icon = Icons.Default.DeleteForever,
+                        contentDescription = "Delete selected",
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = viewModel::deleteSelectedAnnotation
+                    )
+                }
+
+                CompactIconButton(
+                    icon = Icons.Default.Delete,
+                    contentDescription = "Clear all",
+                    onClick = viewModel::clearAnnotations
+                )
+            }
+            Column(
+                modifier = controlsModifier(landscape) { height -> bottomControlsHeight = with(density) { height.toDp() } },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Compact floating tool bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = CircleShape,
-                    border = BorderStroke(1.dp, Lumen.tokens.hairline),
-                    modifier = Modifier.fillMaxWidth().height(62.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (landscape) {
+                    // Tool rail: a scrolling grid that takes whatever height the actions leave.
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(28.dp),
+                        border = BorderStroke(1.dp, Lumen.tokens.hairline),
+                        modifier = Modifier.fillMaxWidth().weight(1f)
                     ) {
-                        ToolButtons.forEach { (icon, label, tool) ->
-                            CompactToolButton(
-                                icon = icon,
-                                label = label,
-                                selected = uiState.selectedTool == tool,
-                                onClick = {
-                                    if (uiState.selectedTool == tool) {
-                                        showToolOptions = true
-                                    } else {
-                                        viewModel.selectTool(tool)
-                                    }
-                                    if (tool == AnnotationTool.STICKER && uiState.pendingStickerPath == null) {
-                                        pickSticker()
-                                    }
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Options affordance for the currently selected tool
-                        CompactIconButton(
-                            icon = Icons.Default.Tune,
-                            contentDescription = "Tool options",
-                            onClick = { showToolOptions = true }
-                        )
-
-                        if (uiState.selectedAnnotationId != null) {
-                            CompactIconButton(
-                                icon = Icons.Default.DeleteForever,
-                                contentDescription = "Delete selected",
-                                tint = MaterialTheme.colorScheme.error,
-                                onClick = viewModel::deleteSelectedAnnotation
-                            )
-                        }
-
-                        CompactIconButton(
-                            icon = Icons.Default.Delete,
-                            contentDescription = "Clear all",
-                            onClick = viewModel::clearAnnotations
-                        )
+                        FlowRow(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) { toolItems() }
+                    }
+                } else {
+                    // Compact floating tool bar
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, Lumen.tokens.hairline),
+                        modifier = Modifier.fillMaxWidth().height(62.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) { toolItems() }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Thumb-zone primary action - same export path as the old checkmark
-                PillCta(
-                    text = "Continue to upload",
-                    onClick = {
-                        viewModel.setExporting(true)
-                        coroutineScope.launch {
-                            val exported = withContext(Dispatchers.Default) {
-                                val annotatedBitmap = AnnotationEngine.renderAnnotations(
-                                    bitmap, uiState.annotations
-                                )
-                                val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
-                                    else ImageEffects.apply(annotatedBitmap, uiState.effects)
-                                val exportsDir = File(context.filesDir, "exports")
-                                if (!exportsDir.exists()) exportsDir.mkdirs()
-                                val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
-                                AnnotationEngine.exportToFile(finalBitmap, exportFile)
-                                annotatedBitmap.recycle()
-                                if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
-                                exportFile.absolutePath
-                            }
-                            viewModel.setExporting(false)
-                            onExportComplete(exported)
-                        }
-                    },
-                    enabled = !uiState.isExporting,
-                    loading = uiState.isExporting
-                )
+                // Thumb-zone primary action. In landscape Beautify sits in the top bar instead.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PillCta(
+                        text = "Continue to upload",
+                        onClick = { exportThen(onExportComplete) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uiState.isExporting,
+                        loading = uiState.isExporting
+                    )
+                    if (!landscape) beautifyButton()
+                }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (landscape) 12.dp else bottomControlsHeight + 8.dp)
+        )
     }
 }
+
+/** Width of the landscape side panel that holds the tools and the primary action. */
+private val SidePanelWidth = 264.dp
+
+/**
+ * Where the editor controls sit: a full-width strip at the bottom in portrait (its height is
+ * reported so the canvas stops above it), or a full-height panel on the right in landscape.
+ */
+@Composable
+private fun BoxScope.controlsModifier(landscape: Boolean, onHeight: (Int) -> Unit): Modifier =
+    if (landscape) {
+        Modifier
+            .align(Alignment.TopEnd)
+            .fillMaxHeight()
+            .width(SidePanelWidth + 14.dp)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(top = 64.dp, end = 14.dp, bottom = 12.dp)
+    } else {
+        Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            // Measured before the paddings so the height includes the nav-bar inset.
+            .onSizeChanged { size -> onHeight(size.height) }
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp)
+    }
 
 private val ToolButtons: List<Triple<ImageVector, String, AnnotationTool>> = listOf(
     Triple(Icons.Default.Rectangle, "Rect", AnnotationTool.RECTANGLE),
@@ -897,30 +1090,31 @@ private fun ColorSwatchRow(
         )
     }
 
+    // Fixed marker colours: the theme's primary, secondary and tertiary are all shades of the accent.
     val colors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.error,
-        MaterialTheme.colorScheme.inversePrimary,
-        MaterialTheme.colorScheme.outline,
-        Color.White,
-        Color.Black
+        "Red" to Color.Red,
+        "Orange" to Color(0xFFFF9800),
+        "Yellow" to Color(0xFFFFEB3B),
+        "Blue" to Color(0xFF2196F3),
+        "Accent" to MaterialTheme.colorScheme.primary,
+        "White" to Color.White,
+        "Black" to Color.Black
     )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        colors.forEach { color ->
+        colors.forEach { (name, color) ->
             val selected = color.toArgb() == strokeColor
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clickable(onClick = { onColorSelected(color.toArgb()) }, role = Role.Button),
+                    .size(44.dp)
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = { onColorSelected(color.toArgb()) })
+                    .semantics { contentDescription = name },
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {
@@ -941,13 +1135,16 @@ private fun ColorSwatchRow(
         }
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                 .clickable(onClick = { showColorPicker = true }, role = Role.Button),
             contentAlignment = Alignment.Center
         ) {
+            Box(
+                Modifier.size(36.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            )
             Icon(
                 Icons.Default.Add,
                 contentDescription = "Custom color",

@@ -105,13 +105,13 @@ class CustomUploaderClientTest {
     @Test fun httpErrorUsesErrorMessageTemplate() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"Bad key"}}"""))
         val spec = CustomUploaderSpec(requestURL = server.url("/").toString(), errorMessage = "{json:error.message}")
-        assertEquals(CustomUploadOutcome.Failure("Bad key"), client.execute(spec, CustomUploadInput(file(), "shot.png")))
+        assertEquals(CustomUploadOutcome.Failure("Bad key", httpCode = 400), client.execute(spec, CustomUploadInput(file(), "shot.png")))
     }
 
     @Test fun httpErrorWithoutTemplateReportsCodeAndBody() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
         val spec = CustomUploaderSpec(requestURL = server.url("/").toString())
-        assertEquals(CustomUploadOutcome.Failure("HTTP 500: boom"), client.execute(spec, CustomUploadInput(file(), "shot.png")))
+        assertEquals(CustomUploadOutcome.Failure("HTTP 500: boom", httpCode = 500), client.execute(spec, CustomUploadInput(file(), "shot.png")))
     }
 
     @Test fun missingJsonPathIsAFailureNotAnEmptyUrl() = runBlocking {

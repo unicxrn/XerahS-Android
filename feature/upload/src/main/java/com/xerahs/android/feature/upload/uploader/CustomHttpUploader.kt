@@ -33,7 +33,9 @@ class CustomHttpUploader @Inject constructor(
             is CustomUploadOutcome.Failure -> UploadResult(
                 success = false,
                 errorMessage = outcome.message,
-                destination = UploadDestination.CUSTOM_HTTP
+                destination = UploadDestination.CUSTOM_HTTP,
+                httpCode = outcome.httpCode,
+                error = outcome.error
             )
         }
     }

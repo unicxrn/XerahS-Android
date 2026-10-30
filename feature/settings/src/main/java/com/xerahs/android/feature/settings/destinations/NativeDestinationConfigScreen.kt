@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,11 +33,11 @@ fun NativeDestinationConfigScreen(
 ) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var values by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var loaded by rememberSaveable { mutableStateOf(false) }
+    // Held by the ViewModel so a rotation keeps both the loaded config and what was typed.
+    var values by remember { viewModel.form.field("values", emptyMap<String, String>()) }
 
     LaunchedEffect(Unit) {
-        if (!loaded) { values = viewModel.load(); loaded = true }
+        if (!viewModel.form.loaded) { values = viewModel.load(); viewModel.form.loaded = true }
     }
 
     Scaffold(

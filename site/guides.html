@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Setup guides | XerahS for Android</title>
+  <meta name="description" content="How to set up Imgur, S3, Cloudflare R2, MinIO, Nextcloud, Immich, GitHub Gist, FTP, SFTP and ShareX custom uploaders in XerahS for Android.">
+  <meta name="theme-color" content="#07070a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Setup guides | XerahS for Android">
+  <meta property="og:description" content="How to set up Imgur, S3, Cloudflare R2, MinIO, Nextcloud, Immich, GitHub Gist, FTP, SFTP and ShareX custom uploaders in XerahS for Android.">
+  <meta property="og:image" content="assets/img/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="assets/fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav" data-nav>
+    <a class="nav__brand" href="index.html" aria-label="XerahS home">
+      <img src="assets/img/logo.svg" width="30" height="30" alt="">
+      <span>XerahS</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#features">Features</a>
+      <a href="guides.html" aria-current="page">Guides</a>
+      <a href="faq.html">FAQ</a>
+      <a href="index.html#changelog">Changelog</a>
+    </nav>
+    <a class="nav__cta" href="index.html#download">Download</a>
+    <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" data-menu-toggle>
+      <span></span><span></span>
+    </button>
+  </header>
+
+  <div class="menu" data-menu hidden>
+    <a href="index.html">Home</a>
+    <a href="index.html#features">Features</a>
+    <a href="guides.html" aria-current="page">Guides</a>
+    <a href="faq.html">FAQ</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="index.html#download">Download</a>
+  </div>
+
+  <main id="top" class="page">
+    <div class="page__glow" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="doc-layout">
+        <header class="page__head">
+          <span class="eyebrow">Guides</span>
+          <h1>Set up where your uploads go.</h1>
+          <p class="page__lede">Step by step for each destination, using the same field names you'll see in the app. Pick the one you use and skip the rest.</p>
+        </header>
+
+        <details class="toc" data-toc open>
+          <summary>On this page <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <p class="toc__title">On this page</p>
+          <ol>
+            <li><a href="#start">Where the settings are</a></li>
+            <li><a href="#imgur">Imgur</a></li>
+            <li><a href="#s3">Amazon S3</a></li>
+            <li><a href="#r2">Cloudflare R2</a></li>
+            <li><a href="#minio">MinIO and other S3 storage</a></li>
+            <li><a href="#nextcloud">Nextcloud</a></li>
+            <li><a href="#immich">Immich</a></li>
+            <li><a href="#gist">GitHub Gist</a></li>
+            <li><a href="#ftp">FTP and FTPS</a></li>
+            <li><a href="#sftp">SFTP and host keys</a></li>
+            <li><a href="#sxcu">Custom uploaders (.sxcu)</a></li>
+            <li><a href="#syntax">Supported .sxcu syntax</a></li>
+          </ol>
+        </details>
+
+        <article class="doc">
+          <section id="start">
+            <h2>Where the settings are</h2>
+            <p>Open <strong>Settings</strong>, then <strong>Uploads</strong>. Under Destinations, tap <strong>Configure Destinations</strong> to see every host, and pick the one you want. When you're done, tap <strong>Save</strong>. The S3 and FTP / SFTP screens also have a <strong>Test Connection</strong> button, which is worth a tap before your first upload.</p>
+            <p><strong>Default Upload Destination</strong> on the same screen decides where uploads go when you don't pick one.</p>
+            <div class="note">
+              <span class="note__title">Profiles</span>
+              <p>If you use more than one setup for the same host, say two buckets, save each as an upload profile under Settings, Uploads, <strong>Upload Profiles</strong>. The profile editor asks for the same details, though a few fields have slightly different names there.</p>
+            </div>
+          </section>
+
+          <section id="imgur">
+            <h2>Imgur</h2>
+            <p>Imgur needs a Client ID, which you get by registering a small app with Imgur. It's free.</p>
+            <ol>
+              <li>Sign in to Imgur and open <a href="https://api.imgur.com/oauth2/addclient">api.imgur.com/oauth2/addclient</a>.</li>
+              <li>Give the app any name, choose anonymous usage without user authorization, and submit the form.</li>
+              <li>Copy the Client ID it shows you.</li>
+              <li>In XerahS, open the Imgur settings, keep <strong>Anonymous Upload</strong> on, paste the ID and save.</li>
+            </ol>
+            <dl class="fields">
+              <dt>Anonymous Upload</dt>
+              <dd>Leave this on. Uploads aren't tied to an Imgur account.</dd>
+              <dt>Client ID</dt>
+              <dd>The ID from step 3. Required.</dd>
+              <dt>Client Secret</dt>
+              <dd>Only needed with Anonymous Upload off.</dd>
+            </dl>
+            <div class="note">
+              <span class="note__title">Good to know</span>
+              <p>Uploading to your own Imgur account isn't finished yet, so stick with anonymous uploads for now.</p>
+            </div>
+          </section>
+
+          <section id="s3">
+            <h2>Amazon S3</h2>
+            <p>Create a bucket, then create an access key for a user that can write to it. If you want the links to open in a browser, the objects have to be readable by the public, either through a bucket policy or through the ACL field below.</p>
+            <dl class="fields">
+              <dt>Access Key ID</dt>
+              <dd>From your IAM user or access key. Required.</dd>
+              <dt>Secret Access Key</dt>
+              <dd>Shown once when you create the key. Required.</dd>
+              <dt>Region</dt>
+              <dd>The bucket's region, for example <code>eu-central-1</code>. Defaults to <code>us-east-1</code>.</dd>
+              <dt>Bucket</dt>
+              <dd>The bucket name. Required.</dd>
+              <dt>S3 API Endpoint (optional)</dt>
+              <dd>Leave empty for Amazon S3. Fill it in for other S3 storage.</dd>
+              <dt>Custom URL (optional)</dt>
+              <dd>Use this when files are served from your own domain or a CDN, like <code>https://i.example.com</code>. The link becomes this address plus the file's path in the bucket.</dd>
+              <dt>Upload Path (optional)</dt>
+              <dd>A folder inside the bucket. You can use <code>{yyyy}</code>, <code>{yy}</code>, <code>{MM}</code>, <code>{dd}</code> and <code>{month}</code>, as in <code>uploads/{yyyy}/{MM}</code>.</dd>
+              <dt>ACL</dt>
+              <dd>Sent as the object's ACL when it isn't empty, for example <code>public-read</code>. Leave it empty if your bucket has ACLs turned off, which is the default for new buckets.</dd>
+              <dt>Path-style URLs</dt>
+              <dd>Uses <code>endpoint/bucket/file</code> instead of <code>bucket.endpoint/file</code>. Amazon doesn't need it. Most self-hosted storage does.</dd>
+            </dl>
+          </section>
+
+          <section id="r2">
+            <h2>Cloudflare R2</h2>
+            <p>In the Cloudflare dashboard, create an R2 bucket and an R2 API token with write access to it. Cloudflare shows an Access Key ID and a Secret Access Key for the token.</p>
+            <ol>
+              <li>In the S3 settings, under Presets, tap <strong>Cloudflare R2</strong>.</li>
+              <li>Enter your <strong>Account ID</strong> and tap <strong>Apply</strong>. XerahS fills in the endpoint and turns on Path-style URLs.</li>
+              <li>Fill in the two keys and the <strong>Bucket</strong>. Cloudflare's docs use <code>auto</code> as the region.</li>
+              <li>Leave <strong>ACL</strong> empty.</li>
+            </ol>
+            <p>R2 buckets aren't public by default. Turn on the public r2.dev address or connect your own domain to the bucket in Cloudflare, then put that address in <strong>Custom URL</strong>. Otherwise the links point at the API endpoint, and browsers can't open them.</p>
+          </section>
+
+          <section id="minio">
+            <h2>MinIO and other S3 storage</h2>
+            <p>MinIO, DigitalOcean Spaces and most other S3-compatible services work through the same S3 screen.</p>
+            <ul>
+              <li><strong>S3 API Endpoint</strong>: the API address, like <code>https://minio.example.com</code>. For MinIO this is the API port, not the web console.</li>
+              <li><strong>Region</strong>: whatever your server is set to. MinIO uses <code>us-east-1</code> unless you changed it.</li>
+              <li><strong>Path-style URLs</strong>: turn it on for MinIO.</li>
+              <li><strong>Custom URL</strong>: set it if files are served from a different address than the API.</li>
+            </ul>
+          </section>
+
+          <section id="nextcloud">
+            <h2>Nextcloud</h2>
+            <p>Use an app password, not your normal password. In Nextcloud, open <strong>Settings</strong>, <strong>Security</strong>, and create one under <strong>Devices &amp; sessions</strong>. You can revoke it there later without touching your main login.</p>
+            <dl class="fields">
+              <dt>Server URL</dt>
+              <dd>Your Nextcloud address, like <code>https://cloud.example.com</code>.</dd>
+              <dt>Username</dt>
+              <dd>Your Nextcloud user ID. Usually the name you sign in with.</dd>
+              <dt>App password</dt>
+              <dd>The one you just created.</dd>
+              <dt>Folder</dt>
+              <dd>Where uploads go. Defaults to <code>XerahS</code>, and it's created if it doesn't exist.</dd>
+              <dt>Create a public share link</dt>
+              <dd>On by default. XerahS creates a share link for each file and copies that. If sharing fails, or you turn this off, you get the file's direct WebDAV address, which only works when you're signed in.</dd>
+            </dl>
+          </section>
+
+          <section id="immich">
+            <h2>Immich</h2>
+            <p>In Immich, open <strong>Account settings</strong>, <strong>API keys</strong>, and create a key. If your Immich version lets you choose permissions, the key needs to upload assets, and to create shared links if you want share links.</p>
+            <dl class="fields">
+              <dt>Server URL</dt>
+              <dd>Your Immich address, like <code>https://photos.example.com</code>. With or without <code>/api</code> at the end, both work.</dd>
+              <dt>API key</dt>
+              <dd>The key you created.</dd>
+              <dt>Create a share link</dt>
+              <dd>On by default, so you get a link anyone can open. Off, you get a link to the photo in your library, which needs you to be signed in.</dd>
+            </dl>
+          </section>
+
+          <section id="gist">
+            <h2>GitHub Gist</h2>
+            <p>Gist is for text and code. Create a personal access token on GitHub under Settings, Developer settings. A classic token only needs the <code>gist</code> scope.</p>
+            <dl class="fields">
+              <dt>Personal access token</dt>
+              <dd>The token. Needs the gist scope.</dd>
+              <dt>Public gist</dt>
+              <dd>Off by default, which makes a secret gist: not listed on your profile, but anyone with the link can see it.</dd>
+            </dl>
+            <p>Files have to be under 1 MB, and they're sent as text.</p>
+          </section>
+
+          <section id="ftp">
+            <h2>FTP and FTPS</h2>
+            <p>Open the <strong>FTP / SFTP</strong> settings and stay on the FTP tab.</p>
+            <dl class="fields">
+              <dt>Host</dt>
+              <dd>The server name or IP address. Required.</dd>
+              <dt>Port</dt>
+              <dd>Usually 21.</dd>
+              <dt>Username and Password</dt>
+              <dd>Your FTP login.</dd>
+              <dt>Remote Path</dt>
+              <dd>The folder to upload into. Folders that don't exist are created. You can use <code>{yyyy}</code>, <code>{yy}</code>, <code>{MM}</code>, <code>{dd}</code> and <code>{month}</code>.</dd>
+              <dt>HTTP URL (for link generation)</dt>
+              <dd>The web address of that same folder, like <code>https://files.example.com/uploads</code>. The link you get is this address plus the file name.</dd>
+              <dt>Use FTPS</dt>
+              <dd>Encrypts the connection with explicit TLS, for both the login and the file.</dd>
+              <dt>Passive Mode</dt>
+              <dd>Leave it on unless your server needs active mode. Passive works better behind home routers and mobile networks.</dd>
+            </dl>
+            <div class="note">
+              <span class="note__title">Good to know</span>
+              <p>With FTPS, the server's certificate has to be valid for its host name and trusted by Android. Self-signed certificates are rejected.</p>
+              <p>Date tokens in Remote Path are not added to the link. If you use them, the HTTP URL won't match the folder the file went into.</p>
+            </div>
+          </section>
+
+          <section id="sftp">
+            <h2>SFTP and host keys</h2>
+            <p>Open the <strong>FTP / SFTP</strong> settings and switch to the SFTP tab. The fields work like FTP, with a few differences.</p>
+            <dl class="fields">
+              <dt>Port</dt>
+              <dd>Usually 22.</dd>
+              <dt>Password</dt>
+              <dd>Used when no key is set.</dd>
+              <dt>SSH Key Path (optional)</dt>
+              <dd>Path to a private key file the app can read. When it's set, XerahS signs in with the key instead of the password.</dd>
+              <dt>Remote Path and HTTP URL</dt>
+              <dd>Same as FTP, including the note about date tokens.</dd>
+            </dl>
+            <p>If your key has a passphrase, set the server up as an upload profile instead. The profile editor has a <strong>Key Passphrase (optional)</strong> field.</p>
+
+            <h3>How host keys work</h3>
+            <p>The first time XerahS connects to a server, it saves the server's key fingerprint for that host and port. After that, every connection checks the server still has the same key. That's what stops someone in the middle from pretending to be your server.</p>
+            <p>If the key changes, the upload stops with a message that starts with "The server's identity changed" and shows both fingerprints. To check one, run this on the server and compare:</p>
+            <pre class="code"><code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code></pre>
+            <p>If you changed the key yourself, or reinstalled the server, open the SFTP tab and tap <strong>Forget saved host key</strong>. The next connection saves the new one. If you didn't change anything, don't forget the key until you know why it changed.</p>
+          </section>
+
+          <section id="sxcu">
+            <h2>Custom uploaders (.sxcu)</h2>
+            <p>XerahS runs ShareX custom uploader files, so anything you've set up for ShareX on the desktop should work here too.</p>
+            <ul>
+              <li><strong>Import uploader</strong> in Settings, Uploads takes a <code>.sxcu</code> file, or an encrypted <code>.xsdc</code> exported from XerahS on the desktop. Use <strong>Choose file</strong> or <strong>Paste .sxcu</strong>. Each uploader becomes an upload profile.</li>
+              <li><strong>Add from preset</strong> on the same screen has ready-made uploaders for XBackBone, Pastebin and Bitly. You fill in your server or key and it does the rest.</li>
+              <li><strong>Custom uploader</strong> holds a single uploader. Use <strong>Open .sxcu</strong> or <strong>Paste</strong>, then <strong>Test endpoint</strong>.</li>
+              <li>Opening a <code>.sxcu</code> file from a file manager also offers to import it.</li>
+            </ul>
+            <p>If an uploader sends files over plain <code>http://</code>, XerahS warns you before importing it.</p>
+            <p>An uploader marked <code>URLShortener</code> shows up as a choice under <strong>URL shortener</strong> in Settings, Uploads, next to the built-in is.gd.</p>
+          </section>
+
+          <section id="syntax">
+            <h2>Supported .sxcu syntax</h2>
+            <p>These fields from the file are used. Key names aren't case sensitive.</p>
+            <dl class="fields">
+              <dt>RequestMethod</dt>
+              <dd>Any HTTP method, POST if missing. The older <code>RequestType</code> also works.</dd>
+              <dt>RequestURL</dt>
+              <dd>Required.</dd>
+              <dt>Parameters, Headers</dt>
+              <dd>Query string values and request headers.</dd>
+              <dt>Body</dt>
+              <dd><code>None</code>, <code>MultipartFormData</code>, <code>FormURLEncoded</code>, <code>JSON</code>, <code>XML</code> or <code>Binary</code>.</dd>
+              <dt>Arguments, FileFormName, Data</dt>
+              <dd>Form fields, the name of the file field, and the raw body for JSON or XML.</dd>
+              <dt>DestinationType</dt>
+              <dd><code>ImageUploader</code>, <code>TextUploader</code>, <code>FileUploader</code> and <code>URLShortener</code>. Without it, the uploader takes images and files.</dd>
+              <dt>URL, ThumbnailURL, DeletionURL</dt>
+              <dd>Read from the response. If URL is empty, the whole response is used as the link.</dd>
+              <dt>ErrorMessage</dt>
+              <dd>Shown when the server answers with an error.</dd>
+            </dl>
+
+            <h3>Functions</h3>
+            <dl class="fields">
+              <dt>{filename}</dt>
+              <dd>The name of the file being uploaded.</dd>
+              <dt>{input}</dt>
+              <dd>The text for text uploaders, or the long link for shorteners.</dd>
+              <dt>{random:a|b|c}</dt>
+              <dd>One of the options, picked at random.</dd>
+              <dt>{select:a|b|c}</dt>
+              <dd>Always uses the first option. There's no picker yet.</dd>
+              <dt>{inputbox:Title|Default}</dt>
+              <dd>Asks you for a value before the upload.</dd>
+              <dt>{base64:text}</dt>
+              <dd>Base64 of the text, handy for Basic auth headers.</dd>
+              <dt>{response}</dt>
+              <dd>The whole response body.</dd>
+              <dt>{responseurl}</dt>
+              <dd>The final URL of the response.</dd>
+              <dt>{header:Name}</dt>
+              <dd>A response header.</dd>
+              <dt>{json:path}</dt>
+              <dd>A value from a JSON response. Paths like <code>data.link</code>, <code>files[0].url</code> and <code>$.url</code> work.</dd>
+              <dt>{xml:xpath}</dt>
+              <dd>A value from an XML response.</dd>
+              <dt>{regex:pattern|group}</dt>
+              <dd>A regex match on the response. The group can be a number or a name, or left out for the whole match.</dd>
+            </dl>
+            <p>Functions can be nested, and a backslash escapes <code>{</code>, <code>}</code>, <code>|</code> and <code>\</code>. Files in the older ShareX format, with <code>$json:...$</code> and a RegexList, are converted when you import them.</p>
+            <div class="note">
+              <span class="note__title">Not supported yet</span>
+              <p><code>{outputbox}</code> isn't supported. It stays in the text as written. The same goes for any other name XerahS doesn't know.</p>
+            </div>
+          </section>
+        </article>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/img/logo.svg" width="28" height="28" alt="">
+        <span>XerahS for Android</span>
+      </div>
+      <nav class="footer__links" aria-label="Project links">
+        <a href="guides.html">Guides</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/unicxrn/XerahS-Android">GitHub</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/releases">Releases</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/issues">Issues</a>
+        <a href="https://github.com/unicxrn/XerahS-Android/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+      <p class="footer__note">An unofficial app inspired by <a href="https://xerahs.com/">XerahS</a> and <a href="https://getsharex.com/">ShareX</a>. It isn't affiliated with or endorsed by either project, and it uses none of their code.</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js?v=4" defer></script>
+</body>
+</html>

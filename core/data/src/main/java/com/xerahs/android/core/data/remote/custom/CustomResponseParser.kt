@@ -12,7 +12,7 @@ internal object CustomResponseParser {
             val templated = spec.errorMessage.takeIf { it.isNotBlank() }
                 ?.let { runCatching { ShareXSyntax.evaluate(it, rctx) }.getOrNull() }
                 ?.takeIf { it.isNotBlank() }
-            return CustomUploadOutcome.Failure(templated ?: "HTTP $code: ${response.body.take(300)}")
+            return CustomUploadOutcome.Failure(templated ?: "HTTP $code: ${response.body.take(300)}", httpCode = code)
         }
         val url = ShareXSyntax.evaluate(spec.url.ifBlank { "{response}" }, rctx).trim()
         if (url.isEmpty()) return CustomUploadOutcome.Failure("The uploader returned an empty URL")

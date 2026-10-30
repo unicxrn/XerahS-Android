@@ -19,6 +19,8 @@ import javax.inject.Inject
 class CustomHttpConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+    /** Unsaved edits; survives rotation with the ViewModel. */
+    val form = FormStore()
 
     suspend fun loadSxcu(): String = withContext(Dispatchers.IO) {
         SxcuWriter.write(settingsRepository.getCustomUploaderConfig().spec)

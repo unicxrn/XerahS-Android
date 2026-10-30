@@ -3,7 +3,9 @@ package com.xerahs.android.core.domain.repository
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.ColorTheme
 import com.xerahs.android.core.domain.model.CustomTheme
+import com.xerahs.android.core.domain.model.FileKind
 import com.xerahs.android.core.domain.model.ImageFormat
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.ThemeMode
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -42,6 +44,9 @@ interface SettingsRepository {
     suspend fun saveImmichConfig(config: UploadConfig.ImmichConfig)
     suspend fun getGistConfig(): UploadConfig.GistConfig
     suspend fun saveGistConfig(config: UploadConfig.GistConfig)
+
+    /** True when the destination has everything it needs to upload. Local and Imgur never need setup. */
+    fun isDestinationConfigured(dest: UploadDestination): Flow<Boolean>
 
     suspend fun getFtpConfig(): UploadConfig.FtpConfig
     suspend fun saveFtpConfig(config: UploadConfig.FtpConfig)
@@ -97,4 +102,30 @@ interface SettingsRepository {
     suspend fun setProfileAfterUploadActions(profileId: String, actions: Set<AfterUploadAction>?)
     // Profile set if it has one, otherwise the default set.
     suspend fun resolveAfterUploadActions(profileId: String?): Set<AfterUploadAction>
+
+    fun getScreenshotWatchEnabled(): Flow<Boolean>
+    /** Enabling also resets the last check time to now. */
+    suspend fun setScreenshotWatchEnabled(enabled: Boolean)
+    fun getScreenshotAutoUpload(): Flow<Boolean>
+    suspend fun setScreenshotAutoUpload(enabled: Boolean)
+    /** MediaStore DATE_ADDED seconds of the newest image the watcher has looked at. */
+    suspend fun getLastScreenshotCheck(): Long
+    suspend fun setLastScreenshotCheck(seconds: Long)
+    /** Comma separated MediaStore ids already handled by the screenshot watcher. */
+    suspend fun getScreenshotSeenIds(): String
+    suspend fun setScreenshotSeenIds(csv: String)
+    /** True when the watcher turned itself off because photo access was revoked; enabling clears it. */
+    fun getScreenshotPermissionLost(): Flow<Boolean>
+    suspend fun setScreenshotPermissionLost(lost: Boolean)
+    /** True once the upload screen has asked for the notification permission, whatever the answer. */
+    fun getNotificationPermissionAsked(): Flow<Boolean>
+    suspend fun setNotificationPermissionAsked()
+
+    /** Profile id that files of [kind] are routed to on the upload screen; null = Default. */
+    fun getRouteProfileId(kind: FileKind): Flow<String?>
+    suspend fun setRouteProfileId(kind: FileKind, profileId: String?)
+
+    /** How links are written when copied. */
+    fun getLinkFormat(): Flow<LinkFormat>
+    suspend fun setLinkFormat(format: LinkFormat)
 }

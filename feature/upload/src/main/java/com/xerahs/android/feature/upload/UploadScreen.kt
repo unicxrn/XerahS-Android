@@ -1,5 +1,6 @@
 package com.xerahs.android.feature.upload
 
+import android.Manifest
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -55,6 +56,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -80,6 +83,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xerahs.android.feature.upload.worker.CopyUrlReceiver
 import com.xerahs.android.core.common.formatSize
 import com.xerahs.android.core.common.toShortDate
 import com.xerahs.android.core.common.file.MimeTypes
@@ -122,6 +126,17 @@ fun UploadScreen(
 
     var showDestinationSheet by remember { mutableStateOf(false) }
     var albumTagExpanded by remember { mutableStateOf(false) }
+
+    // Asked once, on the first upload. The upload is already queued, so the answer doesn't matter here.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(uiState.askNotificationPermission) {
+        if (uiState.askNotificationPermission) {
+            viewModel.consumeNotificationPermissionRequest()
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { message ->
@@ -178,7 +193,7 @@ fun UploadScreen(
                 val existing = dupInfo.url
                 if (existing != null) {
                     TextButton(onClick = {
-                        clipboardManager.setText(AnnotatedString(existing))
+                        clipboardManager.setText(AnnotatedString(uiState.formatLinks(existing, dupInfo.fileName, null)))
                         viewModel.dismissDuplicate()
                     }) {
                         Text("Copy existing")
@@ -245,7 +260,8 @@ fun UploadScreen(
         viewModel.consumeAfterUpload()
         val first = event.urls.first()
         if (AfterUploadAction.COPY_URL in event.actions) {
-            clipboardManager.setText(AnnotatedString(event.urls.joinToString("\n")))
+            // Synchronous: the text was formatted by the ViewModel, so nothing here can be cancelled midway.
+            CopyUrlReceiver.copyText(context, event.copyText, toast = false)
             scope.launch { snackbarHostState.showSnackbar(if (event.urls.size > 1) "Links copied" else "Link copied") }
         }
         val shared = AfterUploadAction.SHARE_SHEET in event.actions
@@ -390,14 +406,14 @@ fun UploadScreen(
                         )
                         uiState.batchUrls.forEach { batchUrl ->
                             UrlResultCard(url = batchUrl) {
-                                clipboardManager.setText(AnnotatedString(batchUrl))
+                                clipboardManager.setText(AnnotatedString(uiState.formatLinks(batchUrl, null, null)))
                             }
                         }
                     }
                 } else {
                     uiState.result?.url?.let { url ->
                         UrlResultCard(url = url) {
-                            clipboardManager.setText(AnnotatedString(url))
+                            clipboardManager.setText(AnnotatedString(uiState.formatLinks(url)))
                         }
                     }
                 }
@@ -681,7 +697,7 @@ private fun UrlResultCard(url: String, onCopy: () -> Unit) {
             ) {
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Copy URL",
+                    contentDescription = "Copy link",
                     tint = Lumen.tokens.ink,
                     modifier = Modifier.size(18.dp)
                 )

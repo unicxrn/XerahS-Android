@@ -3,7 +3,7 @@
     <shortcut
         android:shortcutId="new_share"
         android:enabled="true"
-        android:icon="@drawable/ic_tile_capture"
+        android:icon="@drawable/ic_shortcut_capture"
         android:shortcutShortLabel="@string/shortcut_new_share_short"
         android:shortcutLongLabel="@string/shortcut_new_share_long">
         <intent
@@ -11,4 +11,34 @@
             android:targetPackage="com.xerahs.android"
             android:targetClass="com.xerahs.android.ui.MainActivity" />
     </shortcut>
+
+    <shortcut
+        android:shortcutId="upload_clipboard"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_clipboard"
+        android:shortcutShortLabel="@string/shortcut_upload_clipboard_short"
+        android:shortcutLongLabel="@string/shortcut_upload_clipboard_long">
+        <intent
+            android:action="com.xerahs.android.action.UPLOAD_CLIPBOARD"
+            android:targetPackage="com.xerahs.android"
+            android:targetClass="com.xerahs.android.ui.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="copy_last_link"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_link"
+        android:shortcutShortLabel="@string/shortcut_copy_last_link_short"
+        android:shortcutLongLabel="@string/shortcut_copy_last_link_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.xerahs.android"
+            android:targetClass="com.xerahs.android.shortcuts.CopyLastLinkActivity" />
+    </shortcut>
+
+    <!-- Direct share: one dynamic shortcut per upload profile (see ProfileShortcuts). -->
+    <share-target android:targetClass="com.xerahs.android.ui.MainActivity">
+        <data android:mimeType="*/*" />
+        <category android:name="com.xerahs.android.SHARE_TARGET" />
+    </share-target>
 </shortcuts>

@@ -61,17 +61,19 @@ fun S3ConfigScreen(
 
     var isTesting by remember { mutableStateOf(false) }
 
-    var accessKeyId by remember { mutableStateOf("") }
-    var secretAccessKey by remember { mutableStateOf("") }
-    var region by remember { mutableStateOf("us-east-1") }
-    var bucket by remember { mutableStateOf("") }
-    var endpoint by remember { mutableStateOf("") }
-    var customUrl by remember { mutableStateOf("") }
-    var prefix by remember { mutableStateOf("") }
-    var acl by remember { mutableStateOf("") }
-    var usePathStyle by remember { mutableStateOf(false) }
+    var accessKeyId by remember { viewModel.form.field("accessKeyId", "") }
+    var secretAccessKey by remember { viewModel.form.field("secretAccessKey", "") }
+    var region by remember { viewModel.form.field("region", "us-east-1") }
+    var bucket by remember { viewModel.form.field("bucket", "") }
+    var endpoint by remember { viewModel.form.field("endpoint", "") }
+    var customUrl by remember { viewModel.form.field("customUrl", "") }
+    var prefix by remember { viewModel.form.field("prefix", "") }
+    var acl by remember { viewModel.form.field("acl", "") }
+    var usePathStyle by remember { viewModel.form.field("usePathStyle", false) }
 
     LaunchedEffect(Unit) {
+        // Load once per ViewModel, so a rotation keeps what was typed.
+        if (viewModel.form.loaded) return@LaunchedEffect
         val config = viewModel.loadConfig()
         accessKeyId = config.accessKeyId
         secretAccessKey = config.secretAccessKey
@@ -82,10 +84,11 @@ fun S3ConfigScreen(
         prefix = config.prefix
         acl = config.acl
         usePathStyle = config.usePathStyle
+        viewModel.form.loaded = true
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Amazon S3 Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "Amazon S3", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(

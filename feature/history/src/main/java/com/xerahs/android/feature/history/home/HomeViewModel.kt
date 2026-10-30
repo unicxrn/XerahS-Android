@@ -3,7 +3,16 @@ package com.xerahs.android.feature.history.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.HistoryRepository
+import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.domain.model.globalConfigFor
+import com.xerahs.android.core.domain.model.isSetupComplete
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import com.xerahs.android.core.domain.repository.OpenInBrowserException
 import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,15 +23,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.flow.update
+import com.xerahs.android.core.domain.model.LinkFormat
 
 data class HomeUiState(
     val sections: List<TimelineSection> = emptyList(),
     val itemsById: Map<String, HistoryItem> = emptyMap(),
     val query: String = "",
     val isLoading: Boolean = true,
-    val todayCount: Int = 0
+    val todayCount: Int = 0,
+    /** Default destination that still needs configuring, or null when it is ready to use. */
+    val setupNeeded: UploadDestination? = null,
+    val linkFormat: LinkFormat = LinkFormat.PLAIN
 )
 
 sealed interface HomeMessage {
@@ -30,10 +47,13 @@ sealed interface HomeMessage {
     data class OpenUrl(val url: String) : HomeMessage
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val historyRepository: HistoryRepository,
-    private val remoteDelete: RemoteDeleteRepository
+    private val remoteDelete: RemoteDeleteRepository,
+    private val settingsRepository: SettingsRepository,
+    private val profileRepository: UploadProfileRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -45,7 +65,30 @@ class HomeViewModel @Inject constructor(
     /** All loaded items, newest-first irrelevant - grouping re-sorts. Kept for in-memory filtering. */
     private var allItems: List<HistoryItem> = emptyList()
 
+    private val setupRefresh = MutableStateFlow(0)
+
+    /** Re-check the default destination, for example after coming back from its setup screen. */
+    fun refreshSetup() { setupRefresh.value += 1 }
+
     init {
+        viewModelScope.launch {
+            settingsRepository.getLinkFormat().collect { format -> _uiState.update { it.copy(linkFormat = format) } }
+        }
+        viewModelScope.launch {
+            combine(settingsRepository.getDefaultDestination(), setupRefresh) { dest, _ -> dest }
+                .flatMapLatest { dest ->
+                    if (dest == UploadDestination.LOCAL) {
+                        flowOf<UploadDestination?>(null)
+                    } else {
+                        profileRepository.getProfilesForDestination(dest).map { profiles ->
+                            val global = settingsRepository.globalConfigFor(dest)
+                            val configs = profiles.map { profileRepository.getProfileConfig(it.id, dest) }
+                            if (isSetupComplete(global, configs)) null else dest
+                        }.flowOn(Dispatchers.IO)
+                    }
+                }
+                .collect { missing -> _uiState.value = _uiState.value.copy(setupNeeded = missing) }
+        }
         viewModelScope.launch {
             historyRepository.getAllHistory().collect { items ->
                 allItems = items

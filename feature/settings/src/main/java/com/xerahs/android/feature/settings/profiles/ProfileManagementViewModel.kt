@@ -7,6 +7,8 @@ import com.xerahs.android.core.common.sxcu.CustomUploaderSpec
 import com.xerahs.android.core.common.sxcu.SxcuParser
 import com.xerahs.android.core.common.sxcu.SxcuWriter
 import com.xerahs.android.core.common.generateTimestamp
+import com.xerahs.android.core.data.remote.transfer.HostKeyStore
+import com.xerahs.android.core.data.remote.transfer.SshSessionFactory
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.UploadConfig
 import com.xerahs.android.core.domain.model.UploadDestination
@@ -80,7 +82,8 @@ data class ProfileEditorUiState(
 @HiltViewModel
 class ProfileManagementViewModel @Inject constructor(
     private val profileRepository: UploadProfileRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val hostKeyStore: HostKeyStore
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow(ProfileListUiState())
@@ -95,6 +98,18 @@ class ProfileManagementViewModel @Inject constructor(
                 _listState.value = ProfileListUiState(profiles = profiles, isLoading = false)
             }
         }
+    }
+
+    private var editorEntry: String? = null
+
+    /**
+     * Starts the editor once per visit to the editor screen ([entryId] is its back stack entry),
+     * so a rotation keeps unsaved edits instead of reloading the profile.
+     */
+    fun openEditor(entryId: String, profileId: String?) {
+        if (editorEntry == entryId) return
+        editorEntry = entryId
+        if (profileId == "new") startNewProfile() else if (profileId != null) startEditProfile(profileId)
     }
 
     fun startNewProfile() {
@@ -333,5 +348,19 @@ class ProfileManagementViewModel @Inject constructor(
             UploadDestination.NEXTCLOUD, UploadDestination.IMMICH, UploadDestination.GITHUB_GIST ->
                 NativeDestinationForms.toConfig(destination, nativeValues)
         }
+    }
+
+    /**
+     * Drops the pinned key for the SFTP host and port in the editor, so a re-keyed server can be
+     * trusted again. Returns false when no key was saved for it.
+     */
+    suspend fun forgetSftpHostKey(): Boolean {
+        val state = _editorState.value
+        val hostPort = runCatching {
+            SshSessionFactory.hostPort(state.sftpHost, state.sftpPort.toIntOrNull() ?: 22)
+        }.getOrNull() ?: return false
+        val had = hostKeyStore.get(hostPort) != null
+        hostKeyStore.remove(hostPort)
+        return had
     }
 }
