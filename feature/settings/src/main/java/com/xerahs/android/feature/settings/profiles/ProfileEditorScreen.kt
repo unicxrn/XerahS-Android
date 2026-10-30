@@ -538,7 +538,12 @@ private fun SftpFields(state: ProfileEditorUiState, viewModel: ProfileManagement
         },
         shape = CircleShape,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        // A fixed red border would make the disabled button look active.
+        border = BorderStroke(
+            1.dp,
+            if (state.sftpHost.isNotBlank()) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+        ),
         enabled = state.sftpHost.isNotBlank(),
         modifier = Modifier
             .fillMaxWidth()

@@ -432,7 +432,12 @@ fun FtpConfigScreen(
                         },
                         shape = CircleShape,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                        // A fixed red border would make the disabled button look active.
+                        border = BorderStroke(
+                            1.dp,
+                            if (sftpHost.isNotBlank()) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
