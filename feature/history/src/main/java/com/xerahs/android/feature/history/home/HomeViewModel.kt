@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.flow.update
+import com.xerahs.android.core.domain.model.LinkFormat
 
 data class HomeUiState(
     val sections: List<TimelineSection> = emptyList(),
@@ -36,7 +38,8 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val todayCount: Int = 0,
     /** Default destination that still needs configuring, or null when it is ready to use. */
-    val setupNeeded: UploadDestination? = null
+    val setupNeeded: UploadDestination? = null,
+    val linkFormat: LinkFormat = LinkFormat.PLAIN
 )
 
 sealed interface HomeMessage {
@@ -68,6 +71,9 @@ class HomeViewModel @Inject constructor(
     fun refreshSetup() { setupRefresh.value += 1 }
 
     init {
+        viewModelScope.launch {
+            settingsRepository.getLinkFormat().collect { format -> _uiState.update { it.copy(linkFormat = format) } }
+        }
         viewModelScope.launch {
             combine(settingsRepository.getDefaultDestination(), setupRefresh) { dest, _ -> dest }
                 .flatMapLatest { dest ->

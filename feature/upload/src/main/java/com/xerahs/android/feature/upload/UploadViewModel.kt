@@ -15,7 +15,9 @@ import com.xerahs.android.core.common.sxcu.ShareXSyntax
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.Album
 import com.xerahs.android.core.domain.model.DestinationCapabilities
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.FileKind
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.fileKindOf
 import com.xerahs.android.core.domain.model.Tag
 import com.xerahs.android.core.domain.model.UploadConfig
@@ -48,9 +50,8 @@ data class DuplicateInfo(
 data class AfterUploadEvent(
     val urls: List<String>,
     val actions: Set<AfterUploadAction>,
-    // Set for a single upload, so the copied link can use the real file name.
-    val fileName: String? = null,
-    val isImage: Boolean? = null,
+    /** The links in the "Copy link as" format, built when the upload finished. */
+    val copyText: String,
 )
 
 data class UploadUiState(
@@ -73,7 +74,15 @@ data class UploadUiState(
     val fileMimeTypes: List<String> = emptyList(),
     val globalCustomTypes: Set<CustomDestinationType>? = null,
     val profileCustomTypes: Map<String, Set<CustomDestinationType>> = emptyMap(),
+    val linkFormat: LinkFormat = LinkFormat.PLAIN,
+    // Name and type of a single finished upload, for formatting its link.
+    val resultFileName: String? = null,
+    val resultIsImage: Boolean? = null,
 ) {
+    /** [links] (one per line) in the "Copy link as" format. */
+    fun formatLinks(links: String, fileName: String? = resultFileName, isImage: Boolean? = resultIsImage): String =
+        LinkFormatter.formatLinks(links, linkFormat, fileName, isImage)
+
     fun allows(destination: UploadDestination): Boolean = fileMimeTypes.isEmpty() ||
         DestinationCapabilities.acceptsAll(
             destination, fileMimeTypes,
@@ -156,6 +165,11 @@ class UploadViewModel @Inject constructor(
             )
             applyRoute()
             ensureAllowedSelection()
+        }
+        viewModelScope.launch {
+            settingsRepository.getLinkFormat().collect { format ->
+                _uiState.value = _uiState.value.copy(linkFormat = format)
+            }
         }
         viewModelScope.launch {
             albumRepository.getAllAlbums().collect { albums ->
@@ -313,7 +327,11 @@ class UploadViewModel @Inject constructor(
                     WorkInfo.State.SUCCEEDED -> {
                         val resultUrl = workInfo.outputData.getString(UploadWorker.KEY_RESULT_URL)
                         val urls = resultUrl?.lines()?.filter { it.isNotBlank() } ?: emptyList()
+                        val fileName = workInfo.outputData.getString(UploadWorker.KEY_RESULT_FILE_NAME)
+                        val isImage = workInfo.outputData.keyValueMap[UploadWorker.KEY_RESULT_IS_IMAGE] as? Boolean
                         _uiState.value = _uiState.value.copy(
+                            resultFileName = fileName,
+                            resultIsImage = isImage,
                             isUploading = false,
                             result = UploadResult(
                                 success = true,
@@ -325,8 +343,7 @@ class UploadViewModel @Inject constructor(
                             pendingAfterUpload = AfterUploadEvent(
                                 urls,
                                 AfterUploadAction.decode(workInfo.outputData.getString(UploadWorker.KEY_ACTIONS)),
-                                fileName = workInfo.outputData.getString(UploadWorker.KEY_RESULT_FILE_NAME),
-                                isImage = workInfo.outputData.keyValueMap[UploadWorker.KEY_RESULT_IS_IMAGE] as? Boolean,
+                                copyText = _uiState.value.formatLinks(urls.joinToString("\n"), fileName, isImage),
                             ).takeIf { it.urls.isNotEmpty() && it.actions.isNotEmpty() }
                         )
                     }

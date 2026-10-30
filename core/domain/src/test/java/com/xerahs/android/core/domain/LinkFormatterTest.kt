@@ -52,4 +52,35 @@ class LinkFormatterTest {
     @Test fun formatLinksPlainLeavesTextAlone() {
         assertEquals("https://x/a.png\nhttps://x/b", LinkFormatter.formatLinks("https://x/a.png\nhttps://x/b", LinkFormat.PLAIN))
     }
+
+    @Test fun htmlEscapesQuoteAndAmpersandInUrl() {
+        val u = "https://x/a?b=1&c=\"2\""
+        assertEquals("<a href=\"https://x/a?b=1&amp;c=&quot;2&quot;\">a.png</a>", LinkFormatter.format(u, "a.png", true, LinkFormat.HTML))
+        assertEquals("<img src=\"https://x/a?b=1&amp;c=&quot;2&quot;\" alt=\"a.png\">", LinkFormatter.format(u, "a.png", true, LinkFormat.HTML_IMAGE))
+    }
+
+    private val odd = "https://x/a (1)[2].png"
+
+    @Test fun markdownEncodesParensAndSpaceInUrlAndEscapesText() {
+        assertEquals("[a \\\\ \\[1\\].png](https://x/a%20%281%29[2].png)", LinkFormatter.format(odd, "a \\ [1].png", false, LinkFormat.MARKDOWN))
+        assertEquals("![a.png](https://x/a%20%281%29[2].png)", LinkFormatter.format(odd, "a.png", true, LinkFormat.MARKDOWN_IMAGE))
+    }
+
+    @Test fun bbcodeEncodesBracketsInUrlAndStripsThemFromText() {
+        assertEquals("[url=https://x/a (1)%5B2%5D.png]a 1.png[/url]", LinkFormatter.format(odd, "a [1].png", false, LinkFormat.BBCODE))
+        assertEquals("[img]https://x/a (1)%5B2%5D.png[/img]", LinkFormatter.format(odd, "a.png", true, LinkFormat.BBCODE_IMAGE))
+    }
+
+    @Test fun nameFromUrlDropsQueryAndFragmentAndDecodes() {
+        assertEquals("my shot.png", LinkFormatter.nameFromUrl("https://x/dir/my%20shot.png?sig=abc#top"))
+        assertEquals("a.png", LinkFormatter.nameFromUrl("https://x/a.png#frag"))
+        assertEquals("100%.png", LinkFormatter.nameFromUrl("https://x/100%.png"))
+    }
+
+    @Test fun svgCountsAsImageInBatches() {
+        assertEquals(
+            "![a.svg](https://x/a.svg)\n![b.png](https://x/b.png?x=1)",
+            LinkFormatter.formatLinks("https://x/a.svg\nhttps://x/b.png?x=1", LinkFormat.MARKDOWN_IMAGE)
+        )
+    }
 }

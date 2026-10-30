@@ -113,7 +113,7 @@ class LatestUploadWidget : GlanceAppWidget() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
             firstUrl.isNotEmpty() -> actionSendBroadcast(
-                CopyUrlReceiver.intent(context, url.orEmpty(), item.fileName, item.isImage)
+                CopyUrlReceiver.intent(context, url.orEmpty(), item.fileName, item.isImageLink)
             )
             else -> null
         }

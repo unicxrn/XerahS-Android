@@ -24,6 +24,7 @@ import com.xerahs.android.core.common.generateTimestamp
 import com.xerahs.android.core.common.image.calculateInSampleSize
 import com.xerahs.android.core.common.file.LocalUploads
 import com.xerahs.android.core.common.file.MimeTypes
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.AfterUploadAction
 import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.ImageFormat
@@ -334,7 +335,7 @@ class UploadWorker @AssistedInject constructor(
                     throw e
                 } catch (_: Exception) {
                 }
-                FileOutcome.Uploaded(finalUrl, itemId, resolvedName, MimeTypes.isRasterImage(mimeType))
+                FileOutcome.Uploaded(finalUrl, itemId, resolvedName, LinkFormatter.isImageMime(mimeType))
             }
         } finally {
             // Clean up temp files (after the thumbnail, which may read the converted HEIC)

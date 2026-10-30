@@ -20,6 +20,10 @@ data class HistoryItem(
 ) {
     val isImage: Boolean
         get() = mimeType == null || com.xerahs.android.core.common.file.MimeTypes.isRasterImage(mimeType)
+
+    /** Whether copied links use the image forms. Any image type counts, SVG included. */
+    val isImageLink: Boolean
+        get() = mimeType == null || fileKindOf(mimeType) == FileKind.IMAGE
 }
 
 enum class UploadDestination(val displayName: String) {

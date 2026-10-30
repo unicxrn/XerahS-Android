@@ -282,6 +282,7 @@ fun XerahSNavGraph(
                         canDeleteFromHost = s.canDeleteFromHost,
                         isDeleting = s.isDeleting,
                         onDeleteFromHost = vm::deleteFromHost,
+                        linkFormat = s.linkFormat,
                         onDone = { navController.popBackStack() }
                     )
                 } else if (s.isLoading) {

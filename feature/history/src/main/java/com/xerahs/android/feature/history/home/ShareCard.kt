@@ -98,7 +98,8 @@ fun ShareCard(
     isShortening: Boolean = false,
     canDeleteFromHost: Boolean = false,
     isDeleting: Boolean = false,
-    onDeleteFromHost: () -> Unit = {}
+    onDeleteFromHost: () -> Unit = {},
+    linkFormat: LinkFormat = LinkFormat.PLAIN
 ) {
     val effectiveLink = shortUrl ?: item.url ?: item.filePath
     val context = LocalContext.current
@@ -177,7 +178,7 @@ fun ShareCard(
                         }
                     }
                     Spacer(Modifier.size(12.dp))
-                    // Tap copies the plain link; long-press offers every link format.
+                    // Tap copies in the "Copy link as" format; long-press offers the other formats.
                     var formatMenu by remember { mutableStateOf(false) }
                     Box {
                         Box(
@@ -193,7 +194,7 @@ fun ShareCard(
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                         formatMenu = true
                                     },
-                                    onClick = { onCopy(effectiveLink) }
+                                    onClick = { onCopy(LinkFormatter.forItem(item, linkFormat, shortUrl ?: item.url)) }
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -204,12 +205,12 @@ fun ShareCard(
                             )
                         }
                         DropdownMenu(expanded = formatMenu, onDismissRequest = { formatMenu = false }) {
-                            LinkFormat.entries.forEach { format ->
+                            LinkFormat.entries.filter { it != linkFormat }.forEach { format ->
                                 DropdownMenuItem(
                                     text = { Text(format.label) },
                                     onClick = {
                                         formatMenu = false
-                                        onCopy(LinkFormatter.format(effectiveLink, item.fileName, item.isImage, format))
+                                        onCopy(LinkFormatter.forItem(item, format, shortUrl ?: item.url))
                                     }
                                 )
                             }

@@ -79,7 +79,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.xerahs.android.core.domain.LinkFormatter
 import com.xerahs.android.core.domain.model.HistoryItem
+import com.xerahs.android.core.domain.model.LinkFormat
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.FileTypeTile
@@ -420,7 +422,7 @@ fun HomeScreen(
                                             .clip(CircleShape)
                                             .background(Lumen.tokens.tint)
                                             .clickable(role = Role.Button) {
-                                                clipboard.setText(AnnotatedString(latestUrl))
+                                                clipboard.setText(AnnotatedString(LinkFormatter.forItem(latest, uiState.linkFormat, latestUrl)))
                                                 Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
                                             },
                                         contentAlignment = Alignment.Center
@@ -477,6 +479,7 @@ fun HomeScreen(
                             Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                                 TimelineRow(
                                     item = item,
+                                    linkFormat = uiState.linkFormat,
                                     onOpen = { onOpen(id) },
                                     canDeleteFromHost = viewModel.canDeleteFromHost(item),
                                     onDeleteFromHost = { viewModel.deleteFromHost(item) }
@@ -493,6 +496,7 @@ fun HomeScreen(
 @Composable
 private fun TimelineRow(
     item: HistoryItem,
+    linkFormat: LinkFormat,
     onOpen: () -> Unit,
     canDeleteFromHost: Boolean = false,
     onDeleteFromHost: () -> Unit = {}
@@ -555,7 +559,7 @@ private fun TimelineRow(
                 DropdownMenuItem(
                     text = { Text("Copy link") },
                     onClick = {
-                        clipboard.setText(AnnotatedString(item.url ?: item.filePath))
+                        clipboard.setText(AnnotatedString(LinkFormatter.forItem(item, linkFormat)))
                         menuOpen = false
                     },
                     leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }

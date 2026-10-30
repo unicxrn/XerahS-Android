@@ -179,7 +179,7 @@ fun UploadScreen(
                 val existing = dupInfo.url
                 if (existing != null) {
                     TextButton(onClick = {
-                        clipboardManager.setText(AnnotatedString(existing))
+                        clipboardManager.setText(AnnotatedString(uiState.formatLinks(existing, dupInfo.fileName, null)))
                         viewModel.dismissDuplicate()
                     }) {
                         Text("Copy existing")
@@ -246,7 +246,8 @@ fun UploadScreen(
         viewModel.consumeAfterUpload()
         val first = event.urls.first()
         if (AfterUploadAction.COPY_URL in event.actions) {
-            CopyUrlReceiver.copy(context, event.urls.joinToString("\n"), event.fileName, event.isImage, toast = false)
+            // Synchronous: the text was formatted by the ViewModel, so nothing here can be cancelled midway.
+            CopyUrlReceiver.copyText(context, event.copyText, toast = false)
             scope.launch { snackbarHostState.showSnackbar(if (event.urls.size > 1) "Links copied" else "Link copied") }
         }
         val shared = AfterUploadAction.SHARE_SHEET in event.actions
@@ -391,14 +392,14 @@ fun UploadScreen(
                         )
                         uiState.batchUrls.forEach { batchUrl ->
                             UrlResultCard(url = batchUrl) {
-                                clipboardManager.setText(AnnotatedString(batchUrl))
+                                clipboardManager.setText(AnnotatedString(uiState.formatLinks(batchUrl, null, null)))
                             }
                         }
                     }
                 } else {
                     uiState.result?.url?.let { url ->
                         UrlResultCard(url = url) {
-                            clipboardManager.setText(AnnotatedString(url))
+                            clipboardManager.setText(AnnotatedString(uiState.formatLinks(url)))
                         }
                     }
                 }
