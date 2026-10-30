@@ -3,6 +3,8 @@ package com.xerahs.android.feature.upload.intake
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -13,11 +15,13 @@ import okhttp3.mockwebserver.SocketPolicy
 import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -100,5 +104,53 @@ class UrlDownloaderTest {
         withTimeout(3_000) { job.cancelAndJoin() }
         assertTrue(job.isCancelled)
         assertTrue(dir.listFiles().isNullOrEmpty())
+    }
+
+    @Test fun httpsLinkEndingOnHttpIsRefused() {
+        // MockWebServer only speaks http here, so an interceptor plays the https to http redirect:
+        // the call starts on https and the final response comes from plain http.
+        server.enqueue(MockResponse().setBody("secret").setHeader("Content-Type", "image/png"))
+        val target = server.url("/landing.png")
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain -> chain.proceed(chain.request().newBuilder().url(target).build()) }
+            .build()
+        val dir = tmp.newFolder()
+        val e = runCatching {
+            runBlocking { UrlDownloader(client).download("https://example.test/pic.png", dir) {} }
+        }.exceptionOrNull()
+        assertTrue(e is InsecureRedirectException)
+        assertTrue(dir.listFiles().isNullOrEmpty())
+    }
+
+    @Test fun cleanUpDeletesFolderOnFailure() {
+        val dir = tmp.newFolder("shared_fail")
+        val e = runCatching {
+            runBlocking {
+                downloadOrCleanUp(dir) { d -> File(d, "part.bin").writeText("x"); throw IOException("boom") }
+            }
+        }.exceptionOrNull()
+        assertTrue(e is IOException)
+        assertFalse(dir.exists())
+    }
+
+    @Test fun cleanUpDeletesFolderOnCancel() = runBlocking {
+        val dir = tmp.newFolder("shared_cancel")
+        val written = CompletableDeferred<Unit>()
+        val job = launch(Dispatchers.Default) {
+            downloadOrCleanUp(dir) { d ->
+                File(d, "part.bin").writeText("x")
+                written.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        written.await()
+        job.cancelAndJoin()
+        assertFalse(dir.exists())
+    }
+
+    @Test fun cleanUpKeepsFolderOnSuccess() = runBlocking {
+        val dir = tmp.newFolder("shared_ok")
+        val file = downloadOrCleanUp(dir) { d -> File(d, "ok.bin").apply { writeText("x") } }
+        assertTrue(file.exists())
     }
 }

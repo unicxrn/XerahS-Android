@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,11 +20,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+
+/**
+ * Runs [block] to fill [dir]. On failure or cancellation the whole folder is deleted, off the
+ * main thread and even while the caller is being cancelled, then the error is rethrown.
+ */
+suspend fun downloadOrCleanUp(dir: File, block: suspend (File) -> File): File =
+    try {
+        block(dir)
+    } catch (t: Throwable) {
+        withContext(NonCancellable + Dispatchers.IO) { dir.deleteRecursively() }
+        throw t
+    }
 
 /** What the link sheet shows. */
 data class LinkSheetState(
@@ -116,7 +130,7 @@ class LinkIntakeViewModel @Inject constructor(
     }
 
     fun shorten() {
-        val url = state.value.url ?: return
+        val url = savedStateHandle.get<String>(KEY_URL) ?: return
         if (work.value.shortening) return
         work.value = work.value.copy(shortening = true, error = null)
         viewModelScope.launch {
@@ -132,8 +146,9 @@ class LinkIntakeViewModel @Inject constructor(
 
     /** Downloads the link (from the options, or the typed link in entry mode). */
     fun uploadFile() {
-        val s = state.value
-        val url = s.url ?: singleUrlOrNull(s.draft)
+        // Read the saved state directly: the combined state can lag one dispatch behind.
+        val url = savedStateHandle.get<String>(KEY_URL)
+            ?: singleUrlOrNull(savedStateHandle.get<String>(KEY_DRAFT).orEmpty())
         if (url == null) {
             work.value = work.value.copy(error = "Enter a link that starts with http:// or https://")
             return
@@ -144,15 +159,15 @@ class LinkIntakeViewModel @Inject constructor(
             // The downloader creates the folder off the main thread.
             val dir = sharedDir()
             try {
-                val file = downloader.download(url, dir) { p -> work.value = work.value.copy(progress = p) }
+                val file = downloadOrCleanUp(dir) { d ->
+                    downloader.download(url, d) { p -> work.update { it.copy(progress = p) } }
+                }
                 savedStateHandle[KEY_READY] = file.absolutePath
                 downloadJob = null
                 dismiss()
             } catch (e: CancellationException) {
-                dir.deleteRecursively()
                 throw e
             } catch (e: Exception) {
-                dir.deleteRecursively()
                 work.value = Work(error = messageFor(e))
             }
         }
@@ -166,7 +181,7 @@ class LinkIntakeViewModel @Inject constructor(
     }
 
     fun uploadAsText() {
-        val url = state.value.url ?: return
+        val url = savedStateHandle.get<String>(KEY_URL) ?: return
         viewModelScope.launch {
             val path = withContext(Dispatchers.IO) {
                 runCatching { File(sharedDir().apply { mkdirs() }, "shared-text.txt").apply { writeText(url) }.absolutePath }.getOrNull()
@@ -185,6 +200,7 @@ class LinkIntakeViewModel @Inject constructor(
 
     private fun messageFor(e: Exception): String = when (e) {
         is FileTooLargeException -> e.message ?: "That file is too large"
+        is InsecureRedirectException -> e.message ?: "Couldn't download that link"
         is IllegalArgumentException -> "Only http and https links can be downloaded"
         else -> "Couldn't download that link"
     }

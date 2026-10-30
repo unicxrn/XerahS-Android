@@ -117,7 +117,7 @@ private fun EntryContent(state: LinkSheetState, viewModel: LinkIntakeViewModel) 
 
 @Composable
 private fun OptionsContent(state: LinkSheetState, url: String, viewModel: LinkIntakeViewModel) {
-    Eyebrow("Shared link")
+    Eyebrow("Link")
     Text(url, style = monoStyle(), maxLines = 2, overflow = TextOverflow.Ellipsis)
     state.error?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)

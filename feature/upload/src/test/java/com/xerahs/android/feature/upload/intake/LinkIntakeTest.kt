@@ -85,6 +85,32 @@ class LinkIntakeTest {
         resolveFileName("https://a.b/x", "attachment; filename=\"..\"", "image/png")
     )
 
+    @Test fun quotedBackslashPathSanitized() = assertEquals(
+        "evil.png",
+        resolveFileName("https://a.b/x", "attachment; filename=\"..\\\\..\\\\evil.png\"", "image/png")
+    )
+
+    @Test fun windowsPathSanitized() = assertEquals(
+        "evil.png",
+        resolveFileName("https://a.b/x", "attachment; filename=C:\\temp\\evil.png", "image/png")
+    )
+
+    @Test fun nulDropped() = assertEquals(
+        "ab.png",
+        resolveFileName("https://a.b/x", "attachment; filename=\"a\u0000b.png\"", "image/png")
+    )
+
+    @Test fun absolutePathKeepsOnlyName() = assertEquals(
+        "x.png",
+        resolveFileName("https://a.b/y", "attachment; filename=\"/x\"", "image/png")
+    )
+
+    // redirects
+
+    @Test fun httpsToHttpIsInsecure() = assertTrue(isInsecureRedirect(originalHttps = true, finalHttps = false))
+    @Test fun httpToHttpsIsFine() = assertFalse(isInsecureRedirect(originalHttps = false, finalHttps = true))
+    @Test fun httpsToHttpsIsFine() = assertFalse(isInsecureRedirect(originalHttps = true, finalHttps = true))
+
     // size guard
 
     @Test fun underCapPasses() = checkDownloadSize(100, 100)

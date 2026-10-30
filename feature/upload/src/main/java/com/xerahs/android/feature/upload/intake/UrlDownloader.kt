@@ -14,6 +14,11 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 
+class InsecureRedirectException : IOException("That link redirects to an insecure address")
+
+/** An https link must not end up on plain http after redirects. */
+fun isInsecureRedirect(originalHttps: Boolean, finalHttps: Boolean): Boolean = originalHttps && !finalHttps
+
 /** Downloads an http(s) link into a folder for upload, with a size cap. */
 class UrlDownloader @Inject constructor(private val client: OkHttpClient) {
 
@@ -38,6 +43,9 @@ class UrlDownloader @Inject constructor(private val client: OkHttpClient) {
             }
             try {
                 call.execute().use { response ->
+                    if (isInsecureRedirect(httpUrl.isHttps, response.request.url.isHttps)) {
+                        throw InsecureRedirectException()
+                    }
                     if (!response.isSuccessful) throw IOException("The server answered ${response.code}")
                     val body = response.body ?: throw IOException("The server sent no file")
                     val length = body.contentLength()
