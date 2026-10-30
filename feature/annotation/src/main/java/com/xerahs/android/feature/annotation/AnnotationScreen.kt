@@ -38,6 +38,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AutoFixOff
 import androidx.compose.material.icons.filled.BorderColor
@@ -135,6 +136,7 @@ import java.io.File
 fun AnnotationScreen(
     imagePath: String,
     onExportComplete: (String) -> Unit,
+    onBeautify: (String) -> Unit,
     onBack: () -> Unit,
     viewModel: AnnotationViewModel = hiltViewModel()
 ) {
@@ -772,33 +774,51 @@ fun AnnotationScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Thumb-zone primary action - same export path as the old checkmark
-                PillCta(
-                    text = "Continue to upload",
-                    onClick = {
-                        viewModel.setExporting(true)
-                        coroutineScope.launch {
-                            val exported = withContext(Dispatchers.Default) {
-                                val annotatedBitmap = AnnotationEngine.renderAnnotations(
-                                    bitmap, uiState.annotations
-                                )
-                                val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
-                                    else ImageEffects.apply(annotatedBitmap, uiState.effects)
-                                val exportsDir = File(context.filesDir, "exports")
-                                if (!exportsDir.exists()) exportsDir.mkdirs()
-                                val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
-                                AnnotationEngine.exportToFile(finalBitmap, exportFile)
-                                annotatedBitmap.recycle()
-                                if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
-                                exportFile.absolutePath
-                            }
-                            viewModel.setExporting(false)
-                            onExportComplete(exported)
+                // Exports the annotated, effected image to filesDir/exports and hands the path on.
+                // Upload and Beautify both take the same file.
+                val exportThen: ((String) -> Unit) -> Unit = { next ->
+                    viewModel.setExporting(true)
+                    coroutineScope.launch {
+                        val exported = withContext(Dispatchers.Default) {
+                            val annotatedBitmap = AnnotationEngine.renderAnnotations(
+                                bitmap, uiState.annotations
+                            )
+                            val finalBitmap = if (uiState.effects.isIdentity) annotatedBitmap
+                                else ImageEffects.apply(annotatedBitmap, uiState.effects)
+                            val exportsDir = File(context.filesDir, "exports")
+                            if (!exportsDir.exists()) exportsDir.mkdirs()
+                            val exportFile = File(exportsDir, "export_${System.currentTimeMillis()}.png")
+                            AnnotationEngine.exportToFile(finalBitmap, exportFile)
+                            annotatedBitmap.recycle()
+                            if (finalBitmap !== annotatedBitmap) finalBitmap.recycle()
+                            exportFile.absolutePath
                         }
-                    },
-                    enabled = !uiState.isExporting,
-                    loading = uiState.isExporting
-                )
+                        viewModel.setExporting(false)
+                        next(exported)
+                    }
+                }
+
+                // Thumb-zone primary action - same export path as the old checkmark
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PillCta(
+                        text = "Continue to upload",
+                        onClick = { exportThen(onExportComplete) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uiState.isExporting,
+                        loading = uiState.isExporting
+                    )
+                    CircleIconButton(
+                        icon = Icons.Default.AutoAwesome,
+                        contentDescription = "Beautify",
+                        onClick = { exportThen(onBeautify) },
+                        modifier = Modifier.size(56.dp),
+                        enabled = !uiState.isExporting
+                    )
+                }
             }
         }
 

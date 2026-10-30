@@ -55,6 +55,7 @@ import com.xerahs.android.feature.tools.HashScreen
 import com.xerahs.android.feature.tools.QrScreen
 import com.xerahs.android.feature.tools.ToolId
 import com.xerahs.android.feature.tools.ToolsScreen
+import com.xerahs.android.feature.tools.beautify.BeautifyScreen
 import com.xerahs.android.feature.tools.combine.CombineScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -152,6 +153,10 @@ sealed class Screen(val route: String) {
     data object ToolsQr : Screen("tools/qr")
     data object ToolsColor : Screen("tools/color")
     data object ToolsCombine : Screen("tools/combine")
+    data object ToolsBeautify : Screen("tools/beautify?imagePath={imagePath}") {
+        fun createRoute(imagePath: String? = null) =
+            if (imagePath == null) "tools/beautify" else "tools/beautify?imagePath=${android.net.Uri.encode(imagePath)}"
+    }
 }
 
 @Composable
@@ -362,6 +367,9 @@ fun XerahSNavGraph(
                 imagePath = imagePath,
                 onExportComplete = { exportedPath ->
                     navController.navigate(Screen.Upload.createRoute(exportedPath))
+                },
+                onBeautify = { exportedPath ->
+                    navController.navigate(Screen.ToolsBeautify.createRoute(exportedPath))
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -619,6 +627,7 @@ fun XerahSNavGraph(
                             ToolId.QR -> Screen.ToolsQr.route
                             ToolId.COLOR -> Screen.ToolsColor.route
                             ToolId.COMBINE -> Screen.ToolsCombine.route
+                            ToolId.BEAUTIFY -> Screen.ToolsBeautify.createRoute()
                         }
                     )
                 }
@@ -653,6 +662,20 @@ fun XerahSNavGraph(
 
         composable(Screen.ToolsCombine.route) {
             CombineScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { path -> navController.navigate(Screen.Upload.createRoute(path)) }
+            )
+        }
+
+        composable(
+            route = Screen.ToolsBeautify.route,
+            arguments = listOf(navArgument("imagePath") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) {
+            BeautifyScreen(
                 onBack = { navController.popBackStack() },
                 onUpload = { path -> navController.navigate(Screen.Upload.createRoute(path)) }
             )

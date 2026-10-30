@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.NorthEast
@@ -60,6 +61,7 @@ enum class ToolId(val title: String, val subtitle: String, val icon: ImageVector
     QR("QR decode", "Read a QR code from an image", Icons.Default.QrCodeScanner),
     COLOR("Color picker", "Pick colours from an image", Icons.Default.Colorize),
     COMBINE("Combine images", "Stack images into one", Icons.Default.ViewAgenda),
+    BEAUTIFY("Beautify", "Background, padding, shadow", Icons.Default.AutoAwesome),
 }
 
 @Composable
