@@ -378,7 +378,9 @@ fun MainScreen(
 
     LaunchedEffect(setupRoute) {
         if (setupRoute != null) {
-            navController.navigate(setupRoute)
+            // A share, import or link that is already waiting wins; the setup hint is dropped.
+            val otherPending = sharedPaths != null || importUri != null || deepLink != null
+            if (!otherPending) navController.navigate(setupRoute)
             onSetupRouteHandled()
         }
     }

@@ -61,7 +61,7 @@ fun FtpConfigScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(viewModel.initialTab) }
     var isTesting by remember { mutableStateOf(false) }
 
     // FTP fields

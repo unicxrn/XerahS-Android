@@ -1,5 +1,8 @@
 package com.xerahs.android.feature.settings
 
+import kotlinx.coroutines.flow.first
+import com.xerahs.android.core.domain.model.globalConfigFor
+import com.xerahs.android.core.domain.model.isSetupComplete
 import com.xerahs.android.core.domain.model.BiometricLockMode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -196,19 +199,13 @@ class SettingsViewModel @Inject constructor(
     }
 
     private suspend fun checkDestinationConfigured(destination: UploadDestination): Boolean {
-        return when (destination) {
-            UploadDestination.IMGUR -> settingsRepository.getImgurConfig().clientId.isNotBlank()
-            UploadDestination.S3 -> {
-                val config = settingsRepository.getS3Config()
-                config.accessKeyId.isNotBlank() && config.bucket.isNotBlank()
-            }
-            UploadDestination.FTP -> settingsRepository.getFtpConfig().host.isNotBlank()
-            UploadDestination.SFTP -> settingsRepository.getSftpConfig().host.isNotBlank()
-            UploadDestination.CUSTOM_HTTP -> settingsRepository.getCustomUploaderConfig().spec.requestURL.isNotBlank()
-            UploadDestination.LOCAL -> true
-            UploadDestination.NEXTCLOUD -> settingsRepository.getNextcloudConfig().let { it.serverUrl.isNotBlank() && it.username.isNotBlank() && it.appPassword.isNotBlank() }
-            UploadDestination.IMMICH -> settingsRepository.getImmichConfig().let { it.serverUrl.isNotBlank() && it.apiKey.isNotBlank() }
-            UploadDestination.GITHUB_GIST -> settingsRepository.getGistConfig().token.isNotBlank()
+        if (destination == UploadDestination.LOCAL) return true
+        return withContext(Dispatchers.IO) {
+            val profiles = profileRepository.getProfilesForDestination(destination).first()
+            isSetupComplete(
+                settingsRepository.globalConfigFor(destination),
+                profiles.map { profileRepository.getProfileConfig(it.id, destination) }
+            )
         }
     }
 

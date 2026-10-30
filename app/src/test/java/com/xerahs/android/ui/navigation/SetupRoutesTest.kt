@@ -8,22 +8,21 @@ import org.junit.Test
 
 class SetupRoutesTest {
     @Test
-    fun imgurAndLocalNeedNoSetup() {
-        assertNull(setupRouteFor(UploadDestination.IMGUR))
-        assertNull(setupRouteFor(UploadDestination.LOCAL))
-    }
+    fun localNeedsNoSetup() = assertNull(setupRouteFor(UploadDestination.LOCAL))
 
     @Test
     fun everyOtherDestinationHasARoute() {
         UploadDestination.values()
-            .filter { it != UploadDestination.IMGUR && it != UploadDestination.LOCAL }
+            .filter { it != UploadDestination.LOCAL }
             .forEach { assertNotNull(it.name, setupRouteFor(it)) }
     }
 
     @Test
     fun specificRoutes() {
         assertEquals("settings/s3", setupRouteFor(UploadDestination.S3))
-        assertEquals("settings/ftp", setupRouteFor(UploadDestination.SFTP))
+        assertEquals("settings/ftp?tab=sftp", setupRouteFor(UploadDestination.SFTP))
+        assertEquals("settings/imgur", setupRouteFor(UploadDestination.IMGUR))
+        assertEquals("settings/ftp", setupRouteFor(UploadDestination.FTP))
         assertEquals("settings/import-uploader", setupRouteFor(UploadDestination.CUSTOM_HTTP))
         assertEquals("settings/destination/IMMICH", setupRouteFor(UploadDestination.IMMICH))
     }

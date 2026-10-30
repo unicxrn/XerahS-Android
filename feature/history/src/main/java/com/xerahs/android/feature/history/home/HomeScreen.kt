@@ -90,7 +90,7 @@ import com.xerahs.android.core.ui.lumen.Eyebrow
 import com.xerahs.android.core.ui.lumen.HostChip
 import com.xerahs.android.core.ui.lumen.Lumen
 import com.xerahs.android.core.ui.lumen.LumenCard
-import com.xerahs.android.core.ui.lumen.PillCta
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.outlined.History
 import com.xerahs.android.core.ui.lumen.hostColor
 import com.xerahs.android.core.ui.lumen.monoStyle
@@ -190,7 +190,7 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.size(12.dp))
-                            PillCta(text = "Set up", onClick = { onSetUp(dest) })
+                            OutlinedButton(shape = CircleShape, onClick = { onSetUp(dest) }) { Text("Set up") }
                         }
                     }
                 }

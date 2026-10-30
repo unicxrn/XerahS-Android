@@ -6,6 +6,13 @@ import com.xerahs.android.core.domain.model.HistoryItem
 import com.xerahs.android.core.domain.model.UploadDestination
 import com.xerahs.android.core.domain.repository.HistoryRepository
 import com.xerahs.android.core.domain.repository.SettingsRepository
+import com.xerahs.android.core.domain.repository.UploadProfileRepository
+import com.xerahs.android.core.domain.model.globalConfigFor
+import com.xerahs.android.core.domain.model.isSetupComplete
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import com.xerahs.android.core.domain.repository.OpenInBrowserException
 import com.xerahs.android.core.domain.repository.RemoteDeleteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,11 +44,13 @@ sealed interface HomeMessage {
     data class OpenUrl(val url: String) : HomeMessage
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val historyRepository: HistoryRepository,
     private val remoteDelete: RemoteDeleteRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val profileRepository: UploadProfileRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -62,7 +71,15 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(settingsRepository.getDefaultDestination(), setupRefresh) { dest, _ -> dest }
                 .flatMapLatest { dest ->
-                    settingsRepository.isDestinationConfigured(dest).map { ok -> if (ok) null else dest }
+                    if (dest == UploadDestination.LOCAL) {
+                        flowOf<UploadDestination?>(null)
+                    } else {
+                        profileRepository.getProfilesForDestination(dest).map { profiles ->
+                            val global = settingsRepository.globalConfigFor(dest)
+                            val configs = profiles.map { profileRepository.getProfileConfig(it.id, dest) }
+                            if (isSetupComplete(global, configs)) null else dest
+                        }.flowOn(Dispatchers.IO)
+                    }
                 }
                 .collect { missing -> _uiState.value = _uiState.value.copy(setupNeeded = missing) }
         }

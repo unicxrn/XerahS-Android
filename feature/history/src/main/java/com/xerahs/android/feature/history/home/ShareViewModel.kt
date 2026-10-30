@@ -53,7 +53,9 @@ class ShareViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val item = historyRepository.getHistoryItem(historyId)
+            val item = runCatching { historyRepository.getHistoryItem(historyId) }
+                .onFailure { if (it is CancellationException) throw it }
+                .getOrNull()
             _uiState.update {
                 it.copy(
                     item = item,

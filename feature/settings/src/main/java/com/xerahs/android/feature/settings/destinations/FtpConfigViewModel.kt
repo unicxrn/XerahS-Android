@@ -18,8 +18,12 @@ class FtpConfigViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val sshSessionFactory: SshSessionFactory,
     private val ftpClientFactory: FtpClientFactory,
-    private val hostKeyStore: HostKeyStore
+    private val hostKeyStore: HostKeyStore,
+    savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
+
+    /** 1 when opened with ?tab=sftp, otherwise 0. */
+    val initialTab: Int = if (savedStateHandle.get<String>("tab") == "sftp") 1 else 0
 
     suspend fun loadFtpConfig(): UploadConfig.FtpConfig =
         settingsRepository.getFtpConfig()

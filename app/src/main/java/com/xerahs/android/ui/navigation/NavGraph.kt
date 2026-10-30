@@ -68,6 +68,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.LinkOff
 import com.xerahs.android.core.ui.EmptyState
 import com.xerahs.android.core.ui.lumen.PillCta
@@ -118,7 +119,9 @@ sealed class Screen(val route: String) {
     data object BackupSettings : Screen("settings/backup")
     data object ImgurConfig : Screen("settings/imgur")
     data object S3Config : Screen("settings/s3")
-    data object FtpConfig : Screen("settings/ftp")
+    data object FtpConfig : Screen("settings/ftp?tab={tab}") {
+        fun createRoute(tab: String? = null) = if (tab == null) "settings/ftp" else "settings/ftp?tab=$tab"
+    }
     data object CustomHttpConfig : Screen("settings/custom-http")
     data object NativeDestinationConfig : Screen("settings/destination/{destination}") {
         fun createRoute(destination: UploadDestination) = "settings/destination/${destination.name}"
@@ -293,6 +296,7 @@ fun XerahSNavGraph(
                         Spacer(Modifier.size(24.dp))
                         PillCta(
                             text = "Back",
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
                             onClick = {
                                 if (!navController.popBackStack()) {
                                     navController.navigate(Screen.Home.route) {
@@ -448,7 +452,7 @@ fun XerahSNavGraph(
             UploadSettingsScreen(
                 onNavigateToImgurConfig = { navController.navigate(Screen.ImgurConfig.route) },
                 onNavigateToS3Config = { navController.navigate(Screen.S3Config.route) },
-                onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.route) },
+                onNavigateToFtpConfig = { navController.navigate(Screen.FtpConfig.createRoute()) },
                 onNavigateToCustomHttpConfig = { navController.navigate(Screen.CustomHttpConfig.route) },
                 onNavigateToImportUploader = { navController.navigate(Screen.UploaderImport.createRoute()) },
                 onNavigateToProfiles = { navController.navigate(Screen.ProfileManagement.route) },
@@ -537,7 +541,14 @@ fun XerahSNavGraph(
             }
         }
 
-        composable(Screen.FtpConfig.route) {
+        composable(
+            route = Screen.FtpConfig.route,
+            arguments = listOf(navArgument("tab") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) {
             BiometricGate(navController) {
                 FtpConfigScreen(onBack = { navController.popBackStack() })
             }
