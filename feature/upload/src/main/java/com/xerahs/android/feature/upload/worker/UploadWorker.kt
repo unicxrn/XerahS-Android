@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.work.HiltWorker
@@ -303,7 +305,7 @@ class UploadWorker @AssistedInject constructor(
         var file = source
         try {
             val result = try {
-                file = if (isProcessableImage(mimeType)) prepareFile(source) else source
+                file = if (isProcessableImage(mimeType)) prepareFile(source, mimeType) else source
                 val textInput = if (MimeTypes.isText(mimeType) && source.length() <= MAX_TEXT_INPUT_BYTES) {
                     source.readText()
                 } else ""
@@ -456,7 +458,7 @@ class UploadWorker @AssistedInject constructor(
     private fun isProcessableImage(mimeType: String): Boolean =
         MimeTypes.isRasterImage(mimeType) && !MimeTypes.isHeic(mimeType) && mimeType != "image/gif"
 
-    private suspend fun prepareFile(file: File): File {
+    private suspend fun prepareFile(file: File, sourceMime: String?): File {
         val quality = settingsRepository.getImageQuality().first()
         val maxDimension = settingsRepository.getMaxImageDimension().first()
         val uploadFormat = settingsRepository.getUploadFormat().first()
@@ -486,33 +488,36 @@ class UploadWorker @AssistedInject constructor(
             bitmap
         }
 
-        val compressFormat: Bitmap.CompressFormat
-        val extension: String
-        when (uploadFormat) {
-            ImageFormat.WEBP -> {
-                compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Bitmap.CompressFormat.WEBP_LOSSY
-                } else {
-                    @Suppress("DEPRECATION")
-                    Bitmap.CompressFormat.WEBP
+        val format = ReencodeFormat.choose(uploadFormat, sourceMime, processedBitmap.hasAlpha())
+        val compressFormat = when (format) {
+            ReencodeFormat.PNG -> Bitmap.CompressFormat.PNG
+            ReencodeFormat.JPEG -> Bitmap.CompressFormat.JPEG
+            ReencodeFormat.WEBP -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSY
+            } else {
+                @Suppress("DEPRECATION")
+                Bitmap.CompressFormat.WEBP
+            }
+        }
+        val extension = format.extension
+        // An explicit JPEG choice has no alpha: see-through areas go white, never black.
+        val output = if (format == ReencodeFormat.JPEG && processedBitmap.hasAlpha()) {
+            Bitmap.createBitmap(processedBitmap.width, processedBitmap.height, Bitmap.Config.ARGB_8888).also { flat ->
+                Canvas(flat).apply {
+                    drawColor(Color.WHITE)
+                    drawBitmap(processedBitmap, 0f, 0f, null)
                 }
-                extension = "webp"
+                processedBitmap.recycle()
             }
-            ImageFormat.JPEG -> {
-                compressFormat = Bitmap.CompressFormat.JPEG
-                extension = "jpg"
-            }
-            ImageFormat.ORIGINAL -> {
-                compressFormat = Bitmap.CompressFormat.JPEG
-                extension = "jpg"
-            }
+        } else {
+            processedBitmap
         }
 
         val tempFile = File(appContext.cacheDir, "upload_${System.currentTimeMillis()}.$extension")
         FileOutputStream(tempFile).use { out ->
-            processedBitmap.compress(compressFormat, quality, out)
+            output.compress(compressFormat, quality, out)
         }
-        processedBitmap.recycle()
+        output.recycle()
 
         if (stripExif) {
             try {
