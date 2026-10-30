@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -361,7 +362,7 @@ fun UploadSettingsScreen(
                         }
                     }
                     Text(
-                        text = "Resize images before uploading. 0 = no resize.",
+                        text = "Resize images before uploading.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
@@ -639,7 +640,7 @@ private fun ScreenshotSettings(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = { openAppSettings() }) { Text("Open app settings") }
+                TextButton(onClick = { openAppSettings() }, Modifier.offset(x = (-12).dp)) { Text("Open app settings") }
             }
         }
 
@@ -650,7 +651,7 @@ private fun ScreenshotSettings(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = { openAppSettings() }) { Text("Open app settings") }
+                TextButton(onClick = { openAppSettings() }, Modifier.offset(x = (-12).dp)) { Text("Open app settings") }
             }
         }
 
