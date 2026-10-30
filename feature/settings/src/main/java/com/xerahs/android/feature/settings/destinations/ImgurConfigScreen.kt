@@ -62,7 +62,7 @@ fun ImgurConfigScreen(
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Imgur Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "Imgur", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(

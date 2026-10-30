@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,7 +67,7 @@ fun FtpConfigScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var selectedTab by remember { mutableIntStateOf(viewModel.initialTab) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(viewModel.initialTab) }
     var isTesting by remember { mutableStateOf(false) }
     val savedHostKeys by viewModel.savedHostKeys.collectAsState()
 
@@ -113,7 +114,7 @@ fun FtpConfigScreen(
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "FTP / SFTP Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "FTP and SFTP", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(

@@ -85,7 +85,7 @@ fun S3ConfigScreen(
     }
 
     Scaffold(
-        topBar = { LumenTopBar(title = "Amazon S3 Configuration", onBack = onBack) },
+        topBar = { LumenTopBar(title = "Amazon S3", onBack = onBack) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
