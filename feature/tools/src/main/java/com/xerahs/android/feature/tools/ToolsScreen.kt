@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,6 +59,7 @@ enum class ToolId(val title: String, val subtitle: String, val icon: ImageVector
     HASH("Hash checker", "MD5, SHA-1, SHA-256", Icons.Default.Fingerprint),
     QR("QR decode", "Read a QR code from an image", Icons.Default.QrCodeScanner),
     COLOR("Color picker", "Pick colours from an image", Icons.Default.Colorize),
+    COMBINE("Combine images", "Stack images into one", Icons.Default.ViewAgenda),
 }
 
 @Composable

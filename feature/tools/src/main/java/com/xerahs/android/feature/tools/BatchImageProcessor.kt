@@ -1,11 +1,9 @@
 package com.xerahs.android.feature.tools
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import com.xerahs.android.core.common.image.BatchSizing
 import com.xerahs.android.core.common.image.EffectSettings
 import com.xerahs.android.core.common.image.ImageEffects
@@ -53,35 +51,5 @@ internal object BatchImageProcessor {
             if (bmp !== src) bmp.recycle()
             src.recycle()
         }
-    }
-
-    // Copies a processed file into Pictures/XerahS. Returns false below Android 10 or on failure;
-    // never throws (storage-full and similar I/O errors are swallowed).
-    fun saveToGallery(context: Context, file: File): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        return runCatching {
-            val mime = when (file.extension) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
-            val resolver = context.contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
-                put(MediaStore.Images.Media.MIME_TYPE, mime)
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/XerahS")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri == null) {
-                false
-            } else {
-                val copied = runCatching {
-                    resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } != null
-                }.getOrDefault(false)
-                if (copied) {
-                    resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
-                } else {
-                    resolver.delete(uri, null, null)
-                }
-                copied
-            }
-        }.getOrDefault(false)
     }
 }

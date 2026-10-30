@@ -55,6 +55,7 @@ import com.xerahs.android.feature.tools.HashScreen
 import com.xerahs.android.feature.tools.QrScreen
 import com.xerahs.android.feature.tools.ToolId
 import com.xerahs.android.feature.tools.ToolsScreen
+import com.xerahs.android.feature.tools.combine.CombineScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -150,6 +151,7 @@ sealed class Screen(val route: String) {
     data object ToolsHash : Screen("tools/hash")
     data object ToolsQr : Screen("tools/qr")
     data object ToolsColor : Screen("tools/color")
+    data object ToolsCombine : Screen("tools/combine")
 }
 
 @Composable
@@ -616,6 +618,7 @@ fun XerahSNavGraph(
                             ToolId.HASH -> Screen.ToolsHash.route
                             ToolId.QR -> Screen.ToolsQr.route
                             ToolId.COLOR -> Screen.ToolsColor.route
+                            ToolId.COMBINE -> Screen.ToolsCombine.route
                         }
                     )
                 }
@@ -646,6 +649,13 @@ fun XerahSNavGraph(
 
         composable(Screen.ToolsColor.route) {
             ColorPickerToolScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.ToolsCombine.route) {
+            CombineScreen(
+                onBack = { navController.popBackStack() },
+                onUpload = { path -> navController.navigate(Screen.Upload.createRoute(path)) }
+            )
         }
     }
 }

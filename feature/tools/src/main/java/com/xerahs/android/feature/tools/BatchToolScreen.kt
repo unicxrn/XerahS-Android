@@ -122,7 +122,7 @@ fun BatchToolScreen(onBack: () -> Unit, onUpload: (List<String>) -> Unit) {
                             ensureActive()
                             runCatching {
                                 val f = BatchImageProcessor.process(context, uri, options, outDir, i)
-                                val gallerySaved = BatchImageProcessor.saveToGallery(context, f)
+                                val gallerySaved = ToolOutput.saveToPictures(context, f)
                                 f to gallerySaved
                             }.onSuccess { (f, gallerySaved) -> done += f; if (gallerySaved) saved++ }
                                 .onFailure { failed++ }
