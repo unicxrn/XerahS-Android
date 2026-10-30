@@ -212,7 +212,7 @@ private fun StorageSection(
                 )
                 Text(
                     text = buildString {
-                        if (fileCount != null) append("$fileCount files - ")
+                        if (fileCount != null) append(if (fileCount == 1) "1 file - " else "$fileCount files - ")
                         append(totalSize.formatSize())
                     },
                     style = monoStyle(12),
@@ -240,7 +240,8 @@ private fun dirSize(dir: File): Long {
 
 private fun fileCount(dir: File): Int {
     if (!dir.exists()) return 0
-    return dir.listFiles()?.count { it.isFile } ?: 0
+    // Picks and shares sit in per-intake subfolders, so count the same files dirSize adds up.
+    return dir.walkTopDown().count { it.isFile }
 }
 
 private fun clearDir(dir: File) {
