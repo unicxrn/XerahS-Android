@@ -109,8 +109,9 @@ sealed class Screen(val route: String) {
     data object Annotation : Screen("annotation/{imagePath}") {
         fun createRoute(imagePath: String) = "annotation/${android.net.Uri.encode(imagePath)}"
     }
-    data object Upload : Screen("upload/{imagePath}") {
-        fun createRoute(imagePath: String) = "upload/${android.net.Uri.encode(imagePath)}"
+    data object Upload : Screen("upload/{imagePath}?profileId={profileId}") {
+        fun createRoute(imagePath: String, profileId: String? = null) =
+            "upload/${android.net.Uri.encode(imagePath)}" + profileQuery(profileId)
     }
     data object History : Screen("history")
     data object S3Explorer : Screen("s3explorer")
@@ -128,10 +129,11 @@ sealed class Screen(val route: String) {
     data object NativeDestinationConfig : Screen("settings/destination/{destination}") {
         fun createRoute(destination: UploadDestination) = "settings/destination/${destination.name}"
     }
-    data object UploaderImport : Screen("settings/import-uploader?uri={uri}") {
-        fun createRoute(uri: String? = null) =
-            if (uri == null) "settings/import-uploader"
-            else "settings/import-uploader?uri=${android.net.Uri.encode(uri)}"
+    data object UploaderImport : Screen("settings/import-uploader?path={path}") {
+        /** [path] is a config already copied into the cache, never a content URI. */
+        fun createRoute(path: String? = null) =
+            if (path == null) "settings/import-uploader"
+            else "settings/import-uploader?path=${android.net.Uri.encode(path)}"
     }
     data object StorageSettings : Screen("settings/storage")
     data object SecuritySettings : Screen("settings/security")
@@ -143,9 +145,9 @@ sealed class Screen(val route: String) {
     }
     data object AppUpdate : Screen("settings/updates")
     data object Licenses : Screen("settings/licenses")
-    data object UploadBatch : Screen("upload-batch/{imagePaths}") {
-        fun createRoute(imagePaths: List<String>) =
-            "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}"
+    data object UploadBatch : Screen("upload-batch/{imagePaths}?profileId={profileId}") {
+        fun createRoute(imagePaths: List<String>, profileId: String? = null) =
+            "upload-batch/${android.net.Uri.encode(imagePaths.joinToString("|"))}" + profileQuery(profileId)
     }
     data object Tools : Screen("tools")
     data object ToolsBatch : Screen("tools/batch")
@@ -157,6 +159,16 @@ sealed class Screen(val route: String) {
         fun createRoute(imagePath: String? = null) =
             if (imagePath == null) "tools/beautify" else "tools/beautify?imagePath=${android.net.Uri.encode(imagePath)}"
     }
+}
+
+/** Optional profile the Upload screen preselects (a direct share that still needs input). */
+private fun profileQuery(profileId: String?): String =
+    if (profileId == null) "" else "?profileId=${android.net.Uri.encode(profileId)}"
+
+private val profileIdArgument = navArgument("profileId") {
+    type = NavType.StringType
+    nullable = true
+    defaultValue = null
 }
 
 @Composable
@@ -377,7 +389,7 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.Upload.route,
-            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }),
+            arguments = listOf(navArgument("imagePath") { type = NavType.StringType }, profileIdArgument),
             enterTransition = {
                 slideInHorizontally(
                     animationSpec = tween(if (reduce) 0 else 320),
@@ -587,7 +599,7 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.UploaderImport.route,
-            arguments = listOf(navArgument("uri") {
+            arguments = listOf(navArgument("path") {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = null
@@ -603,7 +615,7 @@ fun XerahSNavGraph(
 
         composable(
             route = Screen.UploadBatch.route,
-            arguments = listOf(navArgument("imagePaths") { type = NavType.StringType })
+            arguments = listOf(navArgument("imagePaths") { type = NavType.StringType }, profileIdArgument)
         ) { backStackEntry ->
             val raw = backStackEntry.arguments?.getString("imagePaths") ?: ""
             val imagePaths = raw.split("|").filter { it.isNotBlank() }

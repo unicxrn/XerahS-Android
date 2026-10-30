@@ -139,7 +139,7 @@ class MainActivity : FragmentActivity() {
             val lockNeedsSetup by mainViewModel.lockNeedsSetup.collectAsState()
             val pendingSharedPaths by mainViewModel.pendingSharedPaths.collectAsState()
             val pendingLaunchCapture by mainViewModel.pendingLaunchCapture.collectAsState()
-            val pendingImportUri by mainViewModel.pendingImportUri.collectAsState()
+            val pendingImportPath by mainViewModel.pendingImportPath.collectAsState()
             val pendingDeepLink by mainViewModel.pendingDeepLink.collectAsState()
             val pendingSetupRoute by mainViewModel.pendingSetupRoute.collectAsState()
 
@@ -233,8 +233,8 @@ class MainActivity : FragmentActivity() {
                                 onSharedHandled = { mainViewModel.clearSharedPaths() },
                                 launchCapture = pendingLaunchCapture,
                                 onLaunchCaptureHandled = { mainViewModel.clearLaunchCapture() },
-                                importUri = pendingImportUri,
-                                onImportHandled = { mainViewModel.clearImportUri() },
+                                importPath = pendingImportPath,
+                                onImportHandled = { mainViewModel.clearImportPath() },
                                 deepLink = pendingDeepLink,
                                 onDeepLinkHandled = { mainViewModel.clearDeepLink() },
                                 setupRoute = pendingSetupRoute,
@@ -356,7 +356,7 @@ class MainActivity : FragmentActivity() {
         when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { uri ->
                 if (IntakeUriPolicy.isAllowed(uri, ownAuthorities)) {
-                    mainViewModel.setImportUri(uri.toString())
+                    mainViewModel.handleImport(uri)
                 } else {
                     toastUnreadable()
                 }
@@ -419,7 +419,7 @@ fun MainScreen(
     onSharedHandled: () -> Unit = {},
     launchCapture: Boolean = false,
     onLaunchCaptureHandled: () -> Unit = {},
-    importUri: String? = null,
+    importPath: String? = null,
     onImportHandled: () -> Unit = {},
     deepLink: String? = null,
     onDeepLinkHandled: () -> Unit = {},
@@ -443,6 +443,16 @@ fun MainScreen(
 
     LaunchedEffect(sharedPaths) {
         val paths = sharedPaths ?: return@LaunchedEffect
+        // A direct share that still needs input keeps its profile and skips the editor.
+        val profileId = mainViewModel.pendingSharedProfileId.value
+        if (profileId != null) {
+            navController.navigate(
+                paths.singleOrNull()?.let { Screen.Upload.createRoute(it, profileId) }
+                    ?: Screen.UploadBatch.createRoute(paths, profileId)
+            )
+            onSharedHandled()
+            return@LaunchedEffect
+        }
         val single = paths.singleOrNull()
         val editable = single != null && withContext(Dispatchers.IO) { EditorRouting.opensInEditor(single) }
         when {
@@ -462,9 +472,9 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(importUri) {
-        if (importUri != null) {
-            navController.navigate(Screen.UploaderImport.createRoute(importUri))
+    LaunchedEffect(importPath) {
+        if (importPath != null) {
+            navController.navigate(Screen.UploaderImport.createRoute(importPath))
             onImportHandled()
         }
     }
@@ -472,7 +482,7 @@ fun MainScreen(
     LaunchedEffect(setupRoute) {
         if (setupRoute != null) {
             // A share, import or link that is already waiting wins; the setup hint is dropped.
-            val otherPending = sharedPaths != null || importUri != null || deepLink != null
+            val otherPending = sharedPaths != null || importPath != null || deepLink != null
             if (!otherPending) navController.navigate(setupRoute)
             onSetupRouteHandled()
         }

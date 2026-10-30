@@ -63,16 +63,32 @@ class MainViewModel @Inject constructor(
     // Pending share intake, backed by SavedStateHandle so it survives rotation and process death.
     val pendingSharedPaths: StateFlow<List<String>?> =
         savedStateHandle.getStateFlow<ArrayList<String>?>(KEY_PATHS, null)
-    val pendingImportUri: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_IMPORT, null)
+    /** Profile the pending share must upload to (a direct share that still needs input), else null. */
+    val pendingSharedProfileId: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_SHARE_PROFILE, null)
+    /** Path of a copied uploader config (.sxcu) waiting for the import screen. */
+    val pendingImportPath: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_IMPORT, null)
     val pendingLaunchCapture: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_CAPTURE, false)
     val pendingDeepLink: StateFlow<String?> = savedStateHandle.getStateFlow<String?>(KEY_DEEP_LINK, null)
 
-    fun clearSharedPaths() { savedStateHandle[KEY_PATHS] = null }
-    /** Routes files that are already in app storage (a downloaded link, a text file) like a share. */
-    fun offerSharedPaths(paths: List<String>) { savedStateHandle[KEY_PATHS] = ArrayList(paths) }
-    fun clearImportUri() { savedStateHandle[KEY_IMPORT] = null }
+    fun clearSharedPaths() {
+        savedStateHandle[KEY_SHARE_PROFILE] = null
+        savedStateHandle[KEY_PATHS] = null
+    }
+    /**
+     * Routes files that are already in app storage (a downloaded link, a text file) like a share.
+     * With [profileId] they go straight to the Upload screen with that profile picked.
+     */
+    fun offerSharedPaths(paths: List<String>, profileId: String? = null) {
+        // Set the profile first so the paths collector never sees new paths with a stale profile.
+        savedStateHandle[KEY_SHARE_PROFILE] = profileId
+        savedStateHandle[KEY_PATHS] = ArrayList(paths)
+    }
+    fun clearImportPath() { savedStateHandle[KEY_IMPORT] = null }
     fun clearLaunchCapture() { savedStateHandle[KEY_CAPTURE] = false }
-    fun setImportUri(uri: String) { savedStateHandle[KEY_IMPORT] = uri }
+    /** An uploader config opened from another app: copied now, while the read grant still holds. */
+    fun handleImport(uri: Uri) {
+        viewModelScope.launch { importConfig(uri) }
+    }
     fun requestLaunchCapture() { savedStateHandle[KEY_CAPTURE] = true }
     fun setDeepLink(uri: String) { savedStateHandle[KEY_DEEP_LINK] = uri }
     fun clearDeepLink() { savedStateHandle[KEY_DEEP_LINK] = null }
@@ -87,13 +103,13 @@ class MainViewModel @Inject constructor(
             if (uri != null) {
                 val name = withContext(Dispatchers.IO) { displayName(uri) }
                 if (isUploaderConfig(name)) {
-                    savedStateHandle[KEY_IMPORT] = uri.toString()
+                    importConfig(uri)
                 } else {
                     intake(listOf(uri))
                 }
             } else if (text != null) {
                 withContext(Dispatchers.IO) { writeSharedText(text) }
-                    ?.let { savedStateHandle[KEY_PATHS] = arrayListOf(it) }
+                    ?.let { offerSharedPaths(listOf(it)) }
             }
         }
     }
@@ -153,7 +169,7 @@ class MainViewModel @Inject constructor(
             if (paths.isEmpty()) return@launch
             // A custom uploader that asks for values needs the Upload screen.
             if (asksForInput(profile)) {
-                offerSharedPaths(paths)
+                offerSharedPaths(paths, profile.id)
                 return@launch
             }
             UploadEnqueuer.enqueue(
@@ -182,7 +198,7 @@ class MainViewModel @Inject constructor(
         IntakeCopier<Uri>(::copyShared).intake(
             uris,
             onReady = { files, failed ->
-                savedStateHandle[KEY_PATHS] = ArrayList(files.map(File::getAbsolutePath))
+                offerSharedPaths(files.map(File::getAbsolutePath))
                 if (failed > 0) _intakeMessages.trySend(if (failed == 1) "1 file couldn't be read" else "$failed files couldn't be read")
             },
             onFailed = { e ->
@@ -191,6 +207,48 @@ class MainViewModel @Inject constructor(
                 )
             }
         )
+    }
+
+    /**
+     * Copies an uploader config into the cache now, while the read grant still holds, so the
+     * import screen reads a file of ours (also after process death) and never the URI.
+     */
+    private suspend fun importConfig(uri: Uri) {
+        val path = busy {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    // Keep the name: the importer tells .sxcu from .xsdc by its extension.
+                    val name = displayName(uri)?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "uploader.sxcu"
+                    val dir = File(context.cacheDir, "imports/${UUID.randomUUID()}").apply { mkdirs() }
+                    val file = File(dir, name)
+                    val ok = context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { out -> copyCapped(input, out) }
+                    } == true
+                    if (ok) file.absolutePath else {
+                        dir.deleteRecursively()
+                        null
+                    }
+                }.getOrNull()
+            }
+        }
+        if (path == null) {
+            _intakeMessages.trySend("Couldn't read that file")
+        } else {
+            savedStateHandle[KEY_IMPORT] = path
+        }
+    }
+
+    /** Copies at most [MAX_IMPORT_BYTES]; false when the input is larger (it is no uploader config). */
+    private fun copyCapped(input: java.io.InputStream, out: java.io.OutputStream): Boolean {
+        val buf = ByteArray(8 * 1024)
+        var total = 0L
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) return true
+            total += n
+            if (total > MAX_IMPORT_BYTES) return false
+            out.write(buf, 0, n)
+        }
     }
 
     private suspend fun <T> busy(block: suspend () -> T): T {
@@ -229,7 +287,9 @@ class MainViewModel @Inject constructor(
 
     private companion object {
         const val KEY_PATHS = "pendingSharedPaths"
-        const val KEY_IMPORT = "pendingImportUri"
+        const val KEY_IMPORT = "pendingImportPath"
+        const val KEY_SHARE_PROFILE = "pendingSharedProfileId"
+        const val MAX_IMPORT_BYTES = 1024 * 1024
         const val KEY_CAPTURE = "pendingLaunchCapture"
         const val KEY_DEEP_LINK = "pendingDeepLink"
         const val KEY_SETUP_ROUTE = "pendingSetupRoute"

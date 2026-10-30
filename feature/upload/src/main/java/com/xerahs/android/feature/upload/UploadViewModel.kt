@@ -2,6 +2,7 @@ package com.xerahs.android.feature.upload
 
 import android.content.Context
 import android.os.Build
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
@@ -139,7 +140,8 @@ class UploadViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val albumRepository: AlbumRepository,
     private val tagRepository: TagRepository,
-    private val profileRepository: UploadProfileRepository
+    private val profileRepository: UploadProfileRepository,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UploadUiState())
@@ -153,9 +155,16 @@ class UploadViewModel @Inject constructor(
     private var routes: Map<FileKind, String> = emptyMap()
     private var userPicked = false
 
+    // A direct share to a profile that needs input arrives with that profile; it counts as the
+    // user's own pick so routing never replaces it.
+    private val presetProfileId: String? = savedStateHandle.get<String>(ARG_PROFILE_ID)
+    private var profilesLoaded = false
+
     init {
+        if (presetProfileId != null) userPicked = true
         viewModelScope.launch {
             val defaultDest = settingsRepository.getDefaultDestination().first()
+            val preset = presetProfileId?.let { profileRepository.getProfile(it) }
             routes = FileKind.entries.mapNotNull { kind ->
                 settingsRepository.getRouteProfileId(kind).first()?.let { kind to it }
             }.toMap()
@@ -163,7 +172,8 @@ class UploadViewModel @Inject constructor(
                 settingsRepository.getCustomUploaderConfig().spec.destinationTypes
             }
             _uiState.value = _uiState.value.copy(
-                selectedDestination = defaultDest,
+                selectedDestination = preset?.destination ?: defaultDest,
+                selectedProfileId = preset?.id ?: _uiState.value.selectedProfileId,
                 globalCustomTypes = globalCustomTypes
             )
             applyRoute()
@@ -195,6 +205,7 @@ class UploadViewModel @Inject constructor(
                         }
                 }
                 _uiState.value = _uiState.value.copy(profiles = profiles, profileCustomTypes = customTypes)
+                profilesLoaded = true
                 applyRoute()
                 ensureAllowedSelection()
             }
@@ -252,6 +263,8 @@ class UploadViewModel @Inject constructor(
 
     /** If the current destination/profile can't take these files, fall back to one that can. */
     private fun ensureAllowedSelection() {
+        // Until profiles load a picked profile looks unknown; the profiles collector checks again.
+        if (!profilesLoaded) return
         val s = _uiState.value
         if (!s.isSelectionAllowed) {
             val (dest, profileId) = s.fallbackSelection()
@@ -422,5 +435,10 @@ class UploadViewModel @Inject constructor(
 
     fun consumeAfterUpload() {
         _uiState.value = _uiState.value.copy(pendingAfterUpload = null)
+    }
+
+    companion object {
+        /** Nav argument with the profile to preselect. */
+        const val ARG_PROFILE_ID = "profileId"
     }
 }

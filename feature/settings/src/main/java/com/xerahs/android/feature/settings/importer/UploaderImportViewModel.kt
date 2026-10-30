@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 data class SelectableDraft(val draft: ImportDraft, val selected: Boolean = true)
@@ -46,9 +47,34 @@ class UploaderImportViewModel @Inject constructor(
 
     private var pendingXsdc: ByteArray? = null
 
+    // A config opened from another app, already copied into our cache on intake.
+    private val importFile: File? = savedStateHandle.get<String>("path")
+        ?.takeIf { it.isNotBlank() }
+        ?.let(::File)
+        ?.takeIf { it.isInside(File(context.cacheDir, "imports")) }
+
     init {
-        savedStateHandle.get<String>("uri")?.takeIf { it.isNotBlank() }?.let { loadUri(Uri.parse(it)) }
+        importFile?.let(::loadFile)
     }
+
+    private fun loadFile(file: File) {
+        viewModelScope.launch {
+            _state.value = UploaderImportState.Loading
+            val read = withContext(Dispatchers.IO) { runCatching { file.readBytes() } }
+            read.fold(
+                onSuccess = { bytes -> handle(bytes, file.name) },
+                onFailure = { _state.value = UploaderImportState.Error("Couldn't read the file.") }
+            )
+        }
+    }
+
+    override fun onCleared() {
+        // The copy only lives as long as this screen.
+        importFile?.parentFile?.deleteRecursively()
+    }
+
+    private fun File.isInside(dir: File): Boolean =
+        canonicalFile.path.startsWith(dir.canonicalFile.path + File.separator)
 
     fun loadUri(uri: Uri) {
         viewModelScope.launch {
