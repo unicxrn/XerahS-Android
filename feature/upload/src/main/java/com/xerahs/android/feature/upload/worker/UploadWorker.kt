@@ -82,10 +82,19 @@ class UploadWorker @AssistedInject constructor(
                     // Android stops dataSync services after a daily limit on API 35: tell the user why.
                     WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> withContext(NonCancellable) {
                         val remaining = remainingSpec()
-                        UploadNotifier.failure(
-                            appContext, id, "Upload stopped by Android after running too long",
-                            canRetry = remaining != null, retry = remaining
-                        )
+                        val message = "Upload stopped by Android after running too long"
+                        UploadNotifier.failure(appContext, id, message, canRetry = remaining != null, retry = remaining)
+                        // WorkManager ignores a result after a stop, so leave the retry payload in the progress.
+                        // The queue shows this cancelled work under Failed with a Retry button.
+                        runCatching {
+                            setProgress(
+                                Data.Builder()
+                                    .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
+                                    .putString(KEY_ERROR_MESSAGE, message)
+                                    .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
+                                    .build()
+                            )
+                        }
                         progress.clear(id)
                         // Cancel so WorkManager does not reschedule the stopped batch.
                         WorkManager.getInstance(applicationContext).cancelWorkById(id)
@@ -154,9 +163,15 @@ class UploadWorker @AssistedInject constructor(
                     reportProgress(++finished, paths.size)
                 }
                 is FileOutcome.Duplicate -> {
+                    // Carry the whole remaining spec (this file included) so the queue can retry or skip it.
+                    val remaining = remainingSpec()
                     progress.clear(id)
                     return Result.failure(
-                        Data.Builder().putAll(outcome.output).putLong(KEY_FINISHED_AT, System.currentTimeMillis()).build()
+                        Data.Builder()
+                            .putAll(remaining?.let { UploadEnqueuer.inputData(it) } ?: Data.EMPTY)
+                            .putAll(outcome.output)
+                            .putLong(KEY_FINISHED_AT, System.currentTimeMillis())
+                            .build()
                     )
                 }
                 is FileOutcome.Failed -> return fail(outcome.result, spec.destination)

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
 import com.xerahs.android.feature.upload.worker.UploadEnqueuer
+import com.xerahs.android.feature.upload.worker.UploadSpec
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,13 +35,25 @@ class QueueViewModel @Inject constructor(
     }
 
     /** Re-enqueues what was left of a failed upload, then hides the old row. */
-    fun retry(item: QueueItem) {
-        val spec = item.retrySpec ?: return
-        UploadEnqueuer.enqueue(context, spec)
+    fun retry(item: QueueItem) = requeue(item, item.retrySpec)
+
+    /** Duplicate row: upload the file even though it is already in history. */
+    fun uploadAnyway(item: QueueItem) = requeue(item, item.uploadAnywaySpec())
+
+    /** Duplicate row: drop that file and upload the rest, if any. */
+    fun skipFile(item: QueueItem) {
+        val spec = item.skipFileSpec()
+        if (spec == null) hidden.update { it + item.id } else requeue(item, spec)
+    }
+
+    private fun requeue(item: QueueItem, spec: UploadSpec?) {
+        if (spec == null || item.id in hidden.value) return
+        // A fixed unique name makes a second tap a no-op even before the hidden set updates.
+        UploadEnqueuer.enqueue(context, spec, uniqueName = "retry-${item.id}")
         hidden.update { it + item.id }
     }
 
-    /** Drops finished rows. pruneWork() only removes work past its retention, so rows are also hidden here. */
+    /** Drops finished rows. pruneWork() removes finished work whatever its age (it ignores keepResultsForAtLeast), and rows are also hidden here so they go at once. */
     fun clearFinished() {
         val current = sections.value ?: return
         hidden.update { it + current.failed.map { i -> i.id } + current.done.map { i -> i.id } }

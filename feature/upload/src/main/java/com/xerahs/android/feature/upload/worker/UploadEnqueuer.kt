@@ -55,12 +55,24 @@ object UploadEnqueuer {
     const val TAG_DEST = "dest:"
     const val TAG_NAME = "name:"
     const val TAG_COUNT = "count:"
+    const val TAG_AT = "at:"
 
     /** WorkManager does not expose input data, so the queue reads these tags to label queued and running work. */
-    fun tagsFor(spec: UploadSpec): List<String> {
+    fun tagsFor(spec: UploadSpec, now: Long = System.currentTimeMillis()): List<String> {
         val paths = spec.paths.distinct()
-        val name = paths.first().substringAfterLast('/').take(80)
-        return listOf(TAG_DEST + spec.destination.name, TAG_NAME + name, TAG_COUNT + paths.size)
+        return listOf(
+            TAG_DEST + spec.destination.name,
+            TAG_NAME + trimName(paths.first().substringAfterLast('/')),
+            TAG_COUNT + paths.size,
+            TAG_AT + now,
+        )
+    }
+
+    /** Cuts a name to at most [max] chars without splitting a surrogate pair. */
+    fun trimName(name: String, max: Int = 80): String {
+        if (name.length <= max) return name
+        val end = if (Character.isHighSurrogate(name[max - 1])) max - 1 else max
+        return name.substring(0, end)
     }
 
     fun inputData(spec: UploadSpec): Data {
@@ -80,7 +92,7 @@ object UploadEnqueuer {
     }
 
     /** Enqueues a tagged, uniquely named upload so it can be listed and cancelled. Returns the work id. */
-    fun enqueue(context: Context, spec: UploadSpec): UUID {
+    fun enqueue(context: Context, spec: UploadSpec, uniqueName: String? = null): UUID {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(
                 if (spec.destination == UploadDestination.LOCAL) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED
@@ -95,7 +107,7 @@ object UploadEnqueuer {
             .apply { tagsFor(spec).forEach { addTag(it) } }
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniqueWork("upload-${request.id}", ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(uniqueName ?: "upload-${request.id}", ExistingWorkPolicy.KEEP, request)
         return request.id
     }
 }

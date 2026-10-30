@@ -79,7 +79,7 @@ class QueueSectionsTest {
         assertEquals(1, s.running.size)
     }
 
-    @Test fun duplicateFailureRetriesWithoutTheDuplicateCheck() {
+    @Test fun duplicateFailureOffersUploadAnywayOnly() {
         val out = Data.Builder()
             .putBoolean(UploadWorker.KEY_DUPLICATE_FOUND, true)
             .putString(UploadWorker.KEY_FILE_PATH, "/c/cat.png")
@@ -87,7 +87,8 @@ class QueueSectionsTest {
             .build()
         val item = QueueSections.build(listOf(info(WorkInfo.State.FAILED, out)), now, emptySet()).failed.single()
         assertEquals("Already uploaded", item.error)
-        assertTrue(item.retrySpec!!.skipDuplicateCheck)
+        assertTrue(!item.retrySpec!!.skipDuplicateCheck)
+        assertTrue(item.uploadAnywaySpec()!!.skipDuplicateCheck)
     }
 
     @Test fun nothingActiveMeansEmptyAndNoRetryWithoutOutput() {
@@ -95,5 +96,78 @@ class QueueSectionsTest {
         val bare = QueueSections.build(listOf(info(WorkInfo.State.FAILED)), now, emptySet()).failed.single()
         assertNull(bare.retrySpec)
         assertNotNull(bare.error)
+    }
+}
+
+class QueueDuplicateRetryTest {
+    private val now = 1_000_000_000L
+    private val spec = UploadSpec(
+        listOf("/c/1.png", "/c/2.png", "/c/3.png"), UploadDestination.S3,
+        profileId = "p1", albumId = "a1", tagIds = listOf("t1"),
+    )
+
+    private fun duplicateItem(): QueueItem {
+        // What the worker writes when file 2 is a duplicate: the full remaining spec plus the duplicate keys.
+        val remaining = spec.copy(paths = listOf("/c/2.png", "/c/3.png"))
+        val out = Data.Builder()
+            .putAll(UploadEnqueuer.inputData(remaining))
+            .putBoolean(UploadWorker.KEY_DUPLICATE_FOUND, true)
+            .putString(UploadWorker.KEY_DUPLICATE_URL, "https://x/2.png")
+            .putString(UploadWorker.KEY_FILE_PATH, "/c/2.png")
+            .putLong(UploadWorker.KEY_FINISHED_AT, now)
+            .build()
+        val info = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, setOf(UPLOAD_WORK_TAG) + UploadEnqueuer.tagsFor(spec, now), out, Data.EMPTY)
+        return QueueSections.build(listOf(info), now, emptySet()).failed.single()
+    }
+
+    @Test fun uploadAnywayKeepsFilesProfileAndAlbum() {
+        val s = duplicateItem().uploadAnywaySpec()!!
+        assertEquals(listOf("/c/2.png", "/c/3.png"), s.paths)
+        assertEquals("p1", s.profileId)
+        assertEquals("a1", s.albumId)
+        assertTrue(s.skipDuplicateCheck)
+    }
+
+    @Test fun skipDropsOnlyTheDuplicate() {
+        val item = duplicateItem()
+        val s = item.skipFileSpec()!!
+        assertEquals(listOf("/c/3.png"), s.paths)
+        assertEquals("p1", s.profileId)
+        assertEquals("a1", s.albumId)
+        assertEquals(false, s.skipDuplicateCheck)
+        assertEquals(2, item.remaining)
+    }
+
+    @Test fun plainRetryNeverSkipsTheDuplicateCheck() {
+        val s = duplicateItem().retrySpec!!
+        assertEquals(listOf("/c/2.png", "/c/3.png"), s.paths)
+        assertEquals(false, s.skipDuplicateCheck)
+    }
+
+    @Test fun cancelledWorkWithRetryPayloadShowsAsFailed() {
+        val payload = Data.Builder()
+            .putAll(UploadEnqueuer.inputData(spec.copy(paths = listOf("/c/3.png"))))
+            .putString(UploadWorker.KEY_ERROR_MESSAGE, "Upload stopped by Android after running too long")
+            .putLong(UploadWorker.KEY_FINISHED_AT, now)
+            .build()
+        val info = WorkInfo(UUID.randomUUID(), WorkInfo.State.CANCELLED, setOf(UPLOAD_WORK_TAG), Data.EMPTY, payload)
+        val item = QueueSections.build(listOf(info), now, emptySet()).failed.single()
+        assertEquals(listOf("/c/3.png"), item.retrySpec!!.paths)
+    }
+
+    @Test fun waitingSortsByEnqueueTimeAndFailedHonoursTheWindow() {
+        fun waiting(at: Long) = WorkInfo(UUID.randomUUID(), WorkInfo.State.ENQUEUED,
+            setOf(UPLOAD_WORK_TAG) + UploadEnqueuer.tagsFor(spec, at), Data.EMPTY, Data.EMPTY)
+        val late = waiting(30); val early = waiting(10)
+        val old = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, setOf(UPLOAD_WORK_TAG), Data.Builder()
+            .putLong(UploadWorker.KEY_FINISHED_AT, now - 25 * 3_600_000L).build(), Data.EMPTY)
+        val s = QueueSections.build(listOf(late, early, old), now, emptySet())
+        assertEquals(listOf(early.id, late.id), s.waiting.map { it.id })
+        assertTrue(s.failed.isEmpty())
+    }
+
+    @Test fun nameTrimDoesNotSplitSurrogatePairs() {
+        val name = "a".repeat(79) + "😀"
+        assertEquals(79, UploadEnqueuer.trimName(name).length)
     }
 }

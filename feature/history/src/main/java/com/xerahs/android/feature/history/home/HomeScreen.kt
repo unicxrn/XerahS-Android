@@ -106,7 +106,7 @@ fun HomeScreen(
     onStats: () -> Unit = {},
     onHistory: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
-    activeUploads: Boolean = false,
+    activeUploads: Int = 0,
     onSetUp: (UploadDestination) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -158,10 +158,10 @@ fun HomeScreen(
                     Box {
                         CircleIconButton(
                             Icons.Outlined.CloudUpload,
-                            if (activeUploads) "Upload queue, uploads in progress" else "Upload queue",
+                            if (activeUploads > 0) "Uploads, $activeUploads running" else "Uploads",
                             onOpenQueue
                         )
-                        if (activeUploads) {
+                        if (activeUploads > 0) {
                             Box(
                                 Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).size(10.dp)
                                     .background(MaterialTheme.colorScheme.primary, CircleShape)

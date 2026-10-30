@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.work.WorkManager
 import com.xerahs.android.feature.upload.worker.UPLOAD_WORK_TAG
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -158,8 +159,9 @@ fun XerahSNavGraph(
     val appContext = LocalContext.current.applicationContext
     val activeUploads by remember {
         WorkManager.getInstance(appContext).getWorkInfosByTagFlow(UPLOAD_WORK_TAG)
-            .map { list -> list.any { !it.state.isFinished } }
-    }.collectAsState(initial = false)
+            .map { list -> list.count { !it.state.isFinished } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = 0)
     val globalDuration = if (reduce) 0 else 300
 
     NavHost(
