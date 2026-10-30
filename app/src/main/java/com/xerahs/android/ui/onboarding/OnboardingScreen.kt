@@ -1,10 +1,17 @@
 package com.xerahs.android.ui.onboarding
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -91,7 +98,19 @@ fun OnboardingScreen(
                 .align(Alignment.TopEnd)
                 .offset(x = 80.dp, y = (-100).dp)
         )
-        OnboardingContent(
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (landscape) OnboardingLandscape(
+            selected = selected,
+            onSelect = {
+                selected = it
+                onSelectDestination(it)
+            },
+            onComplete = {
+                onSelectDestination(selected)
+                onComplete(selected)
+            },
+            onSkip = { onComplete(null) }
+        ) else OnboardingContent(
             selected = selected,
             onSelect = {
                 selected = it
@@ -103,6 +122,86 @@ fun OnboardingScreen(
             },
             onSkip = { onComplete(null) }
         )
+    }
+}
+
+/** Landscape: welcome and the action on the left, the destinations in two columns on the right. */
+@Composable
+private fun OnboardingLandscape(
+    selected: UploadDestination,
+    onSelect: (UploadDestination) -> Unit,
+    onComplete: () -> Unit,
+    onSkip: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(start = 28.dp, end = 12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(0.8f)
+                .fillMaxHeight()
+                .padding(end = 24.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    append("Xerah")
+                    withStyle(SpanStyle(color = Lumen.tokens.ink)) { append("S") }
+                },
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Turn any image into a shareable link in seconds.",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            PillCta(text = "Get started", onClick = onComplete)
+        }
+        Column(modifier = Modifier.weight(1.2f).fillMaxHeight()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Where should your images go?",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onSkip, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(text = "Skip", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                destinationOptions.chunked(2).forEach { pair ->
+                    // Same height for both cards in a row, whatever their descriptions wrap to.
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { option ->
+                            DestinationRow(
+                                option = option,
+                                isSelected = selected == option.destination,
+                                onClick = { onSelect(option.destination) },
+                                modifier = Modifier.weight(1f).fillMaxHeight()
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -211,14 +310,15 @@ private fun OnboardingContent(
 private fun DestinationRow(
     option: DestinationOption,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Lumen.tokens.hairline
     val containerColor = if (isSelected) Lumen.tokens.tint else MaterialTheme.colorScheme.surface
     val hostColor = option.destination.hostColor()
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(16.dp))
